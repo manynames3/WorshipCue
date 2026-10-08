@@ -10,6 +10,7 @@ app = root / 'apps/ipad'
 project = app / 'WorshipCue.xcodeproj'
 parsed = json.loads(subprocess.check_output(['plutil', '-convert', 'json', '-o', '-', str(project/'project.pbxproj')]))
 objects = parsed['objects']
+test_paths = {p.name: p.parent for folder in ['WorshipCueTests', 'WorshipCueUITests'] for p in (app/folder).glob('*.swift')}
 for name, folder in [('WorshipCue','WorshipCue'), ('WorshipCueTests','WorshipCueTests'), ('WorshipCueUITests','WorshipCueUITests')]:
     target = next(v for v in objects.values() if v.get('isa') == 'PBXNativeTarget' and v['name']==name)
     phase = next(objects[key] for key in target['buildPhases'] if objects[key]['isa']=='PBXSourcesBuildPhase')
@@ -22,7 +23,7 @@ for value in objects.values():
         assert (app/value['relativePath']/'Package.swift').is_file()
     if value.get('isa') == 'PBXFileReference' and value.get('sourceTree') != 'BUILT_PRODUCTS_DIR':
         path = value['path']
-        parent = app/'WorshipCueTests' if path in ['NativeInkTests.swift','TeamWorkspaceTests.swift'] else app/'WorshipCueUITests' if path=='MusicStandUITests.swift' else app/'WorshipCue'
+        parent = test_paths.get(path, app/'WorshipCue')
         if path.startswith('../../') or path.startswith('Configuration/'): parent=app
         assert (parent/path).exists(), path
 for name, expected_tests in [('WorshipCue',1),('WorshipCueUI',2)]:

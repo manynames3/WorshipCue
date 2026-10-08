@@ -23,6 +23,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -240,6 +241,13 @@ class Runner:
         query = '?team_id=' + urllib.parse.quote(team) if team else ''
         return self.api('/rest/v1/' + name + query, role, method='GET')
 
+    def assert_chart_isolation(self, team, church, required_ids, forbidden_ids):
+        rows = self.rows('chart_versions', 'member', team)
+        require(isinstance(rows, list) and all(isinstance(row, dict) and isinstance(row.get('id'), str)
+                and row.get('team_id') == team and row.get('church_id') == church for row in rows), 'CROSS_TEAM_CATALOG_EXPOSED')
+        ids = {row['id'] for row in rows}
+        require(len(ids) == len(rows) and set(required_ids) <= ids and ids.isdisjoint(forbidden_ids), 'CROSS_TEAM_CATALOG_EXPOSED')
+
     def denial(self, name, payload, role='member', code='ACCESS_REVOKED'):
         try:
             self.rpc(name, payload, role)
@@ -247,6 +255,100 @@ class Runner:
             require(error.code == code, 'WRONG_DENIAL_CODE')
             return
         raise Failure('UNAUTHORIZED_OPERATION_SUCCEEDED')
+
+    def chat_rooms(self, team, role='admin'):
+        rooms, after = [], None
+        for _ in range(20):
+            payload = {'team_id': team, 'selected_team_id': team, 'room_limit': 100}
+            if after:
+                payload['after_setlist_id'] = after
+            page = self.rpc('get_chat_rooms', payload, role)
+            require(page['team_id'] == team and isinstance(page['rooms'], list), 'INVALID_CHAT_ROOMS_RESPONSE')
+            rooms.extend(page['rooms'])
+            if not page.get('has_more'):
+                return rooms, page.get('block_revision', 0)
+            after = page.get('next_setlist_id')
+            require(after, 'CHAT_ROOMS_CURSOR_MISSING')
+        raise Failure('CHAT_ROOMS_QUALIFICATION_BOUND_EXCEEDED')
+
+    def paged_catalog(self, team, role='member', limit=25):
+        keys = ('songs', 'chart_versions', 'assets', 'setlists', 'performance_items', 'personal_preferences')
+        result, cursor, seen, pages = {key: [] for key in keys}, None, set(), []
+        for _ in range(1000):
+            payload = {'team_id': team, 'selected_team_id': team, 'limit': limit}
+            if cursor:
+                payload['cursor'] = cursor
+            page = self.rpc('get_team_catalog_page', payload, role)
+            require(page.get('schema_version') == 1 and page['team_id'] == team and all(isinstance(page.get(key), list) for key in keys), 'PAGED_CATALOG_SHAPE_WRONG')
+            require(sum(len(page[key]) for key in keys) <= limit and len(json.dumps(page, separators=(',', ':')).encode()) <= 512 * 1024,
+                'PAGED_CATALOG_BOUND_EXCEEDED')
+            for key in keys:
+                result[key].extend(page[key])
+            pages.append(page)
+            cursor = page.get('next_cursor')
+            if cursor is None:
+                return result, pages
+            require(isinstance(cursor, dict) and cursor['schema_version'] == 1 and cursor['team_id'] == team and cursor['table'] in keys
+                and re.fullmatch('[0-9a-f]{64}', cursor['scope_token']), 'PAGED_CATALOG_CURSOR_WRONG')
+            cursor_key = json.dumps(cursor, sort_keys=True)
+            require(cursor_key not in seen, 'PAGED_CATALOG_CURSOR_LOOP')
+            seen.add(cursor_key)
+        raise Failure('PAGED_CATALOG_QUALIFICATION_BOUND_EXCEEDED')
+
+    def account_export(self, team, role='member'):
+        keys = ('memberships', 'personal_preferences', 'annotation_layers', 'annotation_heads', 'annotation_revisions',
+                'assets', 'chat_messages', 'chat_preferences', 'chat_blocks')
+        result, cursor, seen = {key: [] for key in keys}, None, set()
+        for _ in range(1000):
+            payload = {'team_id': team, 'selected_team_id': team, 'limit': 25}
+            if cursor:
+                payload['cursor'] = cursor
+            page = self.rpc('get_account_export_page', payload, role)
+            require(page['schema_version'] == 1 and page['owner_user_id'] == self.state['users'][role]['id'] and page['team_id'] == team
+                and page['export_scope'] == 'current_authorized_team' and all(isinstance(page.get(key), list) for key in keys), 'ACCOUNT_EXPORT_SHAPE_WRONG')
+            require(sum(len(page[key]) for key in keys) <= 25 and len(json.dumps(page, separators=(',', ':')).encode()) <= 512 * 1024,
+                'ACCOUNT_EXPORT_BOUND_EXCEEDED')
+            for key in keys:
+                result[key].extend(page[key])
+            cursor = page['next_cursor']
+            if cursor is None:
+                return result
+            encoded = json.dumps(cursor, sort_keys=True)
+            require(encoded not in seen, 'ACCOUNT_EXPORT_CURSOR_LOOP')
+            seen.add(encoded)
+        raise Failure('ACCOUNT_EXPORT_QUALIFICATION_BOUND_EXCEEDED')
+
+    def chat_messages(self, team, setlist=None, role='admin', after=0, block_revision=0):
+        messages, last, reset_seen = {}, None, False
+        for _ in range(20):
+            page = self.rpc('get_chat_snapshot', {'team_id': team, 'setlist_id': setlist,
+                'after_revision': after, 'known_block_revision': block_revision}, role)
+            require(isinstance(page['messages'], list), 'INVALID_CHAT_SNAPSHOT_RESPONSE')
+            for message in page['messages']:
+                messages[message['id']] = message
+            reset_seen = reset_seen or page.get('reset', page.get('full_reset', False))
+            last = page
+            after, block_revision = page['revision'], page['block_revision']
+            if not page.get('has_more'):
+                last['reset_seen'] = reset_seen
+                return messages, last
+        raise Failure('CHAT_SNAPSHOT_QUALIFICATION_BOUND_EXCEEDED')
+
+    def chat_report(self, team, report_id, role='admin'):
+        after = None
+        for _ in range(20):
+            payload = {'team_id': team, 'status': 'all', 'limit': 100}
+            if after:
+                payload['after_report_id'] = after
+            page = self.rpc('get_chat_reports', payload, role)
+            found = next((r for r in page['reports'] if r['report_id'] == report_id), None)
+            if found:
+                return found
+            if not page.get('has_more'):
+                break
+            after = page.get('next_report_id')
+            require(after, 'CHAT_REPORTS_CURSOR_MISSING')
+        raise Failure('CHAT_REPORT_NOT_FOUND')
 
     def test(self, name, work):
         try:
@@ -421,7 +523,7 @@ class Runner:
         self.test('published_pdf_download_integrity', lambda: require(self.download(a_asset, 'member') == self.fixture_pdf()))
 
         def isolation():
-            require({v['id'] for v in self.rows('chart_versions', 'member')} == {a_chart['id'], other_a_chart['id']}, 'CROSS_TEAM_CATALOG_EXPOSED')
+            self.assert_chart_isolation(team, workspace['church_id'], {a_chart['id'], other_a_chart['id']}, {b_chart['id'], c_chart['id']})
             for target in (other, outside['team_id']):
                 self.denial('get_team_roster', {'team_id': target})
                 self.denial('create_song', {'team_id': target, 'command_id': str(uuid.uuid4()), 'canonical_title': 'Forbidden synthetic request'})
@@ -463,7 +565,9 @@ class Runner:
 
         def chat():
             duplicate = self.rpc('send_chat_message', self.state['commands']['chat-first'], 'member')
-            require(duplicate == first_chat, 'CHAT_DUPLICATE_ID_CHANGED')
+            # Pre-upgrade messages acquire nullable link fields when read; identity remains immutable.
+            expected = {**first_chat, 'chart_version_id': first_chat.get('chart_version_id'), 'chart_title': first_chat.get('chart_title')}
+            require(duplicate == expected, 'CHAT_DUPLICATE_ID_CHANGED')
             snapshot = self.rpc('get_chat_snapshot', {'team_id': team, 'after_revision': 0}, 'member')
             require(sum(m['id'] == first_chat['id'] for m in snapshot['messages']) == 1, 'CHAT_DUPLICATE_STORED')
             catchup = self.rpc('get_chat_snapshot', {'team_id': team, 'after_revision': snapshot['revision']}, 'member')
@@ -512,6 +616,290 @@ class Runner:
             self.denial('get_team_catalog', {'team_id': other, 'selected_team_id': other})
             self.denial('get_team_catalog', {'team_id': outside['team_id'], 'selected_team_id': outside['team_id']})
         self.test('aggregated_catalog_preserves_member_guest_and_team_isolation', aggregate_catalog)
+
+        chat_scope = {'team_id': team, 'setlist_id': first_set['id']}
+        chat_key = 'advanced-chat-' + attempt
+        advanced = {}
+        def chat_rooms_unread():
+            _, initial = self.chat_messages(team, first_set['id'])
+            self.rpc('mark_chat_read', {**chat_scope, 'revision': initial['latest_revision']})
+            message = self.ensure(chat_key + '-send', 'send_chat_message', {**chat_scope,
+                'body': 'Synthetic linked rehearsal message', 'chart_version_id': a_chart['id']}, 'member')
+            advanced['message'] = message
+            require(message['chart_version_id'] == a_chart['id'] and message['chart_title'] == a_song['canonical_title'], 'CHAT_LINK_METADATA_MISMATCH')
+            self.ensure(chat_key + '-self-send', 'send_chat_message', {**chat_scope, 'body': 'Synthetic administrator reply'})
+            rooms, _ = self.chat_rooms(team)
+            room = next(r for r in rooms if r['setlist_id'] == first_set['id'])
+            require(room['unread_count'] == 1 and room['unread_complete'], 'CHAT_UNREAD_CREATION_COUNT_WRONG')
+            edited = self.ensure(chat_key + '-edit', 'edit_chat_message', {**chat_scope,
+                'message_id': message['id'], 'expected_revision': message['revision'], 'body': 'Synthetic edited rehearsal message'}, 'member')
+            pinned = self.ensure(chat_key + '-pin', 'pin_chat_message', {**chat_scope,
+                'message_id': message['id'], 'expected_revision': edited['revision'], 'pinned': True})
+            advanced.update(edited=edited, pinned=pinned)
+            rooms, _ = self.chat_rooms(team)
+            room = next(r for r in rooms if r['setlist_id'] == first_set['id'])
+            require(room['unread_count'] == 1, 'CHAT_EDIT_OR_PIN_INFLATED_UNREAD')
+            self.denial('pin_chat_message', {**chat_scope, 'message_id': message['id'], 'pinned': False,
+                'expected_revision': pinned['revision'], 'command_id': str(uuid.uuid4())})
+            self.denial('edit_chat_message', {**chat_scope, 'message_id': message['id'], 'expected_revision': message['revision'],
+                'body': 'Synthetic stale edit', 'command_id': str(uuid.uuid4())}, code='REVISION_CONFLICT')
+            self.rpc('mark_chat_read', {**chat_scope, 'revision': room['latest_revision']})
+            self.ensure(chat_key + '-mute', 'mute_chat', {**chat_scope, 'muted': True})
+            rooms, _ = self.chat_rooms(team)
+            room = next(r for r in rooms if r['setlist_id'] == first_set['id'])
+            require(room['unread_count'] == 0 and room['muted'], 'CHAT_READ_OR_MUTE_NOT_PERSISTED')
+        self.test('advanced_chat_rooms_creation_unread_edits_pins_and_preferences', chat_rooms_unread)
+
+        def chat_moderation():
+            message = advanced['message']
+            payload = {**chat_scope, 'message_id': message['id'], 'reason': 'Synthetic moderation qualification'}
+            report = self.ensure(chat_key + '-report', 'report_chat_message', payload, 'member')
+            require(report == self.rpc('report_chat_message', self.state['commands'][chat_key + '-report'], 'member'), 'CHAT_REPORT_DUPLICATED')
+            self.denial('get_chat_reports', {'team_id': team})
+            visible = self.chat_report(team, report['report_id'])
+            require(visible['status'] == 'open' and visible['revision'] == 1 and visible['setlist_id'] == first_set['id']
+                and visible['message']['id'] == message['id'], 'CHAT_MODERATION_REFERENCE_WRONG')
+            resolve = {'team_id': team, 'report_id': report['report_id'], 'expected_revision': 1, 'status': 'resolved'}
+            self.denial('resolve_chat_report', {**resolve, 'command_id': str(uuid.uuid4())})
+            resolved = self.ensure(chat_key + '-resolve', 'resolve_chat_report', resolve)
+            require(resolved['status'] == 'resolved' and resolved['revision'] == 2, 'CHAT_REPORT_RESOLUTION_NOT_DURABLE')
+            replay = self.rpc('resolve_chat_report', self.state['commands'][chat_key + '-resolve'])
+            require(replay['report_id'] == resolved['report_id'] and replay['revision'] == 2, 'CHAT_RESOLUTION_RECEIPT_CHANGED')
+            self.denial('resolve_chat_report', {**resolve, 'command_id': str(uuid.uuid4())}, 'admin', 'REVISION_CONFLICT')
+            self.denial('resolve_chat_report', {**resolve, 'expected_revision': 2, 'status': 'dismissed',
+                'command_id': str(uuid.uuid4())}, 'admin', 'REPORT_CLOSED')
+            require(self.chat_report(team, report['report_id'])['status'] == 'resolved', 'CHAT_RESOLVED_REPORT_MISSING')
+            advanced['report'] = report
+        self.test('advanced_chat_moderation_roles_resolution_cas_and_receipts', chat_moderation)
+
+        def chat_blocking():
+            member_id = self.state['users']['member']['id']
+            _, before = self.chat_messages(team, first_set['id'])
+            block = self.ensure(chat_key + '-block', 'block_chat_member', {'team_id': team, 'user_id': member_id, 'blocked': True})
+            try:
+                messages, hidden = self.chat_messages(team, first_set['id'], after=before['revision'], block_revision=before['block_revision'])
+                require(hidden['reset_seen'] and hidden['block_revision'] == block['block_revision']
+                    and member_id in hidden['blocked_author_ids'], 'CHAT_BLOCK_GENERATION_WRONG')
+                redacted = messages.get(advanced['message']['id'])
+                require(redacted and redacted.get('hidden') and redacted['body'] == '' and redacted['chart_version_id'] is None
+                    and redacted['chart_title'] is None, 'CHAT_BLOCK_EXPOSED_BODY_OR_LINK')
+                old_pin = self.rpc('pin_chat_message', self.state['commands'][chat_key + '-pin'])
+                require(old_pin.get('hidden') and old_pin['body'] == '' and old_pin['chart_version_id'] is None, 'CHAT_OLD_PIN_RECEIPT_EXPOSED_BODY')
+                rooms, _ = self.chat_rooms(team)
+                require(next(r for r in rooms if r['setlist_id'] == first_set['id'])['unread_count'] == 0, 'CHAT_BLOCKED_UNREAD_WRONG')
+            finally:
+                unblocked = self.rpc('block_chat_member', self.command(chat_key + '-unblock', {'team_id': team, 'user_id': member_id, 'blocked': False}))
+                self.rpc('mute_chat', self.command(chat_key + '-unmute', {**chat_scope, 'muted': False}))
+            restored, page = self.chat_messages(team, first_set['id'], after=before['revision'], block_revision=block['block_revision'])
+            require(page['reset_seen'] and unblocked['block_revision'] > block['block_revision']
+                and restored[advanced['message']['id']]['body'] == advanced['edited']['body'],
+                'CHAT_UNBLOCK_DID_NOT_RESTORE_BODY')
+            deleted = self.ensure(chat_key + '-delete', 'delete_chat_message', {**chat_scope,
+                'message_id': advanced['message']['id'], 'expected_revision': advanced['pinned']['revision']})
+            replay = self.rpc('send_chat_message', self.state['commands'][chat_key + '-send'], 'member')
+            require(replay['id'] == deleted['id'] and replay['deleted'] and replay['body'] == '' and replay['chart_version_id'] is None,
+                'CHAT_OLD_SEND_RECEIPT_RESURRECTED_BODY')
+            moderation = self.rpc('resolve_chat_report', self.state['commands'][chat_key + '-resolve'])
+            require(moderation['message']['deleted'] and moderation['message']['body'] == '', 'CHAT_MODERATION_RECEIPT_RESURRECTED_BODY')
+            self.denial('send_chat_message', {**chat_scope, 'reply_to_id': deleted['id'], 'body': 'Synthetic deleted reply',
+                'command_id': str(uuid.uuid4())}, code='MESSAGE_DELETED')
+        self.test('advanced_chat_block_unblock_redaction_and_deleted_receipts', chat_blocking)
+
+        def chat_isolation():
+            for role, target in [('member', other), ('member', outside['team_id']), ('outside', team), ('guest', team)]:
+                self.denial('get_chat_rooms', {'team_id': target}, role)
+                self.denial('get_chat_reports', {'team_id': target}, role)
+            for role in ('member', 'guest'):
+                self.denial('resolve_chat_report', {'team_id': team, 'report_id': advanced['report']['report_id'],
+                    'expected_revision': 2, 'status': 'dismissed', 'command_id': str(uuid.uuid4())}, role)
+            self.denial('send_chat_message', {**chat_scope, 'body': 'Synthetic mixed-team link', 'chart_version_id': b_chart['id'],
+                'command_id': str(uuid.uuid4())}, 'admin')
+            self.denial('send_chat_message', {'team_id': team, 'setlist_id': other_set['id'], 'reply_to_id': advanced['message']['id'],
+                'body': 'Synthetic mixed-room reply', 'command_id': str(uuid.uuid4())}, 'admin')
+            self.denial('get_chat_rooms', {'team_id': other, 'selected_team_id': team}, 'admin')
+            self.denial('report_chat_message', {**chat_scope, 'message_id': advanced['message']['id'], 'reason': 'Synthetic guest report',
+                'command_id': str(uuid.uuid4())}, 'guest')
+            self.denial('block_chat_member', {'team_id': team, 'user_id': self.state['users']['admin']['id'], 'blocked': True,
+                'command_id': str(uuid.uuid4())}, 'guest')
+        self.test('advanced_chat_chart_links_room_scope_and_guest_tenant_denials', chat_isolation)
+
+        # Administration uses a fresh synthetic workspace per attempt. The established
+        # qualification workspace and normal user teams are never demoted or removed.
+        admin_key = 'administration-' + attempt
+        admin_workspace = self.ensure(admin_key + '-workspace', 'create_church_and_default_team', {
+            'display_name': 'Synthetic Administration ' + attempt, 'timezone': 'UTC', 'member_display_name': 'Synthetic Founder'})
+        admin_team = admin_workspace['team_id']
+        join_invite = self.ensure(admin_key + '-join-invite', 'create_invitation', {'team_id': admin_team, 'permitted_role': 'member',
+            'expires_at': (datetime.now(timezone.utc) + timedelta(days=6)).isoformat(), 'max_uses': 1})
+        self.ensure(admin_key + '-join', 'redeem_invitation', {'token': join_invite['token'], 'display_name': 'Synthetic New Member'}, 'member')
+        administration = {}
+        def roster(role='admin', inactive=False):
+            value = self.rpc('get_team_roster', {'team_id': admin_team, 'include_inactive': inactive}, role)
+            require(value['team_id'] == admin_team and all(m['team_id'] == admin_team for m in value['members']), 'ADMIN_ROSTER_SCOPE_WRONG')
+            return {m['user_id']: m for m in value['members']}
+
+        def profile_admin():
+            members = roster()
+            founder, musician = members[self.state['users']['admin']['id']], members[self.state['users']['member']['id']]
+            require(founder['display_name'] == 'Synthetic Founder' and musician['display_name'] == 'Synthetic New Member', 'ONBOARDING_NAME_WRONG')
+            payload = {'team_id': admin_team, 'user_id': founder['user_id'], 'display_name': 'Synthetic Pianist', 'expected_revision': musician['revision']}
+            renamed = self.ensure(admin_key + '-rename', 'set_member_display_name', payload, 'member')
+            require(renamed['user_id'] == musician['user_id'] and renamed['display_name'] == 'Synthetic Pianist', 'PROFILE_OWNER_MISMATCH')
+            require(renamed == self.rpc('set_member_display_name', self.state['commands'][admin_key + '-rename'], 'member'), 'PROFILE_RECEIPT_CHANGED')
+            self.denial('set_member_display_name', {**payload, 'command_id': str(uuid.uuid4())}, 'member', 'REVISION_CONFLICT')
+            self.denial('get_team_roster', {'team_id': admin_team, 'include_inactive': True})
+            for role in ('outside', 'guest'):
+                self.denial('get_team_roster', {'team_id': admin_team}, role)
+            administration['musician'] = renamed
+        self.test('admin_onboarding_owner_display_name_roster_cas_and_receipts', profile_admin)
+
+        def invitations_admin():
+            invite = self.ensure(admin_key + '-revoke-invite', 'create_invitation', {'team_id': admin_team, 'permitted_role': 'leader',
+                'expires_at': (datetime.now(timezone.utc) + timedelta(days=6)).isoformat(), 'max_uses': 1})
+            self.ensure(admin_key + '-spare-invite', 'create_invitation', {'team_id': admin_team, 'permitted_role': 'member',
+                'expires_at': (datetime.now(timezone.utc) + timedelta(days=6)).isoformat(), 'max_uses': 2})
+            rows, after = [], None
+            for _ in range(10):
+                payload = {'team_id': admin_team, 'limit': 1}
+                if after:
+                    payload['after_invitation_id'] = after
+                page = self.rpc('get_team_invitations', payload)
+                require(len(page['invitations']) <= 1, 'INVITATION_PAGE_BOUND_WRONG')
+                rows.extend(page['invitations'])
+                if not page['has_more']:
+                    break
+                after = page['next_invitation_id']
+            else:
+                raise Failure('INVITATION_PAGING_BOUND_EXCEEDED')
+            encoded = json.dumps(rows)
+            require(all('token' not in row and 'token_hash' not in row and row['team_id'] == admin_team for row in rows)
+                and invite['token'] not in encoded and len(rows) == 3, 'INVITATION_SECRET_OR_SCOPE_EXPOSED')
+            selected = next(row for row in rows if row['id'] == invite['invitation_id'])
+            revoke = {'team_id': admin_team, 'invitation_id': selected['id'], 'expected_revision': selected['revision']}
+            result = self.ensure(admin_key + '-revoke', 'revoke_invitation', revoke)
+            require(result['revoked'] and result == self.rpc('revoke_invitation', self.state['commands'][admin_key + '-revoke']), 'INVITATION_REVOKE_RECEIPT_CHANGED')
+            self.denial('revoke_invitation', {**revoke, 'command_id': str(uuid.uuid4())}, 'admin', 'REVISION_CONFLICT')
+            self.denial('redeem_invitation', {'token': invite['token']}, 'outside')
+            self.denial('get_team_invitations', {'team_id': admin_team})
+            self.denial('get_team_invitations', {'team_id': other, 'selected_team_id': admin_team}, 'admin')
+            listed = self.rpc('get_team_invitations', {'team_id': admin_team})['invitations']
+            require(next(row for row in listed if row['id'] == selected['id'])['status'] == 'revoked', 'INVITATION_REVOKED_NOT_VISIBLE')
+        self.test('admin_invitation_pagination_revocation_cas_receipts_and_secret_omission', invitations_admin)
+
+        def role_concurrency():
+            admin_id, member_id = self.state['users']['admin']['id'], self.state['users']['member']['id']
+            musician = roster()[member_id]
+            promote = {'team_id': admin_team, 'user_id': member_id, 'role': 'admin', 'expected_revision': musician['revision']}
+            self.denial('set_member_role', {**promote, 'command_id': str(uuid.uuid4())}, 'member')
+            promoted = self.ensure(admin_key + '-promote', 'set_member_role', promote)
+            require(promoted['role'] == 'admin' and promoted == self.rpc('set_member_role', self.state['commands'][admin_key + '-promote']), 'ROLE_PROMOTION_RECEIPT_CHANGED')
+            self.denial('set_member_role', {**promote, 'role': 'leader', 'command_id': str(uuid.uuid4())}, 'admin', 'REVISION_CONFLICT')
+            before = roster()
+            def demote(role):
+                user = self.state['users'][role]['id']
+                payload = self.command(admin_key + '-race-' + role, {'team_id': admin_team, 'user_id': user, 'role': 'leader', 'expected_revision': before[user]['revision']})
+                try:
+                    return self.rpc('set_member_role', payload, role)
+                except Failure as error:
+                    require(error.code in ('REVISION_CONFLICT', 'TEAM_ADMIN_REQUIRED'), 'ADMIN_RACE_WRONG_FAILURE')
+                    return error.code
+            # Prepare stable IDs before parallel network calls; state writes are serial.
+            for role in ('admin', 'member'):
+                user = self.state['users'][role]['id']
+                self.command(admin_key + '-race-' + role, {'team_id': admin_team, 'user_id': user, 'role': 'leader', 'expected_revision': before[user]['revision']})
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                outcomes = list(pool.map(demote, ('admin', 'member')))
+            require(sum(isinstance(o, dict) for o in outcomes) == 1, 'ADMIN_RACE_DID_NOT_FENCE_ONE')
+            after = roster()
+            remaining = [m for m in after.values() if m['active'] and m['role'] == 'admin']
+            require(len(remaining) == 1, 'FINAL_ADMIN_LOST')
+            remaining_role = 'admin' if remaining[0]['user_id'] == admin_id else 'member'
+            self.denial('set_member_role', {'team_id': admin_team, 'user_id': remaining[0]['user_id'], 'role': 'member',
+                'expected_revision': remaining[0]['revision'], 'command_id': str(uuid.uuid4())}, remaining_role, 'TEAM_ADMIN_REQUIRED')
+            defeated = next(m for m in after.values() if m['role'] == 'leader')
+            self.ensure(admin_key + '-restore-admin', 'set_member_role', {'team_id': admin_team, 'user_id': defeated['user_id'],
+                'role': 'admin', 'expected_revision': defeated['revision']}, remaining_role)
+            administration['before_handoff'] = roster()
+        self.test('admin_roles_concurrent_last_admin_fencing_cas_and_receipts', role_concurrency)
+
+        def handoff_membership():
+            admin_id, member_id = self.state['users']['admin']['id'], self.state['users']['member']['id']
+            before = administration['before_handoff']
+            payload = {'team_id': admin_team, 'user_id': member_id, 'expected_self_revision': before[admin_id]['revision'],
+                'expected_member_revision': before[member_id]['revision']}
+            result = self.ensure(admin_key + '-handoff', 'handoff_team_admin', payload)
+            require([m['role'] for m in result['members']] == ['leader', 'admin'], 'ADMIN_HANDOFF_NOT_ATOMIC')
+            require(result == self.rpc('handoff_team_admin', self.state['commands'][admin_key + '-handoff']), 'ADMIN_HANDOFF_RECEIPT_CHANGED')
+            self.denial('handoff_team_admin', {**payload, 'command_id': str(uuid.uuid4())}, 'admin')
+            removed = self.ensure(admin_key + '-remove', 'set_membership_active', {'team_id': admin_team, 'user_id': admin_id,
+                'active': False, 'expected_revision': result['members'][0]['revision']}, 'member')
+            require(not removed['active'] and removed == self.rpc('set_membership_active', self.state['commands'][admin_key + '-remove'], 'member'), 'MEMBER_REMOVAL_RECEIPT_CHANGED')
+            self.denial('get_team_roster', {'team_id': admin_team}, 'admin')
+            self.denial('handoff_team_admin', self.state['commands'][admin_key + '-handoff'], 'admin')
+            inactive = roster('member', True)
+            require(not inactive[admin_id]['active'] and admin_id not in roster('member'), 'INACTIVE_ROSTER_WRONG')
+            self.denial('set_membership_active', {'team_id': admin_team, 'user_id': admin_id, 'active': True,
+                'expected_revision': before[admin_id]['revision'], 'command_id': str(uuid.uuid4())}, 'member', 'REVISION_CONFLICT')
+        self.test('admin_atomic_handoff_removed_member_denial_and_inactive_roster', handoff_membership)
+
+        def bounded_catalog():
+            for index in range(105):
+                self.ensure(admin_key + '-archive-' + str(index), 'create_song', {'team_id': admin_team,
+                    'canonical_title': 'Synthetic Archive ' + str(index)}, 'member')
+            _, _, granted_chart = self.chart(admin_key + '-guest-archive', admin_team, 'member')
+            guest_set = self.ensure(admin_key + '-guest-setlist', 'create_setlist', {'team_id': admin_team, 'title': 'Synthetic Granted Service', 'timezone': 'UTC'}, 'member')
+            self.ensure(admin_key + '-guest-items', 'save_setlist', {'setlist_id': guest_set['id'], 'base_revision': 0, 'items': [{
+                'id': str(uuid.uuid4()), 'song_id': granted_chart['song_id'], 'team_chart_version_id': granted_chart['id'],
+                'performance_key': 'G', 'position': 0, 'kind': 'planned'}]}, 'member')
+            guest_invite = self.ensure(admin_key + '-guest-invite', 'create_invitation', {'team_id': admin_team, 'permitted_role': 'guest',
+                'setlist_id': guest_set['id'], 'expires_at': (datetime.now(timezone.utc) + timedelta(days=6)).isoformat(), 'max_uses': 1}, 'member')
+            self.ensure(admin_key + '-guest-redeem', 'redeem_invitation', {'token': guest_invite['token']}, 'guest')
+            scoped, _ = self.paged_catalog(admin_team, 'guest')
+            require({s['id'] for s in scoped['songs']} == {granted_chart['song_id']} and {v['id'] for v in scoped['chart_versions']} == {granted_chart['id']}
+                and {s['id'] for s in scoped['setlists']} == {guest_set['id']}, 'LARGE_ARCHIVE_GUEST_SCOPE_WRONG')
+            for role, catalog_team in [('member', admin_team), ('member', team), ('guest', team), ('admin', team)]:
+                catalog, pages = self.paged_catalog(catalog_team, role, limit=25)
+                for key in catalog:
+                    expected = [] if key == 'personal_preferences' and role == 'guest' else self.rows(key, role, catalog_team)
+                    sort_key = lambda row: row.get('id', row.get('song_id'))
+                    require(sorted(catalog[key], key=sort_key) == sorted(expected, key=sort_key), 'PAGED_CATALOG_SCOPE_MISMATCH')
+                if role == 'admin':
+                    private = self.state['receipts']['personal-native-asset']
+                    require(private['id'] not in json.dumps(pages) and private['storage_key'] not in json.dumps(pages), 'PAGED_CURSOR_EXPOSED_PRIVATE_ASSET')
+            page = self.rpc('get_team_catalog_page', {'team_id': admin_team, 'limit': 1}, 'member')
+            cursor = page['next_cursor']
+            self.denial('get_team_catalog_page', {'team_id': admin_team, 'cursor': cursor}, 'outside')
+            self.denial('get_team_catalog_page', {'team_id': team, 'cursor': cursor}, 'member', 'INVALID_CURSOR')
+            current = roster('member')[self.state['users']['member']['id']]
+            self.ensure(admin_key + '-catalog-name', 'set_member_display_name', {'team_id': admin_team,
+                'display_name': 'Synthetic Archive Musician', 'expected_revision': current['revision']}, 'member')
+            self.denial('get_team_catalog_page', {'team_id': admin_team, 'cursor': cursor}, 'member', 'CATALOG_CHANGED')
+            other_owner = self.rpc('get_team_catalog_page', {'team_id': team, 'limit': 1}, 'member')['next_cursor']
+            self.denial('get_team_catalog_page', {'team_id': team, 'cursor': other_owner}, 'admin', 'INVALID_CURSOR')
+        self.test('bounded_catalog_105_song_archive_exact_scope_opaque_cursor_and_role_fence', bounded_catalog)
+
+        def own_data_export():
+            before = self.rpc('get_account_preflight', {}, 'member')
+            require(before['owner_user_id'] == self.state['users']['member']['id'] and not before['delete_supported']
+                and admin_team in {t['team_id'] for t in before['teams']}, 'ACCOUNT_PREFLIGHT_IDENTITY_WRONG')
+            removed = self.rpc('get_account_preflight', {}, 'admin')
+            require(removed['unavailable_team_count'] >= 1 and admin_team not in {t['team_id'] for t in removed['teams']}, 'ACCOUNT_PREFLIGHT_UNAVAILABLE_TEAM_MISSING')
+            exported = self.account_export(team, 'member')
+            owner = self.state['users']['member']['id']
+            require(all(m['user_id'] == owner for m in exported['memberships'] + exported['personal_preferences'] + exported['chat_preferences'] + exported['chat_blocks']), 'ACCOUNT_EXPORT_OTHER_OWNER_STATE')
+            require(all(m['author_id'] == owner and (not m['deleted'] or m['body'] == '') for m in exported['chat_messages']), 'ACCOUNT_EXPORT_OTHER_OR_DELETED_CHAT_BODY')
+            require(all(a['owner_user_id'] == owner and a['type'] in ('native', 'preview') and a.get('verified') is True for a in exported['assets']), 'ACCOUNT_EXPORT_UNVERIFIED_OR_SHARED_FILES')
+            expected = {self.state['receipts'][key]['id'] for key in ('personal-native-asset', 'personal-preview-asset')}
+            require({a['id'] for a in exported['assets']} == expected, 'ACCOUNT_EXPORT_PERSONAL_FILE_MANIFEST_WRONG')
+            admin_export = self.account_export(team, 'admin')
+            require(not admin_export['assets'] and not admin_export['annotation_revisions'], 'ACCOUNT_EXPORT_ADMIN_READ_PRIVATE_INK')
+            for role, target in [('guest', team), ('outside', team), ('admin', admin_team)]:
+                self.denial('get_account_export_page', {'team_id': target}, role)
+            self.denial('get_account_preflight', {}, 'guest')
+            page = self.rpc('get_account_export_page', {'team_id': team}, 'member')
+            self.denial('get_account_export_page', {'team_id': team, 'cursor': page['next_cursor']}, 'admin', 'INVALID_CURSOR')
+            self.denial('get_team_catalog_page', {'team_id': team, 'cursor': page['next_cursor']}, 'member', 'INVALID_CURSOR')
+        self.test('owner_data_preflight_personal_manifest_deleted_chat_and_revoked_team_exclusion', own_data_export)
 
         def live_calls():
             device = self.state.setdefault('live_device', str(uuid.uuid4())); self.save()
@@ -611,11 +999,59 @@ class Runner:
         self.state['last_qualification'] = {'passed': self.passed, 'at': datetime.now(timezone.utc).isoformat()}; self.save()
 
 
+def self_test():
+    import unittest
+    class CatalogIsolationTests(unittest.TestCase):
+        team, church = 'synthetic-team', 'synthetic-church'
+        required, forbidden = {'chart-one', 'chart-two'}, {'foreign-chart'}
+
+        def check(self, rows):
+            runner = object.__new__(Runner)
+            queried = []
+            def fake_rows(name, role='admin', team=None):
+                queried.append((name, role, team))
+                return rows
+            runner.rows = fake_rows
+            runner.assert_chart_isolation(self.team, self.church, self.required, self.forbidden)
+            self.assertEqual([('chart_versions', 'member', self.team)], queried)
+
+        def baseline(self):
+            return [dict(id=value, team_id=self.team, church_id=self.church) for value in sorted(self.required)]
+
+        def test_valid_extra_same_team_chart_and_explicit_query(self):
+            self.check(self.baseline() + [dict(id='extra-chart', team_id=self.team, church_id=self.church)])
+
+        def test_foreign_team_and_church_are_rejected(self):
+            for team, church in (('other-team', self.church), (self.team, 'other-church')):
+                with self.subTest(team=team, church=church), self.assertRaises(Failure):
+                    self.check(self.baseline() + [dict(id='extra-chart', team_id=team, church_id=church)])
+
+        def test_known_foreign_id_cannot_spoof_team_metadata(self):
+            with self.assertRaises(Failure):
+                self.check(self.baseline() + [dict(id='foreign-chart', team_id=self.team, church_id=self.church)])
+
+        def test_missing_baseline_is_rejected(self):
+            with self.assertRaises(Failure):
+                self.check(self.baseline()[:1])
+
+        def test_duplicate_chart_is_rejected(self):
+            with self.assertRaises(Failure):
+                self.check(self.baseline() + self.baseline()[:1])
+
+    result = unittest.TextTestRunner().run(unittest.defaultTestLoader.loadTestsFromTestCase(CatalogIsolationTests))
+    return 0 if result.wasSuccessful() else 1
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config', type=Path, required=True)
-    parser.add_argument('--state-directory', type=Path, required=True)
+    parser.add_argument('--config', type=Path)
+    parser.add_argument('--state-directory', type=Path)
+    parser.add_argument('--self-test', action='store_true', help='Check catalog-isolation assertions without cloud access')
     args = parser.parse_args()
+    if args.self_test:
+        return self_test()
+    if not args.config or not args.state_directory:
+        parser.error('--config and --state-directory are required for hosted qualification')
     try:
         Runner(args.config, args.state_directory).qualify()
         return 0

@@ -133,6 +133,7 @@ public actor RemoteAPI {
             if ["REVISION_CONFLICT", "STALE_SEQUENCE", "STALE_EPOCH", "STALE_CALL", "STALE_CONTROLLER", "SESSION_ENDED", "IDEMPOTENCY_CONFLICT", "LEASE_HELD"].contains(code ?? "") { throw RemoteError.conflict }
             if ["ACCESS_REVOKED", "ASSET_NOT_AUTHORIZED"].contains(code ?? "") { throw RemoteError.forbidden }
             if ["AUTH_REQUIRED"].contains(code ?? "") { throw RemoteError.authentication }
+            if code == "TEAM_ADMIN_REQUIRED" { throw RemoteError.server("TEAM_ADMIN_REQUIRED") }
             switch h.statusCode {
             case 401: throw RemoteError.authentication
             case 403: throw RemoteError.forbidden
@@ -167,13 +168,37 @@ public actor RemoteAPI {
     }
     public func teamCatalog(token: String, teamID: UUID) async throws -> RemoteJSON {
         guard configuration.provider == .aws else { throw RemoteError.configuration }
-        let value = try await rpc("get_team_catalog", token: token,
-            ["team_id": .id(teamID), "selected_team_id": .id(teamID)])
-        guard case .object = value else { throw RemoteError.invalidResponse }
-        for key in ["songs", "chart_versions", "assets", "setlists", "performance_items", "personal_preferences"] {
-            guard case .array = value[key] else { throw RemoteError.invalidResponse }
+        let keys = ["songs", "chart_versions", "assets", "setlists", "performance_items", "personal_preferences"]
+        var accumulated = Dictionary(uniqueKeysWithValues: keys.map { ($0, [RemoteJSON]()) })
+        var cursor: RemoteJSON?, seen = Set<UUID>(), scopeToken: String?, bytes = 0, rowCount = 0
+        for _ in 0..<1_000 {
+            try Task.checkCancellation()
+            var payload: [String: RemoteJSON] = ["team_id": .id(teamID), "selected_team_id": .id(teamID), "limit": .int(100)]
+            if let cursor { payload["cursor"] = cursor }
+            let value = try await rpc("get_team_catalog_page", token: token, payload)
+            guard case .object(let page) = value, value["schema_version"].integer == 1,
+                  value["team_id"].uuid == teamID, page["next_cursor"] != nil else { throw RemoteError.invalidResponse }
+            bytes += try JSONEncoder().encode(value).count
+            var pageRows = 0
+            for key in keys {
+                guard case .array(let rows) = value[key] else { throw RemoteError.invalidResponse }
+                pageRows += rows.count
+                accumulated[key, default: []].append(contentsOf: rows)
+            }
+            guard pageRows <= 100 else { throw RemoteError.invalidResponse }
+            rowCount += pageRows
+            guard bytes <= 64 * 1024 * 1024, rowCount <= 50_000 else { throw RemoteError.tooLarge }
+            let next = value["next_cursor"]
+            if next == .null { return .object(accumulated.mapValues(RemoteJSON.array)) }
+            guard case .object = next, next["schema_version"].integer == 1, next["team_id"].uuid == teamID,
+                  let table = next["table"].text, keys.contains(table), let key = next["after_key"].uuid,
+                  let scope = next["scope_token"].text, scope.count == 64,
+                  scope.allSatisfy({ "0123456789abcdef".contains($0) }), seen.insert(key).inserted,
+                  scopeToken == nil || scopeToken == scope else { throw RemoteError.invalidResponse }
+            scopeToken = scope
+            cursor = next
         }
-        return value
+        throw RemoteError.tooLarge
     }
     public func sendOTP(email: String) async throws {
         otpChallenge = nil

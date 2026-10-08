@@ -31,6 +31,11 @@ struct MusicStandScreen: View {
             // The normal user's files and bookmarks are never opened/reset by UI test launches.
             testRoot = support.appendingPathComponent("WorshipCueUITests").appendingPathComponent(run.uuidString)
         }
+        if testRoot == nil, ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil,
+           let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            // Hosted native tests also isolate app startup, before any normal chart/session can be restored.
+            testRoot = support.appendingPathComponent("WorshipCueHostedTests").appendingPathComponent(UUID().uuidString)
+        }
         if testRoot != nil, arguments.contains("--ui-test-inspector") {
             _inspectorPresented = State(initialValue: true)
         }

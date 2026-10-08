@@ -192,21 +192,89 @@ final class RemoteAPITests: XCTestCase {
         }
         _ = try await api.rows("songs", token: "account", teamID: team)
     }
+    private func catalogPage(team: UUID, songs: [RemoteJSON] = [], cursor: RemoteJSON = .null) -> RemoteJSON {
+        .object(["schema_version": .int(1), "team_id": .id(team), "next_cursor": cursor,
+            "songs": .array(songs), "chart_versions": .array([]), "assets": .array([]),
+            "setlists": .array([]), "performance_items": .array([]), "personal_preferences": .array([])])
+    }
+    private func catalogCursor(team: UUID, scope: String = String(repeating: "a", count: 64)) -> RemoteJSON {
+        .object(["schema_version": .int(1), "team_id": .id(team), "table": .string("songs"),
+            "after_key": .id(UUID()), "scope_token": .string(scope)])
+    }
     func testAWSCatalogUsesOneRequestWithExactSelectedTeam() async throws {
         let api = try awsAPI(), team = UUID()
-        let catalog: RemoteJSON = .object(["songs": .array([]), "chart_versions": .array([]), "assets": .array([]),
-            "setlists": .array([]), "performance_items": .array([]), "personal_preferences": .array([])])
         nonisolated(unsafe) var requests = 0
         StubProtocol.handler = { request in
             requests += 1
-            XCTAssertEqual(request.httpMethod, "POST"); XCTAssertEqual(request.url!.path, "/rest/v1/rpc/get_team_catalog")
+            XCTAssertEqual(request.httpMethod, "POST"); XCTAssertEqual(request.url!.path, "/rest/v1/rpc/get_team_catalog_page")
             XCTAssertNil(request.value(forHTTPHeaderField: "apikey")); XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer account")
             let body = try JSONDecoder().decode(RemoteJSON.self, from: Self.body(request))
-            XCTAssertEqual(body["p"], .object(["team_id": .id(team), "selected_team_id": .id(team)]))
-            return (200, catalog)
+            XCTAssertEqual(body["p"], .object(["team_id": .id(team), "selected_team_id": .id(team), "limit": .int(100)]))
+            return (200, self.catalogPage(team: team))
         }
         let result = try await api.teamCatalog(token: "account", teamID: team)
-        XCTAssertEqual(result, catalog); XCTAssertEqual(requests, 1)
+        XCTAssertEqual(result["songs"], .array([])); XCTAssertEqual(requests, 1)
+    }
+    func testAWSCatalogForwardsOpaqueCursorAndAcceptsEmptyAdvancingPage() async throws {
+        let api = try awsAPI(), team = UUID(), first = catalogCursor(team: team), second = catalogCursor(team: team)
+        let song: RemoteJSON = .object(["id": .id(UUID()), "title": .string("Synthetic chart")])
+        nonisolated(unsafe) var requests = 0
+        StubProtocol.handler = { request in
+            let payload = try JSONDecoder().decode(RemoteJSON.self, from: Self.body(request))["p"]
+            requests += 1
+            switch requests {
+            case 1: XCTAssertEqual(payload["cursor"], .null); return (200, self.catalogPage(team: team, songs: [song], cursor: first))
+            case 2: XCTAssertEqual(payload["cursor"], first); return (200, self.catalogPage(team: team, cursor: second))
+            default: XCTAssertEqual(payload["cursor"], second); return (200, self.catalogPage(team: team, songs: [song]))
+            }
+        }
+        let result = try await api.teamCatalog(token: "account", teamID: team)
+        XCTAssertEqual(result["songs"], .array([song, song])); XCTAssertEqual(requests, 3)
+    }
+    func testAWSCatalogAssemblesMoreThanFourMiBAcrossBoundedPages() async throws {
+        let api = try awsAPI(), team = UUID()
+        let rows = (0..<10).map { RemoteJSON.object(["id": .id(UUID()), "title": .string("Synthetic \($0)"), "test_padding": .string(String(repeating: "x", count: 48_000))]) }
+        nonisolated(unsafe) var requests = 0
+        StubProtocol.handler = { _ in
+            requests += 1
+            let page = self.catalogPage(team: team, songs: rows, cursor: requests < 10 ? self.catalogCursor(team: team) : .null)
+            XCTAssertLessThan(try JSONEncoder().encode(page).count, 512 * 1024)
+            return (200, page)
+        }
+        let result = try await api.teamCatalog(token: "account", teamID: team)
+        XCTAssertEqual(result["songs"].list.count, 100)
+        XCTAssertGreaterThan(try JSONEncoder().encode(result).count, 4 * 1024 * 1024)
+    }
+    func testAWSCatalogRejectsCursorLoopForeignScopeAndOversizedPage() async throws {
+        let api = try awsAPI(), team = UUID(), cursor = catalogCursor(team: team)
+        let badPages = [catalogPage(team: team, cursor: cursor),
+            catalogPage(team: UUID()), catalogPage(team: team, cursor: catalogCursor(team: UUID())),
+            catalogPage(team: team, cursor: catalogCursor(team: team, scope: String(repeating: "b", count: 64))),
+            catalogPage(team: team, songs: Array(repeating: .null, count: 101)),
+            catalogPage(team: team, cursor: .object(["after_key": .string("raw-private-key")]))]
+        for bad in badPages {
+            nonisolated(unsafe) var requests = 0
+            StubProtocol.handler = { _ in
+                requests += 1
+                return (200, requests == 1 ? self.catalogPage(team: team, cursor: cursor) : bad)
+            }
+            do { _ = try await api.teamCatalog(token: "account", teamID: team); XCTFail("Invalid continuation accepted") }
+            catch { XCTAssertEqual(error as? RemoteError, .invalidResponse) }
+            XCTAssertEqual(requests, 2)
+        }
+    }
+    func testAWSCatalogNeverReturnsPartialRowsAfterLaterFailure() async throws {
+        let api = try awsAPI(), team = UUID()
+        for status in [403, 409, 503] {
+            nonisolated(unsafe) var requests = 0
+            StubProtocol.handler = { _ in
+                requests += 1
+                if requests == 1 { return (200, self.catalogPage(team: team, songs: [.object(["id": .id(UUID())])], cursor: self.catalogCursor(team: team))) }
+                return (status, .object(["message": .string(status == 409 ? "CATALOG_CHANGED" : "failed")]))
+            }
+            do { _ = try await api.teamCatalog(token: "account", teamID: team); XCTFail("Partial rows returned") }
+            catch { XCTAssertEqual(error as? RemoteError, status == 403 ? .forbidden : status == 409 ? .conflict : .unavailable) }
+        }
     }
     func testAWSCatalogRejectsIncompletePayloadInsteadOfClearingCachedRows() async throws {
         let api = try awsAPI()

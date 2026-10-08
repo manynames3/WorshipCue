@@ -7,6 +7,7 @@ import time
 import uuid
 
 from domain import APIError
+from mail_feedback import address_hash, suppressed
 
 
 class Authentication:
@@ -17,9 +18,10 @@ class Authentication:
 
     @staticmethod
     def username(email):
-        if not isinstance(email, str) or len(email) > 254 or email.count('@') != 1 or any(c.isspace() for c in email):
-            raise APIError('INVALID_INPUT')
-        return 'member_' + hashlib.sha256(email.strip().lower().encode()).hexdigest()
+        try:
+            return 'member_' + address_hash(email)
+        except ValueError:
+            raise APIError('INVALID_INPUT') from None
 
     @staticmethod
     def email(body):
@@ -75,6 +77,8 @@ class Authentication:
         if not self.email_ready:
             raise APIError('EMAIL_SENDER_NOT_READY', 503)
         email = self.email(body)
+        if suppressed(self.domain.store, email):
+            raise APIError('EMAIL_DELIVERY_UNAVAILABLE', 503)
         username = self.username(email)
         try:
             self.cognito.admin_create_user(UserPoolId=self.pool, Username=username,

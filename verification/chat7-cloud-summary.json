@@ -1,0 +1,79 @@
+{
+  "version": "v2 Build 7",
+  "aws_unit_tests": {
+    "passed": 185,
+    "failed": 0
+  },
+  "final_hosted_scenarios": {
+    "passed": 27,
+    "failed": 0
+  },
+  "device_native": {
+    "executed": 86,
+    "passed": 85,
+    "skipped": 1,
+    "failed": 0
+  },
+  "private_pdf_native": {
+    "passed": 1,
+    "pdfkit_pages_rendered": 8
+  },
+  "ui_retry": {
+    "actual_ui_cases": 0,
+    "exit": 65,
+    "status": "runner_initialization_blocked"
+  },
+  "api_burst": {
+    "scope": "one first-page read/client using two synthetic managed identities; not device/WebSocket/user-soak qualification",
+    "initial_20": {
+      "passed": 18,
+      "failed": 2
+    },
+    "final_20": {
+      "passed": 20,
+      "failed": 0,
+      "attempts": 40,
+      "http_503_retries": 20,
+      "elapsed_seconds": 2.047,
+      "p95_seconds": 1.994
+    },
+    "final_50": {
+      "passed": 48,
+      "failed": 2,
+      "attempts": 135,
+      "http_429_count": 14,
+      "http_503_count": 73,
+      "elapsed_seconds": 5.921,
+      "p95_seconds": 5.756
+    },
+    "shared_lambda_quota": 10
+  },
+  "restore": {
+    "restored_rows": 756,
+    "stable_rows_exactly_matching": 661,
+    "verified_assets": 7,
+    "published_file_references": 7,
+    "immutable_live_rows_checked": 13,
+    "unchanged_live_rows_matching": 749,
+    "changed_or_ephemeral_live_rows": 7,
+    "scratch_table_deleted": true,
+    "source_snapshot_transactional": false
+  },
+  "mail": {
+    "operator_subscription_confirmed": true,
+    "ses_review": "DENIED",
+    "production_sending_enabled": false,
+    "alarm_count": 6,
+    "all_alarm_states_ok": true,
+    "owned_mail_backlog_routing_qualified": true,
+    "owned_backup_error_routing_qualified": true,
+    "stale_completion_notification_tested": false,
+    "operator_inbox_receipt_verified": false
+  },
+  "local_preservation": {
+    "pdfs": 7,
+    "ink_rows": 3,
+    "exactly_preserved": true
+  },
+  "end_user_ready": false
+}

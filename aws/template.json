@@ -275,6 +275,588 @@
         }
       }
     },
+    "MailConfigurationSet": {
+      "Type": "AWS::SES::ConfigurationSet",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-mail"
+        }
+      }
+    },
+    "MailFeedbackTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "TopicName": {
+          "Fn::Sub": "${AWS::StackName}-mail-feedback"
+        }
+      }
+    },
+    "MailFeedbackTopicPolicy": {
+      "Type": "AWS::SNS::TopicPolicy",
+      "Properties": {
+        "Topics": [
+          {
+            "Ref": "MailFeedbackTopic"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ses.amazonaws.com"
+              },
+              "Action": "sns:Publish",
+              "Resource": {
+                "Ref": "MailFeedbackTopic"
+              },
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "AWS:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/${MailConfigurationSet}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "MailFeedbackDeadLetters": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "QueueName": {
+          "Fn::Sub": "${AWS::StackName}-mail-failures"
+        },
+        "SqsManagedSseEnabled": true,
+        "MessageRetentionPeriod": 1209600
+      }
+    },
+    "MailFeedbackQueuePolicy": {
+      "Type": "AWS::SQS::QueuePolicy",
+      "Properties": {
+        "Queues": [
+          {
+            "Ref": "MailFeedbackDeadLetters"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "sns.amazonaws.com"
+              },
+              "Action": "sqs:SendMessage",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "MailFeedbackDeadLetters",
+                  "Arn"
+                ]
+              },
+              "Condition": {
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                    "Ref": "MailFeedbackTopic"
+                  }
+                },
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                }
+              }
+            },
+            {
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "sqs:*",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "MailFeedbackDeadLetters",
+                  "Arn"
+                ]
+              },
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "MailFeedbackLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/lambda/${AWS::StackName}-mail-feedback"
+        },
+        "RetentionInDays": 14
+      }
+    },
+    "MailFeedbackRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "ScopedMailFeedback",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "MailFeedbackLogGroup",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Table",
+                      "Arn"
+                    ]
+                  },
+                  "Condition": {
+                    "ForAllValues:StringLike": {
+                      "dynamodb:LeadingKeys": [
+                        "MAIL#*"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "sqs:SendMessage",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "MailFeedbackDeadLetters",
+                      "Arn"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "MailFeedbackFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {
+          "Fn::Sub": "${AWS::StackName}-mail-feedback"
+        },
+        "Runtime": "python3.13",
+        "Handler": "mail_feedback.lambda_handler",
+        "Architectures": [
+          "arm64"
+        ],
+        "Role": {
+          "Fn::GetAtt": [
+            "MailFeedbackRole",
+            "Arn"
+          ]
+        },
+        "Timeout": 30,
+        "MemorySize": 128,
+        "Code": {
+          "S3Bucket": {
+            "Ref": "CodeBucket"
+          },
+          "S3Key": {
+            "Ref": "CodeKey"
+          }
+        },
+        "DeadLetterConfig": {
+          "TargetArn": {
+            "Fn::GetAtt": [
+              "MailFeedbackDeadLetters",
+              "Arn"
+            ]
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "TABLE_NAME": {
+              "Ref": "Table"
+            },
+            "FEEDBACK_TOPIC": {
+              "Ref": "MailFeedbackTopic"
+            },
+            "MAIL_CONFIGURATION_SET": {
+              "Ref": "MailConfigurationSet"
+            },
+            "MAIL_SOURCE_ARN": {
+              "Fn::If": [
+                "HasSender",
+                {
+                  "Ref": "SenderIdentityArn"
+                },
+                "unconfigured"
+              ]
+            },
+            "MAIL_ACCOUNT": {
+              "Ref": "AWS::AccountId"
+            }
+          }
+        },
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "WorshipCue"
+          },
+          {
+            "Key": "Environment",
+            "Value": "Development"
+          }
+        ]
+      },
+      "DependsOn": [
+        "MailFeedbackLogGroup"
+      ]
+    },
+    "MailFeedbackPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "MailFeedbackFunction"
+        },
+        "Principal": "sns.amazonaws.com",
+        "SourceArn": {
+          "Ref": "MailFeedbackTopic"
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        }
+      }
+    },
+    "MailFeedbackSubscription": {
+      "Type": "AWS::SNS::Subscription",
+      "Properties": {
+        "TopicArn": {
+          "Ref": "MailFeedbackTopic"
+        },
+        "Protocol": "lambda",
+        "Endpoint": {
+          "Fn::GetAtt": [
+            "MailFeedbackFunction",
+            "Arn"
+          ]
+        },
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "MailFeedbackDeadLetters",
+              "Arn"
+            ]
+          }
+        }
+      },
+      "DependsOn": [
+        "MailFeedbackPermission",
+        "MailFeedbackQueuePolicy"
+      ]
+    },
+    "MailFeedbackDestination": {
+      "Type": "AWS::SES::ConfigurationSetEventDestination",
+      "Properties": {
+        "ConfigurationSetName": {
+          "Ref": "MailConfigurationSet"
+        },
+        "EventDestination": {
+          "Name": "Feedback",
+          "Enabled": true,
+          "MatchingEventTypes": [
+            "BOUNCE",
+            "COMPLAINT"
+          ],
+          "SnsDestination": {
+            "TopicARN": {
+              "Ref": "MailFeedbackTopic"
+            }
+          }
+        }
+      },
+      "DependsOn": [
+        "MailFeedbackTopicPolicy",
+        "MailFeedbackSubscription"
+      ]
+    },
+    "MailOperatorAlertsTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "TopicName": {
+          "Fn::Sub": "${AWS::StackName}-mail-operator-alerts"
+        },
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "WorshipCue"
+          },
+          {
+            "Key": "Environment",
+            "Value": "Development"
+          }
+        ]
+      }
+    },
+    "MailOperatorAlertsPolicy": {
+      "Type": "AWS::SNS::TopicPolicy",
+      "Properties": {
+        "Topics": [
+          {
+            "Ref": "MailOperatorAlertsTopic"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "ScopedCloudWatchAlarms",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudwatch.amazonaws.com"
+              },
+              "Action": "sns:Publish",
+              "Resource": {
+                "Ref": "MailOperatorAlertsTopic"
+              },
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                },
+                "ArnEquals": {
+                  "aws:SourceArn": [
+                    {
+                      "Fn::Sub": [
+                        "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${Alarm}",
+                        {
+                          "Alarm": {
+                            "Ref": "MailFeedbackErrors"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "Fn::Sub": [
+                        "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${Alarm}",
+                        {
+                          "Alarm": {
+                            "Ref": "MailFeedbackDeadLetterErrors"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "Fn::Sub": [
+                        "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${Alarm}",
+                        {
+                          "Alarm": {
+                            "Ref": "MailFeedbackDeliveryFailures"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "Fn::Sub": [
+                        "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${Alarm}",
+                        {
+                          "Alarm": {
+                            "Ref": "MailFeedbackBacklog"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "Fn::Sub": [
+                        "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${Alarm}",
+                        {
+                          "Alarm": {
+                            "Ref": "BackupErrors"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "Fn::Sub": [
+                        "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${Alarm}",
+                        {
+                          "Alarm": {
+                            "Ref": "BackupStaleCompletion"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "Sid": "RequireTLS",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "sns:Publish",
+              "Resource": {
+                "Ref": "MailOperatorAlertsTopic"
+              },
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "MailFeedbackErrors": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "WorshipCue mail feedback needs operator attention; review the restricted recovery queue.",
+        "AlarmActions": [
+          {
+            "Ref": "MailOperatorAlertsTopic"
+          }
+        ],
+        "Namespace": "AWS/Lambda",
+        "MetricName": "Errors",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Ref": "MailFeedbackFunction"
+            }
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "TreatMissingData": "notBreaching"
+      }
+    },
+    "MailFeedbackDeadLetterErrors": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "WorshipCue mail feedback needs operator attention; review the restricted recovery queue.",
+        "AlarmActions": [
+          {
+            "Ref": "MailOperatorAlertsTopic"
+          }
+        ],
+        "Namespace": "AWS/Lambda",
+        "MetricName": "DeadLetterErrors",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Ref": "MailFeedbackFunction"
+            }
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "TreatMissingData": "notBreaching"
+      }
+    },
+    "MailFeedbackDeliveryFailures": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "WorshipCue mail feedback needs operator attention; review the restricted recovery queue.",
+        "AlarmActions": [
+          {
+            "Ref": "MailOperatorAlertsTopic"
+          }
+        ],
+        "Namespace": "AWS/SNS",
+        "MetricName": "NumberOfNotificationsFailed",
+        "Dimensions": [
+          {
+            "Name": "TopicName",
+            "Value": {
+              "Fn::GetAtt": [
+                "MailFeedbackTopic",
+                "TopicName"
+              ]
+            }
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "TreatMissingData": "notBreaching"
+      }
+    },
+    "MailFeedbackBacklog": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "WorshipCue mail feedback needs operator attention; review the restricted recovery queue.",
+        "AlarmActions": [
+          {
+            "Ref": "MailOperatorAlertsTopic"
+          }
+        ],
+        "Namespace": "AWS/SQS",
+        "MetricName": "ApproximateNumberOfMessagesVisible",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "MailFeedbackDeadLetters",
+                "QueueName"
+              ]
+            }
+          }
+        ],
+        "Statistic": "Maximum",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "TreatMissingData": "notBreaching"
+      }
+    },
     "UserPool": {
       "Type": "AWS::Cognito::UserPool",
       "Properties": {
@@ -322,6 +904,9 @@
               },
               "From": {
                 "Ref": "SenderAddress"
+              },
+              "ConfigurationSet": {
+                "Ref": "MailConfigurationSet"
               }
             },
             {
@@ -361,7 +946,10 @@
         }
       },
       "DeletionPolicy": "Retain",
-      "UpdateReplacePolicy": "Retain"
+      "UpdateReplacePolicy": "Retain",
+      "DependsOn": [
+        "MailFeedbackDestination"
+      ]
     },
     "Client": {
       "Type": "AWS::Cognito::UserPoolClient",
@@ -649,6 +1237,21 @@
                 },
                 {
                   "Effect": "Allow",
+                  "Action": "dynamodb:ListBackups",
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "cloudwatch:PutMetricData",
+                  "Resource": "*",
+                  "Condition": {
+                    "StringEquals": {
+                      "cloudwatch:namespace": "WorshipCue/Backup"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
                   "Action": [
                     "s3:ListBucket",
                     "s3:GetBucketVersioning"
@@ -751,11 +1354,67 @@
         "BackupLogGroup"
       ]
     },
+    "BackupErrors": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "WorshipCue backup failed or timed out; verify the latest complete manifest before retrying. No files are deleted.",
+        "AlarmActions": [
+          {
+            "Ref": "MailOperatorAlertsTopic"
+          }
+        ],
+        "Namespace": "AWS/Lambda",
+        "MetricName": "Errors",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Ref": "BackupFunction"
+            }
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "DatapointsToAlarm": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "TreatMissingData": "notBreaching"
+      }
+    },
+    "BackupStaleCompletion": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "WorshipCue has no verified complete backup in the expected 48-hour window; check schedule and saved job without deleting recovery data.",
+        "AlarmActions": [
+          {
+            "Ref": "MailOperatorAlertsTopic"
+          }
+        ],
+        "Namespace": "WorshipCue/Backup",
+        "MetricName": "Completed",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Ref": "BackupFunction"
+            }
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 3600,
+        "EvaluationPeriods": 48,
+        "DatapointsToAlarm": 48,
+        "Threshold": 1,
+        "ComparisonOperator": "LessThanThreshold",
+        "TreatMissingData": "breaching"
+      }
+    },
     "BackupSchedule": {
       "Type": "AWS::Events::Rule",
       "Properties": {
-        "Description": "Independent daily metadata and immutable-file backup",
-        "ScheduleExpression": "cron(0 4 * * ? *)",
+        "Description": "Resume a private backup job; start at most one daily job after 04:00 UTC",
+        "ScheduleExpression": "rate(5 minutes)",
         "State": "ENABLED",
         "Targets": [
           {
@@ -1056,6 +1715,31 @@
     "BackupFunction": {
       "Value": {
         "Ref": "BackupFunction"
+      }
+    },
+    "MailConfigurationSet": {
+      "Value": {
+        "Ref": "MailConfigurationSet"
+      }
+    },
+    "MailFeedbackFunction": {
+      "Value": {
+        "Ref": "MailFeedbackFunction"
+      }
+    },
+    "MailFeedbackTopic": {
+      "Value": {
+        "Ref": "MailFeedbackTopic"
+      }
+    },
+    "MailFeedbackDeadLetters": {
+      "Value": {
+        "Ref": "MailFeedbackDeadLetters"
+      }
+    },
+    "MailOperatorAlertsTopic": {
+      "Value": {
+        "Ref": "MailOperatorAlertsTopic"
       }
     }
   }

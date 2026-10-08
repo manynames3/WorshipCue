@@ -1,5 +1,7 @@
 # AWS development qualification · v2 Build 6 · 2026-10-08
 
+Current development qualification is [Build 7](CHAT7.md); this Build 6 record is historical.
+
 The user selected AWS (D45), approved the pinned PDF parser and verified the initial email sender. The development backend is deployed in `us-east-1`. Build 6 includes the native AWS transport, isolated team workspaces and Korean team/setlist chat. This report separates actual hosted checks, controlled tests, compilation and unverified device behavior.
 
 The user disconnected the iPad during this work. **No Build 6 native or UI test executed on a device.** Earlier [Build 5 device evidence](M2-M4-native.md) remains historical; it does not qualify the new cloud workflows.

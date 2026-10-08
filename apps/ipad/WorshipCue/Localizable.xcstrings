@@ -142,6 +142,16 @@
         }
       }
     },
+    ")) · 안내 받기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ")) · 안내 받기"
+          }
+        }
+      }
+    },
     "Apple Pencil": {
       "localizations": {
         "ko": {
@@ -384,6 +394,26 @@
         }
       }
     },
+    "같은 요청 다시 확인": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "같은 요청 다시 확인"
+          }
+        }
+      }
+    },
+    "개인 기록 파일 공유·저장": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인 기록 파일 공유·저장"
+          }
+        }
+      }
+    },
     "개인 기본": {
       "localizations": {
         "ko": {
@@ -504,6 +534,16 @@
         }
       }
     },
+    "개인 자료 내보내기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인 자료 내보내기"
+          }
+        }
+      }
+    },
     "검색 결과가 없어요. PDF를 가져오거나 검색어를 바꿔 주세요.": {
       "localizations": {
         "ko": {
@@ -544,12 +584,32 @@
         }
       }
     },
+    "검토할 신고가 없어요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "검토할 신고가 없어요."
+          }
+        }
+      }
+    },
     "게스트": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "게스트"
+          }
+        }
+      }
+    },
+    "게스트 로그아웃": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "게스트 로그아웃"
           }
         }
       }
@@ -570,6 +630,76 @@
           "stringUnit": {
             "state": "translated",
             "value": "게스트는 초대받은 예배의 자료만 볼 수 있어요. 개인 메모는 이 기기에 저장됩니다."
+          }
+        }
+      }
+    },
+    "게스트에서 로그아웃할까요?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "게스트에서 로그아웃할까요?"
+          }
+        }
+      }
+    },
+    "게시 완료 · 목록 확인 대기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "게시 완료 · 목록 확인 대기"
+          }
+        }
+      }
+    },
+    "게시 확인 대기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "게시 확인 대기"
+          }
+        }
+      }
+    },
+    "계정 삭제는 아직 지원하지 않습니다. 이 내보내기는 계정이나 팀 자료를 삭제하지 않습니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "계정 삭제는 아직 지원하지 않습니다. 이 내보내기는 계정이나 팀 자료를 삭제하지 않습니다."
+          }
+        }
+      }
+    },
+    "고정": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "고정"
+          }
+        }
+      }
+    },
+    "고정 해제": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "고정 해제"
+          }
+        }
+      }
+    },
+    "고정된 메시지": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "고정된 메시지"
           }
         }
       }
@@ -774,6 +904,36 @@
         }
       }
     },
+    "공유한 악보 미리보기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "공유한 악보 미리보기"
+          }
+        }
+      }
+    },
+    "관리자": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "관리자"
+          }
+        }
+      }
+    },
+    "관리자 넘기기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "관리자 넘기기"
+          }
+        }
+      }
+    },
     "교회 이름": {
       "localizations": {
         "ko": {
@@ -794,12 +954,32 @@
         }
       }
     },
+    "교회·팀을 만들었어요. 연결 후 같은 이름으로 다시 확인하면 중복으로 만들지 않습니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "교회·팀을 만들었어요. 연결 후 같은 이름으로 다시 확인하면 중복으로 만들지 않습니다."
+          }
+        }
+      }
+    },
     "권한": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "권한"
+          }
+        }
+      }
+    },
+    "권한 변경": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "권한 변경"
           }
         }
       }
@@ -830,6 +1010,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "기기 초안으로 서버 사본 교체…"
+          }
+        }
+      }
+    },
+    "기기에 개인 기록 파일을 저장했어요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기에 개인 기록 파일을 저장했어요."
           }
         }
       }
@@ -874,6 +1064,16 @@
         }
       }
     },
+    "기기의 게시 요청을 삭제할까요?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기의 게시 요청을 삭제할까요?"
+          }
+        }
+      }
+    },
     "기기의 메모": {
       "localizations": {
         "ko": {
@@ -900,6 +1100,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "기기의 사본을 다음 동기화에서 게시"
+          }
+        }
+      }
+    },
+    "기기의 요청 삭제": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기의 요청 삭제"
           }
         }
       }
@@ -984,6 +1194,26 @@
         }
       }
     },
+    "내 개인 자료": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내 개인 자료"
+          }
+        }
+      }
+    },
+    "내 계정 자료": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내 계정 자료"
+          }
+        }
+      }
+    },
     "내 교회 · 관리자": {
       "localizations": {
         "ko": {
@@ -1034,6 +1264,36 @@
         }
       }
     },
+    "내 이름·팀원 보기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내 이름·팀원 보기"
+          }
+        }
+      }
+    },
+    "내 이름·팀원·초대 관리": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내 이름·팀원·초대 관리"
+          }
+        }
+      }
+    },
+    "내 자료 내보내기·관리자 확인": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내 자료 내보내기·관리자 확인"
+          }
+        }
+      }
+    },
     "내 팀": {
       "localizations": {
         "ko": {
@@ -1050,6 +1310,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "내 팀 · 관리자"
+          }
+        }
+      }
+    },
+    "내 표시 이름": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내 표시 이름"
+          }
+        }
+      }
+    },
+    "내보내기가 완료되지 않았어요. 연결을 확인한 뒤 직접 다시 시도해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내보내기가 완료되지 않았어요. 연결을 확인한 뒤 직접 다시 시도해 주세요."
           }
         }
       }
@@ -1154,6 +1434,16 @@
         }
       }
     },
+    "다시 참여 허용": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다시 참여 허용"
+          }
+        }
+      }
+    },
     "다운로드 후 PDF와 현재 팀 메모의 내용·페이지·크기를 확인합니다. 페이지 이동은 다른 기기에 전달하지 않습니다.": {
       "localizations": {
         "ko": {
@@ -1190,6 +1480,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "답장"
+          }
+        }
+      }
+    },
+    "답장 원문 확인": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "답장 원문 확인"
+          }
+        }
+      }
+    },
+    "답장 취소": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "답장 취소"
           }
         }
       }
@@ -1244,6 +1554,16 @@
         }
       }
     },
+    "대화 더 불러오기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "대화 더 불러오기"
+          }
+        }
+      }
+    },
     "대화 새로 확인": {
       "localizations": {
         "ko": {
@@ -1264,6 +1584,16 @@
         }
       }
     },
+    "대화 작업을 확인하지 못했어요. 저장된 요청을 직접 다시 시도해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "대화 작업을 확인하지 못했어요. 저장된 요청을 직접 다시 시도해 주세요."
+          }
+        }
+      }
+    },
     "대화 초안을 저장하지 못했어요. 다시 시도해 주세요.": {
       "localizations": {
         "ko": {
@@ -1280,6 +1610,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "대화방"
+          }
+        }
+      }
+    },
+    "대화방 더 확인": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "대화방 더 확인"
+          }
+        }
+      }
+    },
+    "대화방 알림 끄기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "대화방 알림 끄기"
+          }
+        }
+      }
+    },
+    "대화방 알림 변경": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "대화방 알림 변경"
+          }
+        }
+      }
+    },
+    "대화방 알림 켜기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "대화방 알림 켜기"
+          }
+        }
+      }
+    },
+    "대화방 옵션": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "대화방 옵션"
           }
         }
       }
@@ -1364,12 +1744,32 @@
         }
       }
     },
+    "로그인을 다시 확인해 주세요. 대화 초안과 요청은 기기에 유지됩니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그인을 다시 확인해 주세요. 대화 초안과 요청은 기기에 유지됩니다."
+          }
+        }
+      }
+    },
     "로그인하면 팀 악보를 연결할 수 있어요.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "로그인하면 팀 악보를 연결할 수 있어요."
+          }
+        }
+      }
+    },
+    "링크 제거": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "링크 제거"
           }
         }
       }
@@ -1390,6 +1790,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "마지막 페이지 %lld"
+          }
+        }
+      }
+    },
+    "만료": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "만료"
+          }
+        }
+      }
+    },
+    "만료됨": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "만료됨"
           }
         }
       }
@@ -1494,6 +1914,16 @@
         }
       }
     },
+    "메시지": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메시지"
+          }
+        }
+      }
+    },
     "메시지 · 기기에 초안 저장": {
       "localizations": {
         "ko": {
@@ -1504,12 +1934,82 @@
         }
       }
     },
+    "메시지 고정 변경": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메시지 고정 변경"
+          }
+        }
+      }
+    },
+    "메시지 삭제": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메시지 삭제"
+          }
+        }
+      }
+    },
+    "메시지 삭제는 해당 대화방에서 직접 선택합니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메시지 삭제는 해당 대화방에서 직접 선택합니다."
+          }
+        }
+      }
+    },
+    "메시지 수정": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메시지 수정"
+          }
+        }
+      }
+    },
+    "메시지 신고": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메시지 신고"
+          }
+        }
+      }
+    },
     "메시지 전송": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "메시지 전송"
+          }
+        }
+      }
+    },
+    "메시지가 변경되었어요. 저장된 요청을 확인하고 새로 고친 뒤 직접 다시 선택해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메시지가 변경되었어요. 저장된 요청을 확인하고 새로 고친 뒤 직접 다시 선택해 주세요."
+          }
+        }
+      }
+    },
+    "메시지에 답장": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메시지에 답장"
           }
         }
       }
@@ -1544,6 +2044,16 @@
         }
       }
     },
+    "미리보기 다시 시도": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미리보기 다시 시도"
+          }
+        }
+      }
+    },
     "미리보기 없음": {
       "localizations": {
         "ko": {
@@ -1560,6 +2070,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "미리보기를 드래그해 위치를 정해 주세요."
+          }
+        }
+      }
+    },
+    "발급": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "발급"
           }
         }
       }
@@ -1614,12 +2134,42 @@
         }
       }
     },
+    "변경 내용이 달라졌거나 확인할 요청이 남아 있어요. 팀 자료를 다시 확인해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변경 내용이 달라졌거나 확인할 요청이 남아 있어요. 팀 자료를 다시 확인해 주세요."
+          }
+        }
+      }
+    },
+    "변경을 확인해 주세요": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변경을 확인해 주세요"
+          }
+        }
+      }
+    },
     "별칭 · 한 줄에 하나": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "별칭 · 한 줄에 하나"
+          }
+        }
+      }
+    },
+    "보관된 초대가 없어요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "보관된 초대가 없어요."
           }
         }
       }
@@ -1704,6 +2254,46 @@
         }
       }
     },
+    "사용 가능": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사용 가능"
+          }
+        }
+      }
+    },
+    "사용 완료": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사용 완료"
+          }
+        }
+      }
+    },
+    "사용 횟수": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사용 횟수"
+          }
+        }
+      }
+    },
+    "삭제": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "삭제"
+          }
+        }
+      }
+    },
     "삭제된 메시지": {
       "localizations": {
         "ko": {
@@ -1784,6 +2374,16 @@
         }
       }
     },
+    "새 대화": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 대화"
+          }
+        }
+      }
+    },
     "새 비공개 교회·팀 만들기": {
       "localizations": {
         "ko": {
@@ -1820,6 +2420,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "새 예배 목록으로 복사"
+          }
+        }
+      }
+    },
+    "새로 확인": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로 확인"
           }
         }
       }
@@ -1870,6 +2480,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "서버 자료가 변경되었어요. 기기의 메모·초안은 유지됩니다. 두 버전을 확인한 뒤 직접 선택해 주세요."
+          }
+        }
+      }
+    },
+    "서버에 게시했어요. 목록 확인은 연결 후 직접 다시 시도해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "서버에 게시했어요. 목록 확인은 연결 후 직접 다시 시도해 주세요."
+          }
+        }
+      }
+    },
+    "서버에서 이미 완료된 게시나 만들어진 빈 목록은 취소되지 않습니다. 팀 자료를 먼저 확인해 주세요. 이 기기의 원본 PDF와 개인 메모는 유지됩니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "서버에서 이미 완료된 게시나 만들어진 빈 목록은 취소되지 않습니다. 팀 자료를 먼저 확인해 주세요. 이 기기의 원본 PDF와 개인 메모는 유지됩니다."
           }
         }
       }
@@ -1974,6 +2604,16 @@
         }
       }
     },
+    "선택한 팀원에게 관리자 권한을 넘길까요? 내 권한은 진행자로 바뀝니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택한 팀원에게 관리자 권한을 넘길까요? 내 권한은 진행자로 바뀝니다."
+          }
+        }
+      }
+    },
     "손가락 필기": {
       "localizations": {
         "ko": {
@@ -2001,6 +2641,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "손가락으로 필기합니다. 악보를 이동·확대하려면 Apple Pencil 모드로 전환하세요."
+          }
+        }
+      }
+    },
+    "수정": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "수정"
+          }
+        }
+      }
+    },
+    "수정됨": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "수정됨"
           }
         }
       }
@@ -2035,6 +2695,76 @@
         }
       }
     },
+    "신고": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "신고"
+          }
+        }
+      }
+    },
+    "신고 검토": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "신고 검토"
+          }
+        }
+      }
+    },
+    "신고 기각": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "신고 기각"
+          }
+        }
+      }
+    },
+    "신고 더 불러오기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "신고 더 불러오기"
+          }
+        }
+      }
+    },
+    "신고 보내기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "신고 보내기"
+          }
+        }
+      }
+    },
+    "신고 이유": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "신고 이유"
+          }
+        }
+      }
+    },
+    "신고 처리": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "신고 처리"
+          }
+        }
+      }
+    },
     "실행 취소": {
       "localizations": {
         "ko": {
@@ -2055,6 +2785,16 @@
         }
       }
     },
+    "악보": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "악보"
+          }
+        }
+      }
+    },
     "악보 %lld개": {
       "localizations": {
         "ko": {
@@ -2071,6 +2811,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "악보 · 페이지는 이 기기에서만 이동"
+          }
+        }
+      }
+    },
+    "악보 링크 첨부": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "악보 링크 첨부"
           }
         }
       }
@@ -2165,6 +2915,16 @@
         }
       }
     },
+    "악보 확인 중": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "악보 확인 중"
+          }
+        }
+      }
+    },
     "악보는 열렸지만 마지막 페이지를 기록하지 못했어요.": {
       "localizations": {
         "ko": {
@@ -2181,6 +2941,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "악보대"
+          }
+        }
+      }
+    },
+    "악보대에서 열기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "악보대에서 열기"
           }
         }
       }
@@ -2271,6 +3041,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "안내할 곡 준비"
+          }
+        }
+      }
+    },
+    "연결과 저장 상태를 확인해 주세요. 저장된 요청은 직접 다시 시도할 수 있어요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연결과 저장 상태를 확인해 주세요. 저장된 요청은 직접 다시 시도할 수 있어요."
+          }
+        }
+      }
+    },
+    "연결이 끊겨도 원본과 같은 게시 요청을 보관합니다. 직접 다시 시도하면 완료 여부를 확인하며 중복 게시하지 않습니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연결이 끊겨도 원본과 같은 게시 요청을 보관합니다. 직접 다시 시도하면 완료 여부를 확인하며 중복 게시하지 않습니다."
           }
         }
       }
@@ -2615,6 +3405,36 @@
         }
       }
     },
+    "요청 다시 시도": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "요청 다시 시도"
+          }
+        }
+      }
+    },
+    "요청 삭제": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "요청 삭제"
+          }
+        }
+      }
+    },
+    "요청을 삭제해도 서버에서 이미 완료된 변경은 취소되지 않습니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "요청을 삭제해도 서버에서 이미 완료된 변경은 취소되지 않습니다."
+          }
+        }
+      }
+    },
     "원본 PDF · 편곡자 메모 포함": {
       "localizations": {
         "ko": {
@@ -2671,6 +3491,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "원본 버전의 메모는 그대로 유지됩니다."
+          }
+        }
+      }
+    },
+    "응답이 끊겨도 같은 요청을 보관합니다. 연결되었다고 자동으로 다시 실행하지 않습니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "응답이 끊겨도 같은 요청을 보관합니다. 연결되었다고 자동으로 다시 실행하지 않습니다."
           }
         }
       }
@@ -2735,6 +3565,16 @@
         }
       }
     },
+    "이 게스트 계정으로 다시 로그인할 수 없으며 같은 초대를 다시 사용할 수 없을 수 있어요. 필요한 개인 메모를 PDF로 내보낸 뒤 로그아웃해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 게스트 계정으로 다시 로그인할 수 없으며 같은 초대를 다시 사용할 수 없을 수 있어요. 필요한 개인 메모를 PDF로 내보낸 뒤 로그아웃해 주세요."
+          }
+        }
+      }
+    },
     "이 곡 안내 보내기": {
       "localizations": {
         "ko": {
@@ -2785,6 +3625,26 @@
         }
       }
     },
+    "이 대화 작업에 권한이 없어요. 저장된 요청은 유지됩니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 대화 작업에 권한이 없어요. 저장된 요청은 유지됩니다."
+          }
+        }
+      }
+    },
+    "이 대화방 알림 꺼짐": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 대화방 알림 꺼짐"
+          }
+        }
+      }
+    },
     "이 메시지에 답장": {
       "localizations": {
         "ko": {
@@ -2815,6 +3675,26 @@
         }
       }
     },
+    "이 악보 링크에 접근할 권한이 없어요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 악보 링크에 접근할 권한이 없어요."
+          }
+        }
+      }
+    },
+    "이 악보를 확인하지 못했어요. 팀 권한과 연결을 다시 확인해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 악보를 확인하지 못했어요. 팀 권한과 연결을 다시 확인해 주세요."
+          }
+        }
+      }
+    },
     "이 악보에 붙여넣기 미리보기": {
       "localizations": {
         "ko": {
@@ -2835,6 +3715,26 @@
         }
       }
     },
+    "이 작업의 저장된 요청을 먼저 다시 시도하거나 삭제해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 작업의 저장된 요청을 먼저 다시 시도하거나 삭제해 주세요."
+          }
+        }
+      }
+    },
+    "이 초대의 추가 사용을 막을까요? 이미 참여한 팀원은 유지됩니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 초대의 추가 사용을 막을까요? 이미 참여한 팀원은 유지됩니다."
+          }
+        }
+      }
+    },
     "이 코드는 다시 표시되지 않아요. 초대한 사람에게만 전달해 주세요.": {
       "localizations": {
         "ko": {
@@ -2851,6 +3751,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 팀 자료에 접근할 권한이 없어요. 관리자에게 초대를 요청해 주세요."
+          }
+        }
+      }
+    },
+    "이 팀원에게 이 팀의 자료와 대화를 다시 허용할까요?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 팀원에게 이 팀의 자료와 대화를 다시 허용할까요?"
+          }
+        }
+      }
+    },
+    "이 팀원의 권한을 변경할까요? 마지막 관리자는 남겨야 합니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 팀원의 권한을 변경할까요? 마지막 관리자는 남겨야 합니다."
+          }
+        }
+      }
+    },
+    "이 팀원의 자료·대화 접근을 해제할까요? 공유 자료는 보존됩니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 팀원의 자료·대화 접근을 해제할까요? 공유 자료는 보존됩니다."
+          }
+        }
+      }
+    },
+    "이 팀을 관리할 권한을 다시 확인해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 팀을 관리할 권한을 다시 확인해 주세요."
+          }
+        }
+      }
+    },
+    "이름 미설정": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이름 미설정"
           }
         }
       }
@@ -2915,6 +3865,16 @@
         }
       }
     },
+    "이전 메시지 불러오기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이전 메시지 불러오기"
+          }
+        }
+      }
+    },
     "이전 메시지에 답장": {
       "localizations": {
         "ko": {
@@ -2961,6 +3921,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "일부 예시 파일을 열지 못했어요. 다른 저장된 악보를 선택할 수 있습니다."
+          }
+        }
+      }
+    },
+    "읽을 수 있는 필기 사본은 악보 화면의 PDF 내보내기를 이용해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "읽을 수 있는 필기 사본은 악보 화면의 PDF 내보내기를 이용해 주세요."
+          }
+        }
+      }
+    },
+    "읽음 표시": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "읽음 표시"
+          }
+        }
+      }
+    },
+    "읽지 않은 대화: ": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "읽지 않은 대화: "
           }
         }
       }
@@ -3065,6 +4055,36 @@
         }
       }
     },
+    "저장된 요청 다시 시도": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장된 요청 다시 시도"
+          }
+        }
+      }
+    },
+    "저장된 요청 삭제": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장된 요청 삭제"
+          }
+        }
+      }
+    },
+    "저장된 요청을 삭제할까요? 서버에서 완료된 변경은 취소되지 않습니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장된 요청을 삭제할까요? 서버에서 완료된 변경은 취소되지 않습니다."
+          }
+        }
+      }
+    },
     "저장된 팀 자료 · 최신 안내는 연결 후 확인": {
       "localizations": {
         "ko": {
@@ -3121,6 +4141,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "전체 %lld쪽"
+          }
+        }
+      }
+    },
+    "접근이 해제된 팀의 자료는 포함되지 않습니다. 기기에 남은 개인 메모가 필요하면 먼저 PDF로 내보내 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "접근이 해제된 팀의 자료는 포함되지 않습니다. 기기에 남은 개인 메모가 필요하면 먼저 PDF로 내보내 주세요."
+          }
+        }
+      }
+    },
+    "접근할 수 없는 악보": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "접근할 수 없는 악보"
           }
         }
       }
@@ -3305,6 +4345,66 @@
         }
       }
     },
+    "차단 해제": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "차단 해제"
+          }
+        }
+      }
+    },
+    "차단한 팀원": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "차단한 팀원"
+          }
+        }
+      }
+    },
+    "차단한 팀원 관리": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "차단한 팀원 관리"
+          }
+        }
+      }
+    },
+    "차단한 팀원의 메시지": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "차단한 팀원의 메시지"
+          }
+        }
+      }
+    },
+    "차단한 팀원의 메시지는 이 계정에서만 숨깁니다. 팀의 원본 메시지는 보관됩니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "차단한 팀원의 메시지는 이 계정에서만 숨깁니다. 팀의 원본 메시지는 보관됩니다."
+          }
+        }
+      }
+    },
+    "차단한 팀원이 없어요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "차단한 팀원이 없어요."
+          }
+        }
+      }
+    },
     "찬송가 · 선택 사항": {
       "localizations": {
         "ko": {
@@ -3345,6 +4445,66 @@
         }
       }
     },
+    "참여 해제": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여 해제"
+          }
+        }
+      }
+    },
+    "참여 해제됨": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여 해제됨"
+          }
+        }
+      }
+    },
+    "처리 완료": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "처리 완료"
+          }
+        }
+      }
+    },
+    "초대": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대"
+          }
+        }
+      }
+    },
+    "초대 관리": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대 관리"
+          }
+        }
+      }
+    },
+    "초대 더 확인": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대 더 확인"
+          }
+        }
+      }
+    },
     "초대 만들기": {
       "localizations": {
         "ko": {
@@ -3361,6 +4521,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "초대 예배"
+          }
+        }
+      }
+    },
+    "초대 원본 코드는 다시 노출하지 않습니다. 초대 취소는 이미 참여한 팀원을 제거하지 않습니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대 원본 코드는 다시 노출하지 않습니다. 초대 취소는 이미 참여한 팀원을 제거하지 않습니다."
+          }
+        }
+      }
+    },
+    "초대 취소": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대 취소"
           }
         }
       }
@@ -3475,6 +4655,16 @@
         }
       }
     },
+    "취소됨": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "취소됨"
+          }
+        }
+      }
+    },
     "키 표시는 PDF를 바꾸지 않습니다. 악보 키와 연주 키가 다르면 직접 확인해 주세요.": {
       "localizations": {
         "ko": {
@@ -3523,6 +4713,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "테스트"
+          }
+        }
+      }
+    },
+    "팀 게시를 완료했어요. 기기의 원본과 개인 메모는 그대로 보관됩니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팀 게시를 완료했어요. 기기의 원본과 개인 메모는 그대로 보관됩니다."
           }
         }
       }
@@ -3663,6 +4863,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "팀 악보 게시"
+          }
+        }
+      }
+    },
+    "팀 악보 링크 첨부": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팀 악보 링크 첨부"
           }
         }
       }
@@ -3847,12 +5057,72 @@
         }
       }
     },
+    "팀에는 관리자가 한 명 이상 남아 있어야 합니다. 먼저 다른 팀원에게 관리자 권한을 넘겨 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팀에는 관리자가 한 명 이상 남아 있어야 합니다. 먼저 다른 팀원에게 관리자 권한을 넘겨 주세요."
+          }
+        }
+      }
+    },
+    "팀에서 게시한 악보의 링크를 공유합니다. 받는 사람이 직접 미리보거나 열 수 있습니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팀에서 게시한 악보의 링크를 공유합니다. 받는 사람이 직접 미리보거나 열 수 있습니다."
+          }
+        }
+      }
+    },
+    "팀에서 사용할 이름": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팀에서 사용할 이름"
+          }
+        }
+      }
+    },
     "팀원": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "팀원"
+          }
+        }
+      }
+    },
+    "팀원 차단": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팀원 차단"
+          }
+        }
+      }
+    },
+    "팀원 차단 해제": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팀원 차단 해제"
+          }
+        }
+      }
+    },
+    "팀원·초대 관리": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팀원·초대 관리"
           }
         }
       }
@@ -3977,6 +5247,16 @@
         }
       }
     },
+    "표시 이름 저장": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "표시 이름 저장"
+          }
+        }
+      }
+    },
     "필기 입력": {
       "localizations": {
         "ko": {
@@ -4047,6 +5327,46 @@
         }
       }
     },
+    "해당 대화방 열기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "해당 대화방 열기"
+          }
+        }
+      }
+    },
+    "해당 대화방에서 원문을 확인해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "해당 대화방에서 원문을 확인해 주세요."
+          }
+        }
+      }
+    },
+    "현재 계정과 팀 접근 권한을 다시 확인해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재 계정과 팀 접근 권한을 다시 확인해 주세요."
+          }
+        }
+      }
+    },
+    "현재 선택한 팀에서 접근 가능한 내 개인 기록과 필기 파일 참조를 내보냅니다. 악보·필기 파일 원본과 다른 팀원의 기록은 포함되지 않습니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재 선택한 팀에서 접근 가능한 내 개인 기록과 필기 파일 참조를 내보냅니다. 악보·필기 파일 원본과 다른 팀원의 기록은 포함되지 않습니다."
+          }
+        }
+      }
+    },
     "현재 악보": {
       "localizations": {
         "ko": {
@@ -4063,6 +5383,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "현재 안내의 정확한 팀 악보에 필기"
+          }
+        }
+      }
+    },
+    "현재 팀의 개인 기록 내보내기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재 팀의 개인 기록 내보내기"
           }
         }
       }
@@ -4097,12 +5427,82 @@
         }
       }
     },
+    "혼자 관리하는 팀이 있어요. 팀을 떠나기 전에 다른 팀원에게 관리자 권한을 넘겨 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "혼자 관리하는 팀이 있어요. 팀을 떠나기 전에 다른 팀원에게 관리자 권한을 넘겨 주세요."
+          }
+        }
+      }
+    },
+    "화면에 보이는 대화까지 읽음 표시": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "화면에 보이는 대화까지 읽음 표시"
+          }
+        }
+      }
+    },
     "확대": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "확대"
+          }
+        }
+      }
+    },
+    "확인": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인"
+          }
+        }
+      }
+    },
+    "확인 대기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인 대기"
+          }
+        }
+      }
+    },
+    "확인 대기 중인 게시 요청과 내용이 달라요. 이전 요청을 다시 확인하거나 직접 삭제한 뒤 새로 게시해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인 대기 중인 게시 요청과 내용이 달라요. 이전 요청을 다시 확인하거나 직접 삭제한 뒤 새로 게시해 주세요."
+          }
+        }
+      }
+    },
+    "확인 대기 중인 교회·팀 만들기 요청이 있어요. 이전 이름으로 다시 시도해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인 대기 중인 교회·팀 만들기 요청이 있어요. 이전 이름으로 다시 시도해 주세요."
+          }
+        }
+      }
+    },
+    "확인 대기 중인 요청": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인 대기 중인 요청"
           }
         }
       }
@@ -4117,12 +5517,32 @@
         }
       }
     },
+    "확인되지 않은 요청은 기기에 저장되며 직접 다시 시도할 수 있습니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인되지 않은 요청은 기기에 저장되며 직접 다시 시도할 수 있습니다."
+          }
+        }
+      }
+    },
     "확인할 개인 메모 충돌이 없어요.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "확인할 개인 메모 충돌이 없어요."
+          }
+        }
+      }
+    },
+    "확인할 내용을 적어 주세요": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인할 내용을 적어 주세요"
           }
         }
       }

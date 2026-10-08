@@ -25,6 +25,7 @@ REPO = Path(__file__).resolve().parents[2]
 EPHEMERAL = ('LIMIT#', 'TICKET#', 'WS#', 'WSID#', 'REVOKED#')
 MAX_OBJECT_BYTES = 104857600
 MAX_MANIFEST_BYTES = 8388608
+MAX_MANIFEST_OBJECTS = MAX_MANIFEST_BYTES // 128
 MAX_ROWS = 50000
 
 
@@ -108,8 +109,8 @@ def rows(items):
 def stable(value):
     return {key: row['item'] for key, row in value.items()
             if not key[0].startswith(EPHEMERAL)
-            and not (key[0].startswith('U#') and key[1].startswith('RATE#REDEEM#')
-                     and 'expires_at_epoch' in row['value'])}
+            and not (key[0].startswith('U#') and key[1].startswith(('RATE#REDEEM#', 'CATALOG_CURSOR#', 'ACCOUNT_EXPORT_CURSOR#'))
+                     and type(row['value'].get('expires_at_epoch')) is int)}
 
 
 def match_stable(expected, actual):
@@ -118,15 +119,16 @@ def match_stable(expected, actual):
 
 
 def manifest_entries(manifest, table, assets, backups):
-    require(isinstance(manifest, dict) and manifest.get('schema_version') == 1
+    require(isinstance(manifest, dict) and type(manifest.get('schema_version')) is int and manifest.get('schema_version') == 1
             and manifest.get('status') == 'complete', 'COMPLETE_MANIFEST_REQUIRED')
+    require(len(canonical(manifest)) <= MAX_MANIFEST_BYTES, 'MANIFEST_BYTE_LIMIT')
     require(manifest.get('source_bucket') == assets and manifest.get('backup_bucket') == backups,
             'MANIFEST_BUCKET_MISMATCH')
     database = manifest.get('database', {})
     require(database.get('table') == table and database.get('status') == 'AVAILABLE'
             and isinstance(database.get('backup_arn'), str), 'MANIFEST_DATABASE_MISMATCH')
     objects = manifest.get('objects')
-    require(isinstance(objects, list) and len(objects) <= 1000, 'MANIFEST_OBJECT_LIMIT')
+    require(isinstance(objects, list) and len(objects) <= MAX_MANIFEST_OBJECTS, 'MANIFEST_OBJECT_LIMIT')
     result = {}
     for entry in objects:
         require(isinstance(entry, dict), 'INVALID_MANIFEST_ENTRY')
@@ -401,9 +403,15 @@ class RestoreCheck:
                 'SCRATCH_OWNERSHIP_MISMATCH')
         source = table.get('RestoreSummary', {}).get('SourceBackupArn')
         require(source is None or source == state.get('backup_arn'), 'SCRATCH_RESTORE_SOURCE_MISMATCH')
-        # AWS omits RestoreSummary after ACTIVE; the successful creation receipt and
-        # immutable table identity continue to bind this run, including during cleanup.
-        identity, creation = table.get('TableId'), table.get('CreationDateTime')
+        # AWS can omit identity fields while DELETING. Only an already saved delete
+        # request for this immutable table may supply an omitted field; a present
+        # changed/malformed field still fails, and ACTIVE tables need provider identity.
+        receipt_identity, receipt_creation = state.get('target_table_id'), state.get('target_creation_time')
+        deleting_owned = table.get('TableStatus') == 'DELETING' and state.get('phase') == 'delete_requested' \
+            and isinstance(receipt_identity, str) and receipt_identity \
+            and isinstance(receipt_creation, str) and receipt_creation
+        identity = table.get('TableId') if 'TableId' in table else receipt_identity if deleting_owned else None
+        creation = table.get('CreationDateTime') if 'CreationDateTime' in table else receipt_creation if deleting_owned else None
         require(isinstance(identity, str) and identity and isinstance(creation, str), 'SCRATCH_IDENTITY_REQUIRED')
         require(0 <= (datetime.fromisoformat(creation) - datetime.fromisoformat(state['requested_at'])).total_seconds() <= 300,
                 'SCRATCH_CREATION_TIME_MISMATCH')
@@ -550,6 +558,28 @@ def self_test():
             with self.assertRaises(Failure):
                 match_stable(expected, rows([self.item('T#synthetic', 'songs#synthetic', {'id': 'changed'})]))
 
+        def test_owner_cursor_ttl_churn_is_ephemeral_only_with_integer_expiry(self):
+            durable = self.item('T#synthetic', 'songs#synthetic', {'id':'synthetic'})
+            cursors = [self.item('U#synthetic', prefix + 'synthetic', {'expires_at_epoch':123})
+                for prefix in ('CATALOG_CURSOR#', 'ACCOUNT_EXPORT_CURSOR#')]
+            self.assertEqual(1, match_stable(rows([durable] + cursors), rows([durable])))
+            for prefix in ('CATALOG_CURSOR#', 'ACCOUNT_EXPORT_CURSOR#'):
+                for value in ({'id':'without-ttl'}, {'expires_at_epoch':True}):
+                    with self.assertRaises(Failure):
+                        match_stable(rows([durable, self.item('U#synthetic', prefix + 'synthetic', value)]), rows([durable]))
+
+        def test_resumable_manifest_accepts_1001_pinned_entries_and_rejects_oversize(self):
+            manifest = dict(schema_version=1, status='complete', source_bucket='synthetic-assets', backup_bucket='synthetic-backups',
+                database={'table':'synthetic-table','status':'AVAILABLE','backup_arn':'synthetic-backup'}, objects=[
+                    dict(source_key=f'fixture-{i:04d}.pdf', backup_key=f'assets/fixture-{i:04d}.pdf',
+                        source_version_id='source-pinned', backup_version_id='backup-pinned', bytes=123, sha256='a'*64)
+                    for i in range(1001)])
+            self.assertEqual(1001, len(manifest_entries(manifest, 'synthetic-table', 'synthetic-assets', 'synthetic-backups')))
+            manifest['bounded_fixture'] = 'x' * MAX_MANIFEST_BYTES
+            with self.assertRaises(Failure) as caught:
+                manifest_entries(manifest, 'synthetic-table', 'synthetic-assets', 'synthetic-backups')
+            self.assertEqual('MANIFEST_BYTE_LIMIT', caught.exception.code)
+
         def test_verified_files_must_be_manifested(self):
             asset = dict(id='synthetic', status='verified', type='pdf', team_id='synthetic', storage_key='synthetic.pdf', sha256='a' * 64, bytes=123)
             restored = rows([self.item('T#synthetic', 'assets#synthetic', asset)])
@@ -603,6 +633,102 @@ def self_test():
             with self.assertRaises(Failure) as caught:
                 runner.owned_table()
             self.assertEqual('SCRATCH_TABLE_ID_MISMATCH', caught.exception.code)
+
+        def scratch(self, phase='delete_requested', status='DELETING'):
+            runner = RestoreCheck.__new__(RestoreCheck)
+            runner.table = 'source-table'
+            run = str(uuid.uuid4())
+            when = '2026-10-08T12:00:01+00:00'
+            target = 'WorshipCue-dev-restorecheck-' + run
+            runner.state = {'created': True, 'owner': 'WorshipCueRestoreCheck', 'run': run,
+                'target_table': target, 'target_arn': 'synthetic-arn', 'backup_arn': 'synthetic-backup',
+                'phase': phase, 'requested_at': '2026-10-08T12:00:00+00:00',
+                'target_table_id': 'synthetic-id', 'target_creation_time': when}
+            description = dict(TableName=target, TableArn='synthetic-arn', TableStatus=status,
+                               TableId='synthetic-id', CreationDateTime=when)
+            runner.cli = lambda *args, **kwargs: {'Table': description}
+            runner.save = lambda: None
+            return runner, description
+
+        def test_deleting_omissions_require_saved_delete_and_both_identity_fields(self):
+            for omitted in (('TableId',), ('CreationDateTime',), ('TableId', 'CreationDateTime')):
+                runner, description = self.scratch()
+                original = dict(runner.state)
+                for field in omitted:
+                    description.pop(field)
+                self.assertEqual('DELETING', runner.owned_table()['TableStatus'])
+                self.assertEqual(original, runner.state)
+            for changed in ({'phase': 'complete'}, {'target_table_id': None}, {'target_creation_time': None}):
+                runner, description = self.scratch()
+                runner.state.update(changed)
+                description.pop('TableId')
+                description.pop('CreationDateTime')
+                with self.assertRaises(Failure) as caught:
+                    runner.owned_table()
+                self.assertEqual('SCRATCH_IDENTITY_REQUIRED', caught.exception.code)
+
+        def test_deleting_present_changed_identity_and_scope_are_rejected(self):
+            changes = (
+                ('TableId', 'replacement-id', 'SCRATCH_TABLE_ID_MISMATCH'),
+                ('CreationDateTime', '2026-10-08T12:00:02+00:00', 'SCRATCH_CREATION_TIME_MISMATCH'),
+                ('TableId', None, 'SCRATCH_IDENTITY_REQUIRED'),
+                ('CreationDateTime', None, 'SCRATCH_IDENTITY_REQUIRED'),
+                ('TableArn', 'replacement-arn', 'SCRATCH_OWNERSHIP_MISMATCH'),
+                ('TableName', 'replacement-table', 'SCRATCH_OWNERSHIP_MISMATCH'),
+                ('RestoreSummary', {'SourceBackupArn': 'replacement-backup'}, 'SCRATCH_RESTORE_SOURCE_MISMATCH'),
+            )
+            for field, value, code in changes:
+                with self.subTest(field=field, code=code):
+                    runner, description = self.scratch()
+                    description[field] = value
+                    with self.assertRaises(Failure) as caught:
+                        runner.owned_table()
+                    self.assertEqual(code, caught.exception.code)
+
+        def test_active_identity_omission_never_uses_delete_receipt(self):
+            runner, description = self.scratch(status='ACTIVE')
+            description.pop('TableId')
+            with self.assertRaises(Failure) as caught:
+                runner.owned_table()
+            self.assertEqual('SCRATCH_IDENTITY_REQUIRED', caught.exception.code)
+
+        def test_cleanup_absence_reconciles_saved_delete_without_deleting_again(self):
+            from unittest.mock import patch
+            runner, _ = self.scratch()
+            calls = []
+            runner.scope = lambda: 'synthetic-account'
+            def cli(service, operation, arguments, **kwargs):
+                calls.append(operation)
+                self.assertEqual('describe-table', operation)
+                return None
+            runner.cli = cli
+            with patch('builtins.print'):
+                runner.cleanup()
+            self.assertEqual(['describe-table'], calls)
+            self.assertEqual('deleted', runner.state['phase'])
+            runner.state['phase'] = 'complete'
+            with self.assertRaises(Failure) as caught:
+                runner.cleanup()
+            self.assertEqual('SCRATCH_TABLE_MISSING', caught.exception.code)
+
+        def test_cleanup_deleting_omissions_waits_for_absence_without_another_delete(self):
+            from unittest.mock import patch
+            runner, description = self.scratch()
+            description.pop('TableId')
+            description.pop('CreationDateTime')
+            responses, calls = [{'Table': description}, None], []
+            runner.scope = lambda: 'synthetic-account'
+            def cli(service, operation, arguments, **kwargs):
+                calls.append(operation)
+                self.assertEqual('describe-table', operation)
+                return responses.pop(0)
+            runner.cli = cli
+            with patch('builtins.print'), patch('time.sleep') as sleep:
+                runner.cleanup()
+            self.assertEqual(['describe-table', 'describe-table'], calls)
+            self.assertEqual('deleted', runner.state['phase'])
+            self.assertEqual('synthetic-id', runner.state['target_table_id'])
+            sleep.assert_not_called()
 
         def test_pinned_download_hashes_actual_bytes_and_removes_local_file(self):
             payload = b'synthetic backup bytes'

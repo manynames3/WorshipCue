@@ -1,0 +1,31 @@
+{
+  "negative_fixtures": [
+    {
+      "fixture": "missing_custom_key",
+      "rejected": true,
+      "exit": 1
+    },
+    {
+      "fixture": "unexpanded_build_setting",
+      "rejected": true,
+      "exit": 1
+    },
+    {
+      "fixture": "non_https_api",
+      "rejected": true,
+      "exit": 1
+    },
+    {
+      "fixture": "websocket_credentials_in_url",
+      "rejected": true,
+      "exit": 1
+    },
+    {
+      "fixture": "wrong_build_number",
+      "rejected": true,
+      "exit": 1
+    }
+  ],
+  "passed": 5,
+  "total": 5
+}

@@ -59,7 +59,7 @@ app = {'TARGETED_DEVICE_FAMILY':'2','PRODUCT_NAME':'$(TARGET_NAME)','PRODUCT_BUN
        'INFOPLIST_KEY_UIApplicationSceneManifest_Generation':'YES','INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents':'YES',
        'INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad':'UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight',
        'SUPPORTED_PLATFORMS':'iphoneos iphonesimulator','SUPPORTS_MACCATALYST':'NO','CODE_SIGN_STYLE':'Automatic',
-       'MARKETING_VERSION':'0.0.1','CURRENT_PROJECT_VERSION':'6','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','SWIFT_EMIT_LOC_STRINGS':'YES',
+       'MARKETING_VERSION':'0.0.1','CURRENT_PROJECT_VERSION':'7','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','SWIFT_EMIT_LOC_STRINGS':'YES',
        'LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks'}
 tests = {'TARGETED_DEVICE_FAMILY':'2','PRODUCT_NAME':'$(TARGET_NAME)','PRODUCT_BUNDLE_IDENTIFIER':'com.worshipcue.spike.tests',
          'GENERATE_INFOPLIST_FILE':'YES','TEST_HOST':'$(BUILT_PRODUCTS_DIR)/WorshipCue.app/WorshipCue',
@@ -111,6 +111,12 @@ obj('ref:teamtests', 'isa = PBXFileReference; lastKnownFileType = sourcecode.swi
 obj('build:teamtests', f'isa = PBXBuildFile; fileRef = {ident("ref:teamtests")};')
 objects[ident('group:tests')] = objects[ident('group:tests')].replace(ident('ref:tests')+',', ident('ref:tests')+', '+ident('ref:teamtests')+',')
 objects[ident('sources:tests')] = objects[ident('sources:tests')].replace(ident('build:tests')+',', ident('build:tests')+', '+ident('build:teamtests')+',')
+extra_test_sources = sorted(p.name for p in (APP/'WorshipCueTests').glob('*.swift') if p.name not in ['NativeInkTests.swift','TeamWorkspaceTests.swift'])
+for name in extra_test_sources:
+    obj('ref:test:'+name, f'isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = {quote(name)}; sourceTree = "<group>";')
+    obj('build:test:'+name, f'isa = PBXBuildFile; fileRef = {ident("ref:test:"+name)};')
+    objects[ident('group:tests')] = objects[ident('group:tests')].replace(ident('ref:tests')+',', ident('ref:tests')+', '+ident('ref:test:'+name)+',')
+    objects[ident('sources:tests')] = objects[ident('sources:tests')].replace(ident('build:tests')+',', ident('build:tests')+', '+ident('build:test:'+name)+',')
 obj('ref:teamconfig', 'isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configuration/Team.xcconfig; sourceTree = "<group>";')
 objects[ident('group:root')] = objects[ident('group:root')].replace(ident('group:app')+',', ident('group:app')+', '+ident('ref:teamconfig')+',')
 for config in ['Debug','Release']:
@@ -137,4 +143,4 @@ folder.mkdir(parents=True,exist_ok=True)
 (folder/'WorshipCueUI.xcscheme').write_text(scheme)
 ui_testable = f'<TestableReference skipped="NO">{ref("uitests","WorshipCueUITests.xctest")}</TestableReference>'
 (folder/'WorshipCue.xcscheme').write_text(scheme.replace(ui_testable, ''))
-print(f'Generated {len(sources)} app sources, 2 hosted test sources, 1 UI test source, schemes WorshipCue / WorshipCueUI')
+print(f'Generated {len(sources)} app sources, {2+len(extra_test_sources)} hosted test sources, 1 UI test source, schemes WorshipCue / WorshipCueUI')

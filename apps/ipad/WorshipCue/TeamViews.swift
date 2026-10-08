@@ -23,6 +23,11 @@ struct TeamPanel: View {
     @State private var query = ""
     @State private var chatSheet = false
     @State private var teamName = ""
+    @State private var memberName = ""
+    @State private var administrationSheet = false
+    @State private var accountExportSheet = false
+    @State private var discardPublication: TeamRow?
+    @State private var guestLogout = false
 
     var body: some View {
         NavigationStack {
@@ -48,8 +53,9 @@ struct TeamPanel: View {
                             .disabled(email.isEmpty).accessibilityIdentifier("sendTeamCode")
                     }
                     Section("게스트 초대") {
+                        TextField("팀에서 사용할 이름", text: $memberName).textContentType(.name)
                         TextField("초대 코드", text: $invitation).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        Button("초대한 예배에 참여") { Task { if await team.redeem(invitation, guest: true) { await reloadSessions() } } }.disabled(invitation.isEmpty)
+                        Button("초대한 예배에 참여") { Task { if await team.redeem(invitation, guest: true, displayName: memberName) { await reloadSessions() } } }.disabled(invitation.isEmpty || memberName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || memberName.count > 120)
                         Text("게스트는 초대받은 예배의 자료만 볼 수 있어요. 개인 메모는 이 기기에 저장됩니다.").font(.caption)
                     }
                 } else {
@@ -74,7 +80,9 @@ struct TeamPanel: View {
                     if !team.session!.anonymous {
                         Section("교회·팀 만들기") {
                             TextField("교회 이름", text: $workspaceName)
-                            Button("새 비공개 교회·팀 만들기") { Task { _ = await team.createWorkspace(workspaceName) } }.disabled(workspaceName.isEmpty)
+                            TextField("팀에서 사용할 이름", text: $memberName).textContentType(.name)
+                            Button("새 비공개 교회·팀 만들기") { Task { _ = await team.createWorkspace(workspaceName, memberDisplayName: memberName) } }
+                                .disabled(workspaceName.isEmpty || memberName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || memberName.count > 120)
                         }
                     }
                     if team.canAdmin {
@@ -85,13 +93,17 @@ struct TeamPanel: View {
                         }
                     }
                     if team.session?.anonymous == false, team.selectedTeam != nil {
+                        Section {
+                            Button { administrationSheet = true } label: { Label(team.canAdmin ? String(localized: "내 이름·팀원·초대 관리") : String(localized: "내 이름·팀원 보기"), systemImage: "person.crop.circle") }.frame(minHeight: 44)
+                        }
                         Section("팀 대화") {
-                            Button { chatSheet = true } label: { Label("팀 대화 열기", systemImage: "bubble.left.and.bubble.right") }.frame(minHeight: 44)
+                            Button { chatSheet = true } label: { HStack { Label("팀 대화 열기", systemImage: "bubble.left.and.bubble.right"); Spacer(); if let unread = team.chatUnreadSummary { Text(unread).font(.caption.bold()).padding(6).background(Color.blue.opacity(0.12), in: Capsule()).accessibilityLabel(String(localized: "읽지 않은 대화: ") + unread) } } }.frame(minHeight: 44)
                         }
                     }
                     Section("초대 코드로 참여") {
+                        TextField("팀에서 사용할 이름", text: $memberName).textContentType(.name)
                         TextField("초대 코드", text: $invitation).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        Button("참여") { Task { _ = await team.redeem(invitation, guest: false); await reloadSessions() } }.disabled(invitation.isEmpty)
+                        Button("참여") { Task { _ = await team.redeem(invitation, guest: false, displayName: memberName); await reloadSessions() } }.disabled(invitation.isEmpty || memberName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || memberName.count > 120)
                     }
                     Section("진행 중인 예배") {
                         if sessions.isEmpty { Text("진행 중인 예배가 없어요.").foregroundStyle(.secondary) }
@@ -119,6 +131,22 @@ struct TeamPanel: View {
                             }
                         }
                         if team.songs.isEmpty { Text("아직 공유한 악보가 없어요.").foregroundStyle(.secondary) }
+                    }
+                    if !team.pendingPublications.isEmpty {
+                        Section("게시 확인 대기") {
+                            Text("연결이 끊겨도 원본과 같은 게시 요청을 보관합니다. 직접 다시 시도하면 완료 여부를 확인하며 중복 게시하지 않습니다.").font(.caption)
+                            ForEach(team.pendingPublications) { publication in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(publication.value["title"].text ?? "").font(.headline)
+                                    if publication.value["completed"].flag { Label("게시 완료 · 목록 확인 대기", systemImage: "checkmark.circle") }
+                                    HStack {
+                                        Button("같은 요청 다시 확인") { Task { _ = await team.retryPublication(publication) } }.disabled(!team.canLead && !publication.value["completed"].flag)
+                                        Spacer()
+                                        Button("기기의 요청 삭제", role: .destructive) { discardPublication = publication }
+                                    }
+                                }.padding(.vertical, 4)
+                            }
+                        }
                     }
                     Section("예배 준비") {
                         ForEach(team.setlists) { setlist in
@@ -158,17 +186,35 @@ struct TeamPanel: View {
                             Button("내 개인 메모 동기화 확인") { Task { await team.syncPersonal() } }
                             Button("개인 메모 충돌 확인") { team.showConflicts = true }
                         }
+                        if team.isAWS {
+                            Section("내 계정 자료") {
+                                Button { accountExportSheet = true } label: { Label("내 자료 내보내기·관리자 확인", systemImage: "person.crop.circle.badge.checkmark") }.frame(minHeight: 44)
+                            }
+                        }
                     }
-                    Section { Button("로그아웃", role: .destructive) { Task { _ = await team.logout() } } }
+                    Section { Button("로그아웃", role: .destructive) {
+                        if team.session?.anonymous == true { guestLogout = true }
+                        else { Task { _ = await team.logout() } }
+                    } }
                 }
             }.disabled(team.busy)
                 .navigationTitle("팀 작업 공간")
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("닫기") { dismiss() }.frame(minHeight: 44) } }
-                .task { await reloadSessions() }
+                .task { await reloadSessions(); await team.refreshChatRooms() }
                 .onChange(of: team.scopeID) { _ in sessions = []; Task { await reloadSessions() } }
+                .sheet(isPresented: $administrationSheet) { TeamAdministrationView(team: team) }
+                .sheet(isPresented: $accountExportSheet) { AccountDataExportView(team: team) }
+                .alert("기기의 게시 요청을 삭제할까요?", isPresented: Binding(get: { discardPublication != nil }, set: { if !$0 { discardPublication = nil } })) {
+                    Button("취소", role: .cancel) { discardPublication = nil }
+                    Button("요청 삭제", role: .destructive) { if let row = discardPublication { Task { _ = await team.discardPublication(row) } }; discardPublication = nil }
+                } message: { Text("서버에서 이미 완료된 게시나 만들어진 빈 목록은 취소되지 않습니다. 팀 자료를 먼저 확인해 주세요. 이 기기의 원본 PDF와 개인 메모는 유지됩니다.") }
+                .alert("게스트에서 로그아웃할까요?", isPresented: $guestLogout) {
+                    Button("취소", role: .cancel) {}
+                    Button("게스트 로그아웃", role: .destructive) { Task { _ = await team.logout() } }
+                } message: { Text("이 게스트 계정으로 다시 로그인할 수 없으며 같은 초대를 다시 사용할 수 없을 수 있어요. 필요한 개인 메모를 PDF로 내보낸 뒤 로그아웃해 주세요.") }
                 .sheet(isPresented: $publishSheet) { TeamPublishSheet(team: team, local: local) }
                 .sheet(isPresented: $setlistSheet) { TeamSetlistSheet(team: team) }
-                .sheet(isPresented: $chatSheet) { TeamChatView(team: team) }
+                .sheet(isPresented: $chatSheet) { TeamChatView(team: team) { opened(); dismiss() } }
                 .sheet(isPresented: $controllerSheet) { TeamControllerSheet(team: team) }
                 .sheet(isPresented: $team.showConflicts) { PersonalConflictSheet(team: team) }
         }.preferredColorScheme(.light)

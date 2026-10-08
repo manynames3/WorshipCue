@@ -87,9 +87,20 @@ def manifest(value):
     return [geometry(page) for page in value]
 
 
-READS = {'get_session_snapshot', 'get_annotation_head', 'preflight_manifest', 'get_team_roster', 'get_chat_snapshot', 'get_team_catalog'}
+READS = {'get_session_snapshot', 'get_annotation_head', 'preflight_manifest', 'get_team_roster', 'get_chat_snapshot',
+         'get_chat_rooms', 'get_chat_reports', 'get_team_catalog', 'get_team_catalog_page', 'get_team_invitations',
+         'get_account_preflight', 'get_account_export_page'}
 COMMANDS = {'create_song', 'publish_chart_version', 'create_setlist', 'save_setlist', 'start_session', 'publish_call',
-            'end_session', 'save_annotation_revision', 'send_chat_message', 'edit_chat_message', 'delete_chat_message'}
+            'end_session', 'save_annotation_revision', 'send_chat_message', 'edit_chat_message', 'delete_chat_message',
+            'resolve_chat_report', 'set_member_display_name', 'set_member_role', 'handoff_team_admin'}
+CHAT_MESSAGE_COMMANDS = {'send_chat_message', 'edit_chat_message', 'delete_chat_message', 'pin_chat_message'}
+CHAT_UNREAD_BUDGET = 200
+CHAT_REFERENCE_BUDGET = 5000
+TEAM_MEMBER_LIMIT = 200
+CATALOG_TABLES = ('songs', 'chart_versions', 'assets', 'setlists', 'performance_items', 'personal_preferences')
+CATALOG_PAGE_BYTES = 512 * 1024
+EXPORT_TABLES = ('memberships', 'personal_preferences', 'annotation_layers', 'annotation_heads', 'annotation_revisions',
+                 'assets', 'chat_messages', 'chat_preferences', 'chat_blocks')
 TABLES = {'songs', 'chart_versions', 'assets', 'setlists', 'performance_items', 'personal_preferences',
           'editor_leases', 'live_sessions', 'live_calls', 'annotation_layers', 'annotation_heads',
           'annotation_revisions', 'participants', 'invitations', 'teams', 'memberships', 'guest_grants'}
@@ -350,7 +361,7 @@ class _Operation:
         if table not in TABLES:
             raise APIError('INVALID_INPUT')
         if table == 'memberships':
-            return [m for m in self.memberships() if team is None or m['team_id'] == identifier(team)]
+            return [dict(m, revision=m.get('revision', 1)) for m in self.memberships() if team is None or m['team_id'] == identifier(team)]
         if table == 'guest_grants':
             return self.grants(identifier(team) if team else None)
         teams = [identifier(team)] if team else sorted({m['team_id'] for m in self.memberships()} | {g['team_id'] for g in self.grants()})
@@ -401,22 +412,26 @@ class _Operation:
             if selected and identifier(selected) != row['team_id']:
                 raise APIError('ACCESS_REVOKED', 403)
 
-        if name == 'create_church_and_default_team':
+        if name in ('create_church_and_default_team', 'get_account_preflight'):
             if self.actor['guest']:
                 raise APIError('ACCESS_REVOKED', 403)
         elif name == 'create_team':
             self.church_admin(identifier(p.get('church_id')))
         elif name == 'redeem_invitation':
             pass
-        elif name == 'get_team_catalog':
+        elif name in ('get_team_catalog', 'get_team_catalog_page'):
             team = identifier(p.get('team_id'))
             context({'team_id': team})
             if not self.can_member(team) and not self.authorized_setlists(team):
                 raise APIError('ACCESS_REVOKED', 403)
+        elif name == 'get_account_export_page':
+            context(self.member(p.get('team_id')))
         elif name in ('create_song', 'stage_asset', 'create_setlist', 'create_invitation', 'get_team_roster',
                       'set_membership_active', 'get_chat_snapshot', 'send_chat_message', 'edit_chat_message',
-                      'delete_chat_message', 'mark_chat_read', 'mute_chat', 'pin_chat_message', 'report_chat_message', 'block_chat_member'):
-            role = ('leader', 'admin') if name in ('create_song', 'create_setlist') else ('admin',) if name in ('create_invitation', 'set_membership_active') else None
+                      'delete_chat_message', 'mark_chat_read', 'mute_chat', 'pin_chat_message', 'report_chat_message',
+                      'block_chat_member', 'get_chat_rooms', 'get_chat_reports', 'resolve_chat_report',
+                      'get_team_invitations', 'set_member_display_name', 'set_member_role', 'handoff_team_admin'):
+            role = ('leader', 'admin') if name in ('create_song', 'create_setlist', 'get_chat_reports', 'resolve_chat_report') else ('admin',) if name in ('create_invitation', 'set_membership_active', 'get_team_invitations') else None
             m = self.member(p.get('team_id'), role)
             context(m)
             if p.get('church_id') and identifier(p['church_id']) != m['church_id']:
@@ -462,7 +477,7 @@ class _Operation:
             if previous:
                 if previous['digest'] != digest:
                     raise APIError('IDEMPOTENCY_CONFLICT', 409)
-                return previous['result']
+                return self.receipt_result(name, p, previous['result'])
         handler = getattr(self, 'rpc_' + name, None)
         if handler is None:
             raise APIError('UNSUPPORTED_OPERATION', 404)
@@ -477,10 +492,54 @@ class _Operation:
                 if receipt_key:
                     previous = self.store.get('U#' + self.actor['id'], receipt_key)
                     if previous and previous['digest'] == digest:
-                        _Operation(self.store, lambda: self.now, self.actor).authorize(name, p)
-                        return previous['result']
+                        retry = _Operation(self.store, lambda: self.now, self.actor)
+                        retry.authorize(name, p)
+                        return retry.receipt_result(name, p, previous['result'])
                 raise
         return result
+
+    def receipt_result(self, name, p, result):
+        # A receipt proves command completion; it is not an archive of deleted chat text.
+        if name in CHAT_MESSAGE_COMMANDS:
+            team, _, room = self.chat_scope(p)
+            current = self.chat_message(team, room, result['id'])
+            member = self.member(team, ('leader', 'admin') if name == 'pin_chat_message' else None)
+            if name in ('edit_chat_message', 'delete_chat_message') and current['author_id'] != self.actor['id'] and not (
+                    name == 'delete_chat_message' and member['role'] in ('leader', 'admin')):
+                raise APIError('ACCESS_REVOKED', 403)
+            blocks = self.chat_blocks(team)
+            response = self.visible_chat_message(current, blocks['users'])
+            self.finish_chat_read(team, blocks.get('revision', 0), moderator=name == 'pin_chat_message' or (
+                                  name == 'delete_chat_message' and current['author_id'] != self.actor['id']))
+            return response
+        if name == 'resolve_chat_report':
+            team = identifier(p['team_id'])
+            self.member(team, ('leader', 'admin'))
+            blocks = self.chat_blocks(team)
+            response = self.chat_report(team, result['report_id'], blocks['users'])
+            self.finish_chat_read(team, blocks.get('revision', 0), moderator=True)
+            return response
+        if name == 'block_chat_member':
+            team = identifier(p['team_id'])
+            blocks = self.chat_blocks(team)
+            response = dict(team_id=team, user_id=identifier(p['user_id']), blocked=identifier(p['user_id']) in blocks['users'],
+                            block_revision=blocks.get('revision', 0), blocked_author_ids=blocks['users'])
+            self.finish_chat_read(team, blocks.get('revision', 0))
+            return response
+        if name == 'handoff_team_admin':
+            team = identifier(p['team_id'])
+            # Successful handoff intentionally demotes its sender; only their owned
+            # receipt can be read as a member. A fresh mutation still requires admin.
+            members = [self.membership_row(team, user) for user in (self.actor['id'], identifier(p['user_id']))]
+            _Operation(self.store, lambda: self.now, self.actor).member(team)
+            return dict(team_id=team, members=members)
+        if name in ('set_member_display_name', 'set_member_role'):
+            team = identifier(p['team_id'])
+            user = self.actor['id'] if name == 'set_member_display_name' else identifier(p['user_id'])
+            row = self.membership_row(team, user)
+            _Operation(self.store, lambda: self.now, self.actor).member(team, ('admin',) if user != self.actor['id'] else None)
+            return row
+        return copy.deepcopy(result)
 
     def base(self, team, **values):
         t = self.entity('teams', team)
@@ -502,8 +561,12 @@ class _Operation:
 
     def add_member(self, team, user, role, display_name=''):
         old = self.get('T#' + team, 'memberships#' + user)
+        if not old or not old['active'] or old['role'] != role:
+            self.advance_team_authority(team)
+        if old is None and len(self.team_members(team)) >= TEAM_MEMBER_LIMIT:
+            raise APIError('TEAM_MEMBER_LIMIT', 413)
         row = self.base(team, user_id=user, role=role, active=True, display_name=display_name,
-                        created_at=old['created_at'] if old else iso(self.now))
+                        created_at=old['created_at'] if old else iso(self.now), revision=old.get('revision', 1) + 1 if old else 1)
         self.put('T#' + team, 'memberships#' + user, row, old)
         pointer = self.get('U#' + user, 'MEMBERSHIP#' + team)
         self.put('U#' + user, 'MEMBERSHIP#' + team, dict(team_id=team), pointer)
@@ -515,20 +578,91 @@ class _Operation:
                   timezone=self.timezone(p.get('timezone')), created_by=self.actor['id'], created_at=iso(self.now)))
         self.put_entity('teams', dict(id=team, church_id=church, team_id=team, name='Worship Team'))
         self.put('C#' + church, 'TEAM#' + team, dict(team_id=team))
-        self.add_member(team, self.actor['id'], 'admin')
+        self.add_member(team, self.actor['id'], 'admin', text(p['member_display_name'], 120) if p.get('member_display_name') is not None else '')
         return dict(schema_version=1, church_id=church, team_id=team, role='admin')
 
     def rpc_create_team(self, p):
         church, team = identifier(p.get('church_id')), str(uuid.uuid4())
+        founder = self.church_admin(church)
         self.put_entity('teams', dict(id=team, church_id=church, team_id=team, name=text(p.get('display_name'), 120)))
         self.put('C#' + church, 'TEAM#' + team, dict(team_id=team))
-        self.add_member(team, self.actor['id'], 'admin')
+        self.add_member(team, self.actor['id'], 'admin', founder.get('display_name', ''))
         return dict(schema_version=1, church_id=church, team_id=team, role='admin')
 
     def rpc_get_team_roster(self, p):
         team = identifier(p['team_id'])
         self.member(team)
-        return {'team_id': team, 'members': [m for m in self.store.query('T#' + team, 'memberships#') if m['active']]}
+        if not isinstance(p.get('include_inactive', False), bool):
+            raise APIError('INVALID_INPUT')
+        if p.get('include_inactive'):
+            self.member(team, ('admin',))
+        members = [dict(m, revision=m.get('revision', 1)) for m in self.team_members(team) if m['active'] or p.get('include_inactive')]
+        _Operation(self.store, lambda: self.now, self.actor).member(team, ('admin',) if p.get('include_inactive') else None)
+        return dict(team_id=team, members=members)
+
+    def team_members(self, team):
+        rows = self.store.query('T#' + team, 'memberships#', limit=TEAM_MEMBER_LIMIT + 1)
+        if len(rows) > TEAM_MEMBER_LIMIT:
+            raise APIError('TEAM_MEMBER_LIMIT', 413)
+        return rows
+
+    def membership_row(self, team, user):
+        row = self.get('T#' + team, 'memberships#' + identifier(user))
+        if not row:
+            raise APIError('ACCESS_REVOKED', 403)
+        return dict(row, revision=row.get('revision', 1))
+
+    def advance_team_authority(self, team):
+        old = self.get('T#' + team, 'TEAM_AUTHORITY')
+        self.put('T#' + team, 'TEAM_AUTHORITY', dict(revision=(old or {}).get('revision', 0) + 1), old)
+
+    def require_remaining_admin(self, team, old, active=True, role=None):
+        if old['active'] and old['role'] == 'admin' and (not active or role not in (None, 'admin')):
+            if not any(m['active'] and m['role'] == 'admin' and m['user_id'] != old['user_id'] for m in self.team_members(team)):
+                raise APIError('TEAM_ADMIN_REQUIRED', 409)
+
+    def rpc_set_member_display_name(self, p):
+        team = identifier(p['team_id'])
+        old = self.member(team)
+        revision = old.get('revision', 1)
+        if integer(p.get('expected_revision'), 1) != revision:
+            raise APIError('REVISION_CONFLICT', 409)
+        name = text(p.get('display_name'), 120)
+        row = dict(old, display_name=name, revision=revision + (1 if name != old.get('display_name') else 0))
+        self.put('T#' + team, 'memberships#' + self.actor['id'], row, old)
+        return row
+
+    def rpc_set_member_role(self, p):
+        team, user = identifier(p['team_id']), identifier(p.get('user_id'))
+        self.member(team, ('admin',))
+        role = p.get('role')
+        if role not in ('member', 'leader', 'admin'):
+            raise APIError('INVALID_INPUT')
+        old = self.get('T#' + team, 'memberships#' + user)
+        if not old or not old['active']:
+            raise APIError('ACCESS_REVOKED', 403)
+        if integer(p.get('expected_revision'), 1) != old.get('revision', 1):
+            raise APIError('REVISION_CONFLICT', 409)
+        self.advance_team_authority(team)
+        self.require_remaining_admin(team, old, role=role)
+        row = dict(old, role=role, revision=old.get('revision', 1) + (1 if old['role'] != role else 0))
+        self.put('T#' + team, 'memberships#' + user, row, old)
+        return row
+
+    def rpc_handoff_team_admin(self, p):
+        team, user = identifier(p['team_id']), identifier(p.get('user_id'))
+        old = self.member(team, ('admin',))
+        target = self.get('T#' + team, 'memberships#' + user)
+        if user == self.actor['id'] or not target or not target['active']:
+            raise APIError('ACCESS_REVOKED', 403)
+        if integer(p.get('expected_self_revision'), 1) != old.get('revision', 1) or integer(p.get('expected_member_revision'), 1) != target.get('revision', 1):
+            raise APIError('REVISION_CONFLICT', 409)
+        self.advance_team_authority(team)
+        sender = dict(old, role='leader', revision=old.get('revision', 1) + 1)
+        receiver = dict(target, role='admin', revision=target.get('revision', 1) + (1 if target['role'] != 'admin' else 0))
+        self.put('T#' + team, 'memberships#' + self.actor['id'], sender, old)
+        self.put('T#' + team, 'memberships#' + user, receiver, target)
+        return dict(team_id=team, members=[sender, receiver])
 
     def rpc_get_team_catalog(self, p):
         team = identifier(p['team_id'])
@@ -546,6 +680,305 @@ class _Operation:
             raise APIError('ACCESS_REVOKED', 403)
         if not member_after and (not grants_before or not grants_before.issubset(g['setlist_id'] for g in fresh.grants(team))):
             raise APIError('ACCESS_REVOKED', 403)
+        return result
+
+    def catalog_scope(self, team):
+        member = self.can_member(team)
+        grants = [] if member else sorted(self.grants(team), key=lambda g: g['setlist_id'])
+        if not member and not grants:
+            raise APIError('ACCESS_REVOKED', 403)
+        if len(grants) > 40:
+            raise APIError('RESOURCE_LIMIT', 413)
+        setlist_scopes = []
+        for grant in grants:
+            self.check('T#' + team, 'guest_grants#' + self.actor['id'] + '#' + grant['setlist_id'], grant)
+            row = self.entity('setlists', grant['setlist_id'])
+            if row['team_id'] != team:
+                raise APIError('ACCESS_REVOKED', 403)
+            self.check('T#' + team, 'setlists#' + row['id'], row)
+            setlist_scopes.append(dict(id=row['id'], items_token=token(row.get('items', []))))
+        digest = token(dict(actor_id=self.actor['id'], team_id=team, member=member, grants=grants, setlist_scopes=setlist_scopes))
+        return member, grants, digest
+
+    def catalog_cursor(self, value, team, scope, tables=CATALOG_TABLES, registry='CATALOG_CURSOR'):
+        if value is None:
+            return dict(table=tables[0], after_key=None)
+        if not isinstance(value, dict) or set(value) != {'schema_version', 'team_id', 'table', 'after_key', 'scope_token'}:
+            raise APIError('INVALID_CURSOR')
+        if not isinstance(value['schema_version'], int) or isinstance(value['schema_version'], bool) or value['schema_version'] != 1 or value['team_id'] != team or value['table'] not in tables or not isinstance(value['scope_token'], str) or not re.fullmatch('[0-9a-f]{64}', value['scope_token']):
+            raise APIError('INVALID_CURSOR')
+        try:
+            cursor_id = identifier(value['after_key'])
+        except APIError:
+            raise APIError('INVALID_CURSOR') from None
+        row = self.store.get('U#' + self.actor['id'], registry + '#' + team + '#' + cursor_id)
+        if not row or row['actor_id'] != self.actor['id'] or row['team_id'] != team or row['table'] != value['table'] or row['scope_token'] != value['scope_token'] or row['expires_at_epoch'] <= int(self.now.timestamp()):
+            raise APIError('INVALID_CURSOR')
+        if row['scope_token'] != scope:
+            raise APIError('CATALOG_CHANGED', 409)
+        return row
+
+    def guest_catalog_references(self, team, grants):
+        lists = {g['setlist_id']: self.entity('setlists', g['setlist_id']) for g in grants}
+        calls = self.store.query('T#' + team, 'live_calls#', limit=CHAT_REFERENCE_BUDGET + 1)
+        if len(calls) > CHAT_REFERENCE_BUDGET:
+            raise APIError('RESOURCE_LIMIT', 413)
+        items = [i for s in lists.values() for i in s.get('items', []) if i['active']]
+        calls = [c for c in calls if c['setlist_id'] in lists]
+        charts = {r['team_chart_version_id'] for r in items + calls}
+        if len(charts) > 1000:
+            raise APIError('RESOURCE_LIMIT', 413)
+        return dict(setlists=lists, charts=charts, songs={r['song_id'] for r in items + calls},
+                    called={c['performance_item_id'] for c in calls})
+
+    def guest_catalog_asset(self, row, references):
+        if row['status'] != 'verified':
+            return False
+        if row['type'] == 'pdf':
+            for chart_id in references['charts']:
+                chart = self.entity('chart_versions', chart_id)
+                if chart['team_id'] != row['team_id']:
+                    raise APIError('ACCESS_REVOKED', 403)
+                if chart['pdf_asset_id'] == row['id']:
+                    return True
+            return False
+        for acl in self.store.query('ASSET#' + row['id'], 'ACL#'):
+            layer = self.entity('annotation_layers', acl['layer_id'])
+            s = references['setlists'].get(layer['setlist_id'])
+            if layer['scope'] == 'team' and layer['team_id'] == row['team_id'] and s and layer['chart_version_id'] in references['charts'] and any(i['id'] == layer['performance_item_id'] for i in s.get('items', [])):
+                return True
+        return False
+
+    def rpc_get_team_catalog_page(self, p):
+        team, limit = identifier(p['team_id']), integer(p.get('limit', 50), 1, 100)
+        original = self.store
+        member, grants, scope = self.catalog_scope(team)
+        position = self.catalog_cursor(p.get('cursor'), team, scope)
+        table, after = position['table'], position.get('after_key')
+        self.store = _CatalogReads(original)
+        references = self.guest_catalog_references(team, grants) if not member else None
+        result = dict(schema_version=1, team_id=team, **{name: [] for name in CATALOG_TABLES})
+        next_position = None
+        budget = CATALOG_PAGE_BYTES - 2048  # Reserve cursor/envelope bytes before adding rows.
+        def append(row):
+            nonlocal budget
+            size = len(encode(row).encode()) + 1
+            if size > budget:
+                if not result[table]:
+                    raise APIError('RESOURCE_LIMIT', 413)
+                return False
+            result[table].append(row)
+            budget -= size
+            return True
+        def advance():
+            index = CATALOG_TABLES.index(table) + 1
+            return dict(table=CATALOG_TABLES[index], after_key=None) if index < len(CATALOG_TABLES) else None
+
+        if table == 'performance_items':
+            # Embedded items need a revision fence when one setlist spans pages.
+            if position.get('item_offset') is not None:
+                row = self.store.get('T#' + team, after)
+                if not row or row['revision'] != position.get('setlist_revision'):
+                    raise APIError('CATALOG_CHANGED', 409)
+                offset = position['item_offset']
+            else:
+                rows = ([s for key, s in sorted(references['setlists'].items()) if after is None or 'setlists#' + key > after][:1]
+                        if references else self.store.query('T#' + team, 'setlists#', after=after, limit=1))
+                row, offset = (rows[0], 0) if rows else (None, 0)
+            if row:
+                source_key = 'setlists#' + row['id']
+                allowed = bool(member) or any(g['setlist_id'] == row['id'] for g in grants)
+                called = set()
+                if allowed and not member:
+                    called = references['called']
+                for index in range(offset, len(row.get('items', []))):
+                    item = row['items'][index]
+                    if allowed and (member or item['active'] or item['id'] in called):
+                        if len(result[table]) >= limit or not append(item):
+                            next_position = dict(table=table, after_key=source_key, item_offset=index, setlist_revision=row['revision'])
+                            break
+                else:
+                    more = (any('setlists#' + key > source_key for key in references['setlists'])
+                            if references else self.store.query('T#' + team, 'setlists#', after=source_key, limit=1))
+                    next_position = dict(table=table, after_key=source_key) if more else advance()
+            else:
+                next_position = advance()
+        elif table == 'personal_preferences' and not member:
+            next_position = advance()
+        else:
+            prefix = table + '#' + self.actor['id'] + '#' if table == 'personal_preferences' else table + '#'
+            if references and table in ('songs', 'chart_versions', 'setlists'):
+                ids = references['songs'] if table == 'songs' else references['charts'] if table == 'chart_versions' else references['setlists']
+                ids = [key for key in sorted(ids) if after is None or prefix + key > after][:limit + 1]
+                candidates = [self.entity(table, key) for key in ids]
+                if any(row['team_id'] != team for row in candidates):
+                    raise APIError('ACCESS_REVOKED', 403)
+            else:
+                candidates = self.store.query('T#' + team, prefix, after=after, limit=limit + 1)
+            consumed = after
+            stopped = False
+            for row in candidates[:limit]:
+                key = prefix + row['song_id'] if table == 'personal_preferences' else table + '#' + row['id']
+                allowed = bool(member)
+                if table == 'chart_versions':
+                    allowed = bool(member) or row['id'] in references['charts']
+                elif table == 'songs' and not member:
+                    allowed = row['id'] in references['songs']
+                elif table == 'assets':
+                    allowed = (self.asset_readable(row) or row['owner_user_id'] == self.actor['id']) if member else self.guest_catalog_asset(row, references)
+                elif table == 'setlists':
+                    allowed = bool(member) or any(g['setlist_id'] == row['id'] for g in grants)
+                if allowed and not append({k: v for k, v in row.items() if k not in ('token_hash', 'items')}):
+                    stopped = True
+                    break
+                consumed = key
+            next_position = dict(table=table, after_key=consumed) if stopped or len(candidates) > limit else advance()
+
+        fresh = _Operation(original, lambda: self.now, self.actor)
+        if fresh.catalog_scope(team)[2] != scope:
+            raise APIError('CATALOG_CHANGED', 409)
+        if next_position:
+            cursor_id = str(uuid.uuid4())
+            record = dict(next_position, schema_version=1, actor_id=self.actor['id'], team_id=team, scope_token=scope,
+                          expires_at_epoch=int(self.now.timestamp()) + 3600)
+            fresh.put('U#' + self.actor['id'], 'CATALOG_CURSOR#' + team + '#' + cursor_id, record)
+            result['next_cursor'] = dict(schema_version=1, team_id=team, table=record['table'], after_key=cursor_id, scope_token=scope)
+        else:
+            result['next_cursor'] = None
+        # READS does not normally commit. Cursor registration is deliberately fenced
+        # with the same fresh membership/grant rows and expires without content hints.
+        fresh.commit()
+        if len(encode(result).encode()) > CATALOG_PAGE_BYTES:
+            raise APIError('RESOURCE_LIMIT', 413)
+        return result
+
+    def rpc_get_account_preflight(self, p):
+        pointers = self.store.query('U#' + self.actor['id'], 'MEMBERSHIP#', limit=201)
+        if len(pointers) > 200:
+            raise APIError('RESOURCE_LIMIT', 413)
+        teams, unavailable = [], 0
+        for pointer in pointers:
+            team = pointer['team_id']
+            own = self.can_member(team)
+            if not own:
+                unavailable += 1
+                continue
+            if len(teams) >= 50:
+                raise APIError('RESOURCE_LIMIT', 413)
+            authority = self.store.get('T#' + team, 'TEAM_AUTHORITY')
+            self.check('T#' + team, 'TEAM_AUTHORITY', authority)
+            admins = [m for m in self.team_members(team) if m['active'] and m['role'] == 'admin']
+            profile = self.entity('teams', team)
+            fresh = _Operation(self.store, lambda: self.now, self.actor)
+            if fresh.member(team) != own or self.store.get('T#' + team, 'TEAM_AUTHORITY') != authority:
+                raise APIError('REVISION_CONFLICT', 409)
+            sole = own['role'] == 'admin' and len(admins) == 1
+            teams.append(dict(team_id=team, church_id=own['church_id'], display_name=profile['name'],
+                              member_display_name=own.get('display_name', ''), role=own['role'], revision=own.get('revision', 1),
+                              sole_admin=sole, handoff_required=sole))
+        # At most 50 active teams permits one atomic final membership/authority
+        # fence per team. This read-only preflight never closes an account itself.
+        self.commit()
+        return dict(schema_version=1, owner_user_id=self.actor['id'], generated_at=iso(self.now), delete_supported=False,
+                    teams=teams, unavailable_team_count=unavailable)
+
+    def personal_export_asset(self, row):
+        if row['type'] not in ('native', 'preview') or row['status'] != 'verified' or row['owner_user_id'] != self.actor['id']:
+            return False
+        for acl in self.store.query('ASSET#' + row['id'], 'ACL#'):
+            layer = self.entity('annotation_layers', acl['layer_id'])
+            if layer['team_id'] == row['team_id'] and layer['scope'] == 'personal' and layer['owner_user_id'] == self.actor['id']:
+                return True
+        return False
+
+    def rpc_get_account_export_page(self, p):
+        team, limit = identifier(p['team_id']), integer(p.get('limit', 50), 1, 100)
+        original = self.store
+        member, _, scope = self.catalog_scope(team)
+        if not member:
+            raise APIError('ACCESS_REVOKED', 403)
+        position = self.catalog_cursor(p.get('cursor'), team, scope, EXPORT_TABLES, 'ACCOUNT_EXPORT_CURSOR')
+        table, after = position['table'], position.get('after_key')
+        self.store = _CatalogReads(original)
+        result = dict(schema_version=1, owner_user_id=self.actor['id'], team_id=team, export_scope='current_authorized_team',
+                      **{name: [] for name in EXPORT_TABLES})
+        budget = CATALOG_PAGE_BYTES - 2048
+        def append(row):
+            nonlocal budget
+            size = len(encode(row).encode()) + 1
+            if size > budget:
+                if not result[table]:
+                    raise APIError('RESOURCE_LIMIT', 413)
+                return False
+            result[table].append(row)
+            budget -= size
+            return True
+        def advance():
+            index = EXPORT_TABLES.index(table) + 1
+            return dict(table=EXPORT_TABLES[index], after_key=None) if index < len(EXPORT_TABLES) else None
+        if table == 'memberships':
+            append(dict(member, revision=member.get('revision', 1)))
+            next_position = advance()
+        elif table == 'chat_blocks':
+            row = self.store.get('U#' + self.actor['id'], 'CHAT_BLOCKS#' + team)
+            if row:
+                append(dict(row, team_id=team, user_id=self.actor['id']))
+            next_position = advance()
+        elif table == 'chat_preferences':
+            if after is None:
+                room = 'TEAM'
+            else:
+                last = 'setlists#' + after.split('#', 1)[1] if after.startswith('SETLIST#') else None
+                rows = self.store.query('T#' + team, 'setlists#', after=last, limit=1)
+                room = 'SETLIST#' + rows[0]['id'] if rows else None
+            if room:
+                row = self.store.get('T#' + team, 'CHAT_PREF#' + self.actor['id'] + '#' + room)
+                if row:
+                    append(dict(row, user_id=self.actor['id'], room=room, setlist_id=room.split('#', 1)[1] if room != 'TEAM' else None))
+                last = 'setlists#' + room.split('#', 1)[1] if room != 'TEAM' else None
+                more = self.store.query('T#' + team, 'setlists#', after=last, limit=1)
+                next_position = dict(table=table, after_key=room) if more else advance()
+            else:
+                next_position = advance()
+        else:
+            prefix = table + '#' + self.actor['id'] + '#' if table == 'personal_preferences' else table + '#'
+            candidates = self.store.query('T#' + team, prefix, after=after, limit=limit + 1)
+            consumed, stopped = after, False
+            for row in candidates[:limit]:
+                if table == 'personal_preferences':
+                    key, allowed = prefix + row['song_id'], row['user_id'] == self.actor['id']
+                elif table == 'chat_messages':
+                    room = 'SETLIST#' + row['setlist_id'] if row.get('setlist_id') else 'TEAM'
+                    key, allowed = prefix + room + '#' + row['id'], row['author_id'] == self.actor['id']
+                elif table == 'assets':
+                    key, allowed = prefix + row['id'], self.personal_export_asset(row)
+                else:
+                    key = prefix + (row['layer_id'] if table == 'annotation_heads' else row['id'])
+                    allowed = row['scope'] == 'personal' and row['owner_user_id'] == self.actor['id']
+                    if allowed and table != 'annotation_layers':
+                        layer = self.entity('annotation_layers', row['layer_id'])
+                        allowed = layer['scope'] == 'personal' and layer['owner_user_id'] == self.actor['id'] and layer['team_id'] == team
+                if allowed:
+                    visible = self.visible_chat_message(row) if table == 'chat_messages' else dict(row, verified=True) if table == 'assets' else row
+                    if not append(visible):
+                        stopped = True
+                        break
+                consumed = key
+            next_position = dict(table=table, after_key=consumed) if stopped or len(candidates) > limit else advance()
+        fresh = _Operation(original, lambda: self.now, self.actor)
+        if fresh.catalog_scope(team)[2] != scope:
+            raise APIError('CATALOG_CHANGED', 409)
+        if next_position:
+            cursor_id = str(uuid.uuid4())
+            record = dict(next_position, schema_version=1, actor_id=self.actor['id'], team_id=team, scope_token=scope,
+                          expires_at_epoch=int(self.now.timestamp()) + 3600)
+            fresh.put('U#' + self.actor['id'], 'ACCOUNT_EXPORT_CURSOR#' + team + '#' + cursor_id, record)
+            result['next_cursor'] = dict(schema_version=1, team_id=team, table=record['table'], after_key=cursor_id, scope_token=scope)
+        else:
+            result['next_cursor'] = None
+        fresh.commit()
+        if len(encode(result).encode()) > CATALOG_PAGE_BYTES:
+            raise APIError('RESOURCE_LIMIT', 413)
         return result
 
     def rpc_create_song(self, p):
@@ -663,7 +1096,8 @@ class _Operation:
         invite, raw = str(uuid.uuid4()), secrets.token_urlsafe(32)
         hashed = hashlib.sha256(raw.encode()).hexdigest()
         row = self.base(team, id=invite, token_hash=hashed, permitted_role=role, setlist_id=setlist,
-                        inviter=self.actor['id'], expires_at=iso(expiry), max_uses=integer(p.get('max_uses', 1), 1, 50), used_count=0, revoked_at=None)
+                        inviter=self.actor['id'], expires_at=iso(expiry), max_uses=integer(p.get('max_uses', 1), 1, 50), used_count=0, revoked_at=None,
+                        created_at=iso(self.now), revision=1)
         self.put_entity('invitations', row)
         self.put('INVITE#' + hashed, 'REF', dict(invitation_id=invite))
         return dict(schema_version=1, invitation_id=invite, team_id=team, token=raw, expires_at=iso(expiry), permitted_role=role, installation_required=True)
@@ -706,15 +1140,36 @@ class _Operation:
             previous = self.get('T#' + invite['team_id'], 'memberships#' + self.actor['id'])
             rank = {'member': 1, 'leader': 2, 'admin': 3}
             role = previous['role'] if previous and previous['active'] and rank[previous['role']] > rank[invite['permitted_role']] else invite['permitted_role']
-            self.add_member(invite['team_id'], self.actor['id'], role, text(p.get('display_name', 'Musician'), 120))
-        self.put_entity('invitations', dict(invite, used_count=invite['used_count'] + 1), invite)
+            self.add_member(invite['team_id'], self.actor['id'], role, text(p.get('display_name', (previous or {}).get('display_name') or 'Musician'), 120))
+        self.put_entity('invitations', dict(invite, used_count=invite['used_count'] + 1, revision=invite.get('revision', 1) + 1), invite)
         self.put('U#' + self.actor['id'], redemption_key, receipt)
         return receipt
 
     def rpc_revoke_invitation(self, p):
         row = self.entity('invitations', p['invitation_id'])
-        self.put_entity('invitations', dict(row, revoked_at=iso(self.now)), row)
-        return dict(invitation_id=row['id'], revoked=True)
+        if p.get('expected_revision') is not None and integer(p['expected_revision'], 1) != row.get('revision', 1):
+            raise APIError('REVISION_CONFLICT', 409)
+        updated = dict(row, revoked_at=row.get('revoked_at') or iso(self.now), revision=row.get('revision', 1) + (0 if row.get('revoked_at') else 1))
+        self.put_entity('invitations', updated, row)
+        return dict(invitation_id=row['id'], team_id=row['team_id'], revoked=True, revision=updated['revision'])
+
+    def rpc_get_team_invitations(self, p):
+        team = identifier(p['team_id'])
+        self.member(team, ('admin',))
+        limit = integer(p.get('limit', 50), 1, 100)
+        after = 'invitations#' + identifier(p['after_invitation_id']) if p.get('after_invitation_id') else None
+        rows = self.store.query('T#' + team, 'invitations#', after=after, limit=limit + 1)
+        results = []
+        for row in rows[:limit]:
+            status = 'revoked' if row.get('revoked_at') else 'expired' if timestamp(row['expires_at']) <= self.now else 'exhausted' if row['used_count'] >= row['max_uses'] else 'active'
+            # The creation response is the only place an invitation's raw token is
+            # returned. Management lists never contain the token or its hash.
+            results.append({k: row.get(k) for k in ('id', 'team_id', 'church_id', 'permitted_role', 'setlist_id', 'expires_at',
+                                                   'max_uses', 'used_count', 'revoked_at', 'created_at')})
+            results[-1].update(invitation_id=row['id'], revision=row.get('revision', 1), status=status)
+        _Operation(self.store, lambda: self.now, self.actor).member(team, ('admin',))
+        return dict(team_id=team, invitations=results, has_more=len(rows) > limit,
+                    next_invitation_id=results[-1]['id'] if len(rows) > limit and results else None)
 
     def rpc_revoke_guest_grant(self, p):
         s = self.entity('setlists', p['setlist_id'])
@@ -731,8 +1186,13 @@ class _Operation:
         old = self.get('T#' + team, 'memberships#' + user)
         if not old:
             raise APIError('ACCESS_REVOKED', 403)
-        self.put('T#' + team, 'memberships#' + user, dict(old, active=p['active']), old)
-        return dict(user_id=user, active=p['active'], team_id=team)
+        if p.get('expected_revision') is not None and integer(p['expected_revision'], 1) != old.get('revision', 1):
+            raise APIError('REVISION_CONFLICT', 409)
+        self.advance_team_authority(team)
+        self.require_remaining_admin(team, old, active=p['active'])
+        row = dict(old, active=p['active'], revision=old.get('revision', 1) + (1 if old['active'] != p['active'] else 0))
+        self.put('T#' + team, 'memberships#' + user, row, old)
+        return row
 
     def lease(self, s):
         return self.get('T#' + s['team_id'], 'editor_leases#' + s['id'])
@@ -971,7 +1431,9 @@ class _Operation:
     def advance_chat(self, team, room, message_id):
         old = self.chat_head(team, room)
         revision = old['revision'] + 1 if old else 1
-        self.put('T#' + team, 'CHAT_HEAD#' + room, dict(revision=revision), old)
+        # Only new sends have creation indexes; older events retain their original ordering.
+        self.put('T#' + team, 'CHAT_HEAD#' + room,
+                 dict(old or {}, revision=revision, creation_index_from=(old or {}).get('creation_index_from', revision)), old)
         self.put('T#' + team, 'CHAT_DELTA#' + room + '#' + f'{revision:016d}', dict(revision=revision, message_id=message_id))
         return revision
 
@@ -981,15 +1443,41 @@ class _Operation:
             raise APIError('ACCESS_REVOKED', 403)
         return value
 
+    def chat_blocks(self, team):
+        pk, sk = 'U#' + self.actor['id'], 'CHAT_BLOCKS#' + team
+        value = self.get(pk, sk)
+        self.check(pk, sk, value)
+        return value or dict(users=[], revision=0)
+
+    def visible_chat_message(self, message, blocked=()):
+        hidden = message['author_id'] in blocked and message['author_id'] != self.actor['id']
+        row = dict(message, chart_version_id=message.get('chart_version_id'), chart_title=message.get('chart_title'))
+        if hidden or row['deleted']:
+            row.update(body='', chart_version_id=None, chart_title=None)
+        if hidden:
+            row['hidden'] = True
+        return row
+
+    def finish_chat_read(self, team, block_revision=None, moderator=False):
+        # Long bounded reads must not return after membership or a local block changed.
+        fresh = _Operation(self.store, lambda: self.now, self.actor)
+        fresh.member(team, ('leader', 'admin') if moderator else None)
+        if block_revision is not None and fresh.chat_blocks(team).get('revision', 0) != block_revision:
+            raise APIError('REVISION_CONFLICT', 409)
+
     def rpc_get_chat_snapshot(self, p):
         team, setlist, room = self.chat_scope(p)
         after = integer(p.get('after_revision', 0))
+        blocked = self.chat_blocks(team)
+        block_revision = blocked.get('revision', 0)
+        reset = integer(p.get('known_block_revision', p.get('block_revision', 0))) != block_revision
+        if reset:
+            after = 0
         head = self.chat_head(team, room)
         latest = head['revision'] if head else 0
         if after > latest:
             raise APIError('REVISION_CONFLICT', 409)
         pref = self.get('T#' + team, 'CHAT_PREF#' + self.actor['id'] + '#' + room) or {}
-        blocked = self.get('U#' + self.actor['id'], 'CHAT_BLOCKS#' + team) or {'users': []}
         prefix = 'CHAT_DELTA#' + room + '#'
         changes = self.store.query('T#' + team, prefix, after=prefix + f'{after:016d}',
                                    through=prefix + f'{latest:016d}', limit=101) if latest > after else []
@@ -1000,10 +1488,12 @@ class _Operation:
         for change in page:
             m = self.chat_message(team, room, change['message_id'])
             # Fetch only the current text: an old delivery event must not resurrect a deleted body.
-            if after < m['revision'] <= cursor and (m['author_id'] not in blocked['users'] or m['author_id'] == self.actor['id']):
-                messages[m['id']] = m
+            if after < m['revision'] <= cursor:
+                messages[m['id']] = self.visible_chat_message(m, blocked['users'])
+        self.finish_chat_read(team, block_revision)
         return dict(team_id=team, setlist_id=setlist, revision=cursor, latest_revision=latest, has_more=len(changes) > 100,
                     read_revision=pref.get('read_revision', 0), muted=pref.get('muted', False),
+                    blocked_author_ids=blocked['users'], block_revision=block_revision, reset=reset, full_reset=reset, fullreset=reset,
                     messages=sorted(messages.values(), key=lambda m: m['revision']))
 
     def rpc_send_chat_message(self, p):
@@ -1012,12 +1502,29 @@ class _Operation:
         reply = identifier(p['reply_to_id']) if p.get('reply_to_id') else None
         if reply and self.chat_message(team, room, reply)['deleted']:
             raise APIError('MESSAGE_DELETED', 409)
+        chart_id = identifier(p['chart_version_id']) if p.get('chart_version_id') else None
+        chart_title = None
+        if chart_id:
+            chart = self.entity('chart_versions', chart_id)
+            if chart['team_id'] != team:
+                raise APIError('ACCESS_REVOKED', 403)
+            if not chart.get('published_at'):
+                raise APIError('FILE_NOT_READY', 409)
+            asset = self.entity('assets', chart['pdf_asset_id'])
+            song = self.entity('songs', chart['song_id'])
+            if asset['team_id'] != team or asset['type'] != 'pdf' or asset['status'] != 'verified' or song['team_id'] != team:
+                raise APIError('FILE_NOT_READY', 409)
+            chart_title = song['canonical_title']
         member = self.member(team)
         message_id = str(uuid.uuid4())
+        revision = self.advance_chat(team, room, message_id)
         row = self.base(team, id=message_id, author_id=self.actor['id'], author_name=member.get('display_name', ''),
-                        body=body, revision=self.advance_chat(team, room, message_id), created_at=iso(self.now), edited_at=None,
-                        reply_to_id=reply, setlist_id=setlist, deleted=False, pinned=False)
+                        body=body, revision=revision, created_revision=revision, created_at=iso(self.now), edited_at=None,
+                        reply_to_id=reply, setlist_id=setlist, deleted=False, pinned=False,
+                        chart_version_id=chart_id, chart_title=chart_title)
         self.put('T#' + team, 'chat_messages#' + room + '#' + row['id'], row)
+        self.put('T#' + team, 'CHAT_CREATED#' + room + '#' + f'{revision:016d}', dict(revision=revision, message_id=message_id))
+        self.put('T#' + team, 'CHAT_REF#' + message_id, dict(room=room, setlist_id=setlist))
         return row
 
     def edit_message(self, p, delete=False):
@@ -1032,8 +1539,10 @@ class _Operation:
             raise APIError('MESSAGE_DELETED', 409)
         row = dict(old, body='' if delete else text(p.get('body'), 4000), deleted=delete,
                    pinned=False if delete else old['pinned'], edited_at=iso(self.now), revision=self.advance_chat(team, room, old['id']))
+        if delete:
+            row.update(chart_version_id=None, chart_title=None)
         self.put('T#' + team, 'chat_messages#' + room + '#' + old['id'], row, old)
-        return row
+        return self.visible_chat_message(row, self.chat_blocks(team)['users'])
 
     def rpc_edit_chat_message(self, p):
         return self.edit_message(p)
@@ -1072,29 +1581,155 @@ class _Operation:
         old = self.chat_message(team, room, p.get('message_id'))
         if old['deleted']:
             raise APIError('MESSAGE_DELETED', 409)
+        if p.get('expected_revision') is not None and old['revision'] != integer(p['expected_revision']):
+            raise APIError('REVISION_CONFLICT', 409)
+        if old['pinned'] == p['pinned']:
+            self.check('T#' + team, 'chat_messages#' + room + '#' + old['id'], old)
+            return self.visible_chat_message(old, self.chat_blocks(team)['users'])
         row = dict(old, pinned=p['pinned'], revision=self.advance_chat(team, room, old['id']))
         self.put('T#' + team, 'chat_messages#' + room + '#' + old['id'], row, old)
-        return row
+        return self.visible_chat_message(row, self.chat_blocks(team)['users'])
 
     def rpc_report_chat_message(self, p):
-        team, _, room = self.chat_scope(p)
+        team, setlist, room = self.chat_scope(p)
         message = self.chat_message(team, room, p.get('message_id'))
         report_id = str(uuid.uuid4())
         row = dict(id=report_id, team_id=team, message_id=message['id'], reporter_id=self.actor['id'],
-                   reason=text(p.get('reason'), 1000), created_at=iso(self.now), status='open')
+                   reason=text(p.get('reason'), 1000), created_at=iso(self.now), status='open', revision=1,
+                   setlist_id=setlist, room=room, author_id=message['author_id'])
         self.put('T#' + team, 'CHAT_REPORT#' + report_id, row)
-        return dict(team_id=team, report_id=report_id, reported=True)
+        return dict(team_id=team, report_id=report_id, reported=True, revision=1)
 
     def rpc_block_chat_member(self, p):
         team = identifier(p['team_id'])
         user = identifier(p.get('user_id'))
         if user == self.actor['id'] or not isinstance(p.get('blocked'), bool):
             raise APIError('INVALID_INPUT')
-        target = self.get('T#' + team, 'memberships#' + user)
-        if not target or not target['active']:
-            raise APIError('ACCESS_REVOKED', 403)
         old = self.get('U#' + self.actor['id'], 'CHAT_BLOCKS#' + team)
         blocked = set(old['users'] if old else [])
+        target = self.get('T#' + team, 'memberships#' + user)
+        # Removal revokes content, but must not trap an owner's existing local block.
+        if (not target or not target['active']) and (p['blocked'] or user not in blocked):
+            raise APIError('ACCESS_REVOKED', 403)
+        self.check('T#' + team, 'memberships#' + user, target)
+        changed = (user in blocked) != p['blocked']
         blocked.add(user) if p['blocked'] else blocked.discard(user)
-        self.put('U#' + self.actor['id'], 'CHAT_BLOCKS#' + team, dict(users=sorted(blocked)), old)
-        return dict(team_id=team, user_id=user, blocked=p['blocked'])
+        revision = (old or {}).get('revision', 0) + (1 if changed else 0)
+        self.put('U#' + self.actor['id'], 'CHAT_BLOCKS#' + team, dict(users=sorted(blocked), revision=revision), old)
+        return dict(team_id=team, user_id=user, blocked=p['blocked'], block_revision=revision, blocked_author_ids=sorted(blocked))
+
+    def chat_unread(self, team, room, head, read, blocked, budget):
+        latest = (head or {}).get('revision', 0)
+        if latest <= read:
+            return 0
+        cutoff = (head or {}).get('creation_index_from', latest + 1) - 1
+        creations = {}
+        ranges = []
+        if read < cutoff:
+            # Legacy deltas contain every mutation; only the first event is a creation.
+            ranges.append(('CHAT_DELTA#' + room + '#', 0, cutoff, True))
+        if latest > max(read, cutoff):
+            ranges.append(('CHAT_CREATED#' + room + '#', max(read, cutoff), latest, False))
+        for prefix, after, through, legacy in ranges:
+            rows = self.store.query('T#' + team, prefix, after=prefix + f'{after:016d}',
+                                    through=prefix + f'{through:016d}', limit=budget[0] + 1)
+            if len(rows) > budget[0]:
+                budget[0] = 0
+                return None
+            budget[0] -= len(rows)
+            for row in rows:
+                if legacy:
+                    creations.setdefault(row['message_id'], row['revision'])
+                else:
+                    creations[row['message_id']] = row['revision']
+        count = 0
+        for message_id, created in creations.items():
+            if created > read:
+                message = self.chat_message(team, room, message_id)
+                if not message['deleted'] and message['author_id'] != self.actor['id'] and message['author_id'] not in blocked:
+                    count += 1
+        return count
+
+    def rpc_get_chat_rooms(self, p):
+        team = identifier(p['team_id'])
+        self.member(team)
+        limit = integer(p.get('room_limit', 50), 2, 100)
+        after = identifier(p['after_setlist_id']) if p.get('after_setlist_id') else None
+        if after and self.entity('setlists', after)['team_id'] != team:
+            raise APIError('ACCESS_REVOKED', 403)
+        count = limit if after else limit - 1
+        setlists = self.store.query('T#' + team, 'setlists#', after='setlists#' + after if after else None, limit=count + 1)
+        page = setlists[:count]
+        rows = [(None, 'Team chat')] if not after else []
+        rows += [(s['id'], s['title']) for s in page]
+        blocks = self.chat_blocks(team)
+        budget, rooms = [CHAT_UNREAD_BUDGET], []
+        for setlist, title in rows:
+            room = 'SETLIST#' + setlist if setlist else 'TEAM'
+            pref = self.get('T#' + team, 'CHAT_PREF#' + self.actor['id'] + '#' + room) or {}
+            head = self.chat_head(team, room)
+            unread = self.chat_unread(team, room, head, pref.get('read_revision', 0), blocks['users'], budget)
+            rooms.append(dict(setlist_id=setlist, title=title, latest_revision=(head or {}).get('revision', 0),
+                              read_revision=pref.get('read_revision', 0), unread_count=unread,
+                              unread_complete=unread is not None, muted=pref.get('muted', False)))
+        self.finish_chat_read(team, blocks.get('revision', 0))
+        return dict(team_id=team, rooms=rooms, has_more=len(setlists) > count,
+                    next_setlist_id=page[-1]['id'] if len(setlists) > count and page else None,
+                    blocked_author_ids=blocks['users'], block_revision=blocks.get('revision', 0))
+
+    def chat_report(self, team, report_id, blocked=None):
+        report = self.get('T#' + team, 'CHAT_REPORT#' + identifier(report_id))
+        if not report or report['team_id'] != team:
+            raise APIError('ACCESS_REVOKED', 403)
+        ref = self.get('T#' + team, 'CHAT_REF#' + report['message_id'])
+        room = report.get('room') or (ref or {}).get('room')
+        if room is None:
+            # Old reports had no room locator; bounded exact-team recovery only.
+            messages = self.store.query('T#' + team, 'chat_messages#', limit=CHAT_REFERENCE_BUDGET + 1)
+            found = next((m for m in messages if m['id'] == report['message_id']), None)
+            if not found:
+                raise APIError('RESOURCE_LIMIT', 413) if len(messages) > CHAT_REFERENCE_BUDGET else APIError('ACCESS_REVOKED', 403)
+            room = 'SETLIST#' + found['setlist_id'] if found.get('setlist_id') else 'TEAM'
+        setlist = room.split('#', 1)[1] if room.startswith('SETLIST#') else None
+        if setlist and self.entity('setlists', setlist)['team_id'] != team:
+            raise APIError('ACCESS_REVOKED', 403)
+        message = self.chat_message(team, room, report['message_id'])
+        if blocked is None:
+            blocked = self.chat_blocks(team)['users']
+        return dict(report, report_id=report['id'], revision=report.get('revision', 1), status=report.get('status', 'open'),
+                    setlist_id=setlist, message=self.visible_chat_message(message, blocked))
+
+    def rpc_get_chat_reports(self, p):
+        team = identifier(p['team_id'])
+        self.member(team, ('leader', 'admin'))
+        status = p.get('status', 'open')
+        if status not in ('open', 'resolved', 'dismissed', 'all'):
+            raise APIError('INVALID_INPUT')
+        limit = integer(p.get('limit', 50), 1, 100)
+        after = identifier(p['after_report_id']) if p.get('after_report_id') else None
+        if after:
+            self.chat_report(team, after)
+        records = self.store.query('T#' + team, 'CHAT_REPORT#', after='CHAT_REPORT#' + after if after else None, limit=limit + 1)
+        page = records[:limit]
+        blocks = self.chat_blocks(team)
+        reports = [self.chat_report(team, r['id'], blocks['users']) for r in page if status == 'all' or r.get('status', 'open') == status]
+        self.finish_chat_read(team, blocks.get('revision', 0), moderator=True)
+        return dict(team_id=team, reports=reports, has_more=len(records) > limit,
+                    next_report_id=page[-1]['id'] if len(records) > limit else None)
+
+    def rpc_resolve_chat_report(self, p):
+        team = identifier(p['team_id'])
+        self.member(team, ('leader', 'admin'))
+        report = self.chat_report(team, p.get('report_id'))
+        status = p.get('status')
+        if status not in ('resolved', 'dismissed'):
+            raise APIError('INVALID_INPUT')
+        if integer(p.get('expected_revision'), 1) != report['revision']:
+            raise APIError('REVISION_CONFLICT', 409)
+        key = 'CHAT_REPORT#' + report['id']
+        old = self.get('T#' + team, key)
+        if old.get('status', 'open') != 'open':
+            raise APIError('REPORT_CLOSED', 409)
+        row = dict(old, status=status, revision=report['revision'] + 1, resolved_by=self.actor['id'], resolved_at=iso(self.now))
+        self.put('T#' + team, key, row, old)
+        return dict(report, **row)

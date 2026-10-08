@@ -120,7 +120,14 @@ class Files:
             raise APIError('ASSET_NOT_AUTHORIZED', 403)
         if asset['status'] == 'verified':
             return asset
-        head = self.s3.head_object(Bucket=self.bucket, Key=asset['storage_key'], ChecksumMode='ENABLED')
+        try:
+            head = self.s3.head_object(Bucket=self.bucket, Key=asset['storage_key'], ChecksumMode='ENABLED')
+        except Exception as error:
+            response = getattr(error, 'response', {})
+            if (isinstance(response, dict) and response.get('ResponseMetadata', {}).get('HTTPStatusCode') == 404
+                    and response.get('Error', {}).get('Code') in ('404', 'NoSuchKey', 'NotFound')):
+                raise APIError('FILE_NOT_READY', 404) from None
+            raise
         count = asset['bytes']
         if head['ContentLength'] != count or count > (104857600 if asset['type']=='pdf' else 2097152):
             raise APIError('HASH_MISMATCH', 409)

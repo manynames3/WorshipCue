@@ -1,0 +1,27 @@
+{
+  "current_run": {
+    "before_pdf_count": 7,
+    "after_pdf_count": 7,
+    "all_pdf_bytes_preserved": true,
+    "before_ink_rows": 3,
+    "after_ink_rows": 3,
+    "all_ink_columns_preserved": true,
+    "personal_quick_check": "ok",
+    "catalog_quick_check": "ok"
+  },
+  "prior_qualified_backup": {
+    "before_pdf_count": 7,
+    "after_pdf_count": 7,
+    "all_pdf_bytes_preserved": true,
+    "before_ink_rows": 3,
+    "after_ink_rows": 3,
+    "all_ink_columns_preserved": true,
+    "personal_quick_check": "ok",
+    "catalog_quick_check": "ok"
+  },
+  "private_original_sources": {
+    "input_count": 2,
+    "match_original_qualified_hashes": true
+  },
+  "status": "passed"
+}

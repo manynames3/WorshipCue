@@ -358,6 +358,20 @@ class FileBoundaryTests(BoundaryFixture):
         self.assert_api('ASSET_NOT_AUTHORIZED', self.files.upload_url,
             dict(key=asset['storage_key'], bytes=asset['bytes'], content_type='application/octet-stream'), self.admin)
 
+    def test_only_missing_object_head_is_a_not_ready_finalize_result(self):
+        asset = self.stage(b'synthetic_native_archive')
+        class ProviderError(Exception):
+            def __init__(self, code, status):
+                self.response = {'Error':{'Code':code}, 'ResponseMetadata':{'HTTPStatusCode':status}}
+        for code in ('NoSuchKey','404','NotFound'):
+            with patch.object(self.s3,'head_object',side_effect=ProviderError(code,404)):
+                self.assert_api('FILE_NOT_READY', self.files.finalize, self.finalize_body(asset), self.admin, status=404)
+        for code,status in (('AccessDenied',403),('NoSuchKey',403),('SlowDown',503)):
+            with patch.object(self.s3,'head_object',side_effect=ProviderError(code,status)):
+                with self.assertRaises(ProviderError):
+                    self.files.finalize(self.finalize_body(asset),self.admin)
+        self.assertEqual('staging',self.domain.upload_asset(asset['id'],self.admin)['status'])
+
     def test_changed_bytes_and_short_stream_never_mark_asset_verified(self):
         for corrupted in [b'changed_native_archive___', b'short']:
             asset = self.stage(b'synthetic_native_archive')

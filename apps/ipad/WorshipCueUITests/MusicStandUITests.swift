@@ -134,8 +134,15 @@ final class MusicStandUITests: XCTestCase {
         let chart = app.staticTexts["currentChart"].label
         let page = app.staticTexts["pagePosition"].label
         app.buttons["standActions"].tap(); app.buttons["openTeamWorkspace"].tap()
-        XCTAssertTrue(app.staticTexts["팀 연결 준비 중"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.textFields["teamEmail"].exists, "An unconfigured service must not pretend to accept account credentials")
+        let email = app.textFields["teamEmail"]
+        if email.waitForExistence(timeout: 3) {
+            XCTAssertTrue(app.buttons["sendTeamCode"].exists, "A configured service offers the real email-code flow")
+            XCTAssertFalse(app.buttons["sendTeamCode"].isEnabled, "Do not request an email without an explicit address")
+            XCTAssertFalse(app.textFields["teamCode"].exists, "The code step appears after an explicit request")
+        } else {
+            XCTAssertTrue(app.staticTexts["팀 연결 준비 중"].waitForExistence(timeout: 10))
+            XCTAssertFalse(email.exists, "An unconfigured service must not pretend to accept account credentials")
+        }
         capture("Team setup preserves local rehearsal availability")
         app.buttons["닫기"].tap()
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))

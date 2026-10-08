@@ -1,10 +1,12 @@
 # WorshipCue native iPad app
 
-Native SwiftUI/PDFKit/PencilKit workspace. **v2 / Build 6** connects the concept-based reader to the user-selected AWS development backend and adds team chat. Local PDFs, personal ink, setlists, search, manual transfer and export continue without a server. The AWS workspace supports managed login, scoped invitations, immutable shared charts, protected personal sync/conflicts, exact team handwriting and visual tap-to-open cues. See [current AWS evidence](../../verification/AWS.md); earlier Supabase implementation and Build 5 evidence remain preserved.
+Native SwiftUI/PDFKit/PencilKit workspace. **v2 / Build 7** extends the concept-based reader and user-selected AWS workspace with compact chat, team administration, durable publication retries, bounded catalog loading and owner-record export. Local PDFs, personal ink, setlists, search, manual transfer and PDF export continue without a server. The AWS workspace supports managed login, scoped invitations, immutable shared charts, protected personal sync/conflicts, exact team handwriting and visual tap-to-open cues. See [Build 7 evidence](../../verification/CHAT7.md); [Build 6 AWS](../../verification/AWS.md), the earlier Supabase implementation and Build 5 evidence remain preserved.
 
 Build 3 is preserved as branch/tag **v1**, and `main` stays there. Minimum **iPadOS 16.0**. Current native/device and controlled-HTTP evidence is in [Build 5 evidence](../../verification/M2-M4-native.md); independent SQL/Edge evidence is in [backend evidence](../../verification/M2-M4-backend.md). [V2 design](../../verification/V2.md) and [v1/M1](../../verification/M1.md) reports retain prior results.
 
 Physical Apple Pencil and original iPadOS 16.7.16 runtime qualification remain **NOT VERIFIED**. Earlier M0, color/icon and private-PDF evidence remains in [M0 history](../../verification/M0.md), [Build 2 history](../../verification/M0-colors-icon.md) and [private-pair evidence](../../verification/M0-private-pdf-pair.md). Separate passing sessions do not imply pilot readiness.
+
+Build 7's latest physical iPadOS 17.7.11 run executed **86 cases: 85 passed, one optional private-PDF case skipped, zero failures**. It includes 46 workspace, 10 administration, 10 owner-export and 20 ink cases. Release, generic-device Debug and nine bundle checks pass. The separate 11-case touch UI retry failed before any case executed because UI automation timed out. The hosted/native tests use isolated synthetic stores and controlled network responses; they do not qualify a real multi-iPad rehearsal. A separate opted-in private-PDF case passed with eight PDFKit page renders. Normal Build 7 launch without test arguments preserved the existing seven PDFs and three ink files.
 
 Open `WorshipCue.xcodeproj`, scheme `WorshipCue`. GRDB 7.11.1 requires Swift 6.1 / Xcode 16.3 or newer; use a supported stable Xcode. Signing uses the existing development identity through a private command-line team override; no team identifier or credential is checked into this project. Signed app compilation and signature verification pass. The current Xcode27 profile includes the17.7.11 test iPad and expires2026-10-14T22:45:20Z; the older profile excluded the original16.7.16 iPad. Original-device provisioning/installation remains pending. Development must stay on the free Personal Team until release, per user instruction. `../../packages/WorshipCueLocal` pins GRDB exactly; `../../reference/WorshipCueCore` is deliberately reused as the app's pure domain package, so identity/version rules retain one owner.
 
@@ -34,7 +36,7 @@ The native test script builds scheme `WorshipCue` and chooses an actual availabl
 
 See `verification/M0.md` and `verification/M0-device-checklist.md` for exact evidence and outstanding physical gates.
 
-Selected-stroke clipboard logic now lives in the shared `packages/WorshipCueInk` module. Its macOS framework harness compiled and passed with real PencilKit drawings; thirteen hosted iPad tests now pass on17.7.11, including actual PDFKit-installed overlay hit testing. Synthetic tests do not replace physical input and lifecycle qualification. Two potential high-end designs are saved under `docs/ui-concepts`; these are generated concepts, not running app screenshots. External tool/build storage and exact native build evidence are recorded in `docs/13_EXTERNAL_XCODE_SETUP.md` and `verification/M0.md`.
+Selected-stroke clipboard logic now lives in the shared `packages/WorshipCueInk` module. Its macOS framework harness compiled and passed with real PencilKit drawings; the earlier M0 run passed thirteen hosted iPad tests on 17.7.11, including actual PDFKit-installed overlay hit testing. Synthetic tests do not replace physical input and lifecycle qualification. Two potential high-end designs are saved under `docs/ui-concepts`; these are generated concepts, not running app screenshots. External tool/build storage and exact native build evidence are recorded in `docs/13_EXTERNAL_XCODE_SETUP.md` and `verification/M0.md`.
 
 
 ## Real-device UI verification
@@ -58,7 +60,7 @@ The device script requires normal Trust, Developer Mode, developer certificate t
 
 Select 펜 or 형광펜, then tap the small color swatch beside the tools. Eight labeled colors appear in a compact popover. Picking a color closes it; × and an outside tap also dismiss it. Pen and highlighter preferences are independent and persist locally. Preferences follow the UUID-scoped test namespace during UI testing; normal notes/bookmarks are not reset. Color values are fixed pigments and new choices affect subsequent strokes only.
 
-The approved teal folded-ribbon W is now the native `AppIcon` asset. Build 2 compiles 14 hosted native cases and 4 UI cases. See `verification/M0-colors-icon.md` for current results and toolchain limitations.
+The approved teal folded-ribbon W is now the native `AppIcon` asset. Build 2 compiles 14 hosted native cases and 4 UI cases. See `verification/M0-colors-icon.md` for historical results and toolchain limitations.
 
 ## Local weekly preparation (Build 3)
 
@@ -89,9 +91,35 @@ The project references `Configuration/Team.xcconfig`, whose empty endpoints pres
 
 Review [AWS setup](../../aws/README.md). The development service is deployed with the approved pinned PDF parser. The SES sender is verified, but the account remains in the sandbox: other recipient addresses need verification until separate production email access is approved. Core hosted tests use synthetic identities/data; they do not prove native device login, handwriting sharing or a multi-iPad rehearsal. No paid Apple enrollment or background push was enabled.
 
+Build 7 adds permanent-bounce/complaint feedback suppression to the server, with a private recovery queue. The operator subscription is confirmed and scoped CloudWatch routing passes. The deployed infrastructure includes four mail and two backup alarms. A manual backup verified seven pinned files, with an available database backup and complete manifest. Isolated restore passed with 756 restored rows, 661 exact stable matches, seven published references and 13 immutable rows; the owned scratch table was removed. This was a small one-invocation backup, so real multi-invocation recovery remains unverified. The owned backup-error alert reached SNS and naturally returned to OK; operator inbox receipt and missing-completion alert delivery remain unverified. The authorized SES production-access request was submitted and now reports **DENIED** after initially entering review. Production sending is disabled; the account remains sandboxed. The available account API does not expose the reason, and no repeat request was submitted. Suppression is distinct from a delivered OTP or a successful account session.
+
 Open **악보 작업 → 팀 작업 공간**. Unconfigured builds show an honest preparation message. A configured build can sign in, create a private church/default team, redeem an invitation, publish an authorized local source PDF as a new immutable version, edit team setlists, prepare downloads and explicitly open a shared chart. Guests see only their invited setlist; their personal ink stays local. The controller chooses a setlist, explicitly acquires its lease, starts a session, prepares a song/key, then sends a cue. Shared ink has a separate draft canvas and explicit publish action. Musicians retain page/chart control and can preview the exact team version without replacing their reader.
 
 Server/account/church/team caches use protected Application Support directories distinct from the existing `WorshipCueM0` vault. Prior church-only vaults are preserved without inferred ownership. Device-only Keychain credentials, captured identity/generation fences, immutable PDF verification, frozen personal retries and explicit conflicts protect the boundary. Logout clears visible state before current-session-only server logout. Realtime hints trigger durable reconciliation with bounded reconnect; they never navigate. The chat sheet reads team/setlist discussion and saves pending drafts before explicit send/retry. Physical cloud/device behavior remains unverified.
+
+## Team administration and data (Build 7)
+
+The team panel offers your display name, current roster and role-aware invitation/member controls. Admins can revoke an invitation, change roles, remove a member or hand administration to another active member. Current exact-team roles and revision checks remain authoritative; two simultaneous changes cannot demote the final active admin. Invitation lists show status and creation time without retaining invitation tokens or hashes.
+
+PDF and setlist publication intents persist frozen metadata, item UUIDs and command IDs before transmission. Explicit retries reuse the same operation, including recovery after immutable upload or publication acceptance whose response was lost. Cached charts remain readable after an ordinary network failure; authorization and file-integrity failures still stop access.
+
+AWS catalog pages carry at most 100 rows and 512 KiB. Opaque owner/team cursors expire after one hour and fence changed access, including guest grant revocation at the final transaction. The native client assembles and validates every required array before atomically promoting the catalog. Partial or inconsistent results preserve the previous readable cache. These are current-state pages; concurrent reference changes can require a later explicit retry.
+
+Account preflight shows currently authorized teams, unavailable-team count and required sole-admin handoffs. The native share sheet exports a protected JSON document containing the selected team's owner records and matching verified personal-file references. It excludes PDF/ink file bytes, organizational PDFs/shared ink and unavailable-team records. This is not a complete account backup; account deletion is explicitly unsupported pending safe retention and restore protections.
+
+## Advanced team chat (Build 7)
+
+Choose the team room or a setlist discussion from the compact room list. Read cursors and mute settings are per member and room. Unread counts use original message creation, excluding edits, pins, your own messages and hidden/deleted authors. When the server's bounded history cannot establish a complete count, the UI shows an unknown state instead of a guessed number.
+
+Message actions provide reply, jump to the original, edit/delete, pin, report and author block/unblock. Leaders can inspect reports and explicitly resolve or dismiss them. Edits and moderation use revision checks; actions and sends keep stable command IDs for explicit retries. Old command receipts cannot restore deleted text. Block changes have a generation fence: cached text and chart links are hidden, and an explicit unblock fetches current authorized history even if message revisions did not change.
+
+A composer can attach a published chart from the selected team's authorized library. Its preview/open actions require a tap, retain normal file checks and never acknowledge a cue. A link or incoming message does not switch the reader, turn a page, publish ink or grant access to another team's material. Guest rehearsal identities receive no team chat.
+
+Current backend verification: **185 AWS unit/boundary tests passed**, including **76 domain tests**; **27 real hosted scenarios passed, zero failures**, against the final deployed Build 7 backend, including administration, paginated member/guest catalogs and owner-data export. Exact native/device evidence belongs to [Build 7 verification](../../verification/CHAT7.md). Prior portable checks passed 55 core, 32 Python reference, 14 local storage, 24 remote transport tests and 9 ink groups. These totals are distinct from a physical chat/rehearsal qualification.
+
+The narrow concurrent catalog-read check passed 20/20 clients in 40 attempts with 20 HTTP 503 retries (2.047 s wall, p95 1.994 s). The 50-client run failed: 48 passed, two exhausted retries, 135 attempts, 14 HTTP 429 and 73 HTTP 503 responses (5.921 s wall). It used two synthetic identities and one first-page read per client under the account's shared 10-execution Lambda quota; it does not qualify 50 complete user sessions.
+
+Two real iPads, physical Pencil, the original iPadOS 16 device, concurrent-load qualification, real multi-invocation backup recovery, prolonged offline/resume use, rehearsal soak, real onboarding beyond verified SES recipients, file-inclusive account export, account deletion and support/retention remain open requirements.
 
 Additional checks:
 

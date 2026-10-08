@@ -100,7 +100,9 @@ class Application:
             shared = name in {'create_song','publish_chart_version','create_setlist','save_setlist',
                 'acquire_editor','renew_editor','release_editor','start_session','publish_call','end_session',
                 'send_chat_message','edit_chat_message','delete_chat_message','pin_chat_message'} or (
-                    name=='save_annotation_revision' and result.get('scope')=='team')
+                    name=='save_annotation_revision' and result.get('scope')=='team') or name in {
+                        'set_member_display_name','set_member_role','set_membership_active','handoff_team_admin',
+                        'revoke_invitation','revoke_guest_grant'}
             team = result.get('team_id') if isinstance(result,dict) else None
             team = team or payload.get('team_id') or payload.get('selected_team_id')
             if shared and team:

@@ -1,0 +1,8 @@
+{
+  "totalTestCount": 1,
+  "passedTests": 0,
+  "failedTests": 1,
+  "skippedTests": 0,
+  "exit_code": 65,
+  "runner_failure": "Timed out while enabling automation mode before UI cases executed"
+}

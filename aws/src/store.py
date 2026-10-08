@@ -6,7 +6,15 @@ Every conditional write compares a digest of the complete prior payload.
 import copy
 import hashlib
 import json
+import random
 import threading
+import time
+import uuid
+
+
+TRANSACTION_ATTEMPTS = 5
+TRANSACTION_BACKOFF_SECONDS = 0.05
+TRANSACTION_BACKOFF_CAP_SECONDS = 0.4
 
 
 class Conflict(Exception):
@@ -120,14 +128,29 @@ class DynamoStore:
                 operations.append({'Delete' if w['op'] == 'delete' else 'ConditionCheck': op})
             else:
                 raise ValueError("Invalid operation")
-        try:
-            self.client.transact_write_items(TransactItems=operations)
-        except Exception as error:
-            response = getattr(error, 'response', {})
-            code = response.get('Error', {}).get('Code')
-            if code == 'ConditionalCheckFailedException' or (
-                code == 'TransactionCanceledException' and any(
-                    r.get('Code') in ('ConditionalCheckFailed', 'TransactionConflict')
-                    for r in response.get('CancellationReasons', []))):
-                raise Conflict() from None
-            raise
+        request_token = str(uuid.uuid4())
+        for attempt in range(TRANSACTION_ATTEMPTS):
+            try:
+                self.client.transact_write_items(TransactItems=operations, ClientRequestToken=request_token)
+                return
+            except Exception as error:
+                response = getattr(error, 'response', {})
+                code = response.get('Error', {}).get('Code')
+                if code == 'ConditionalCheckFailedException':
+                    raise Conflict() from None
+                if code != 'TransactionCanceledException':
+                    raise
+                reasons = response.get('CancellationReasons')
+                if not isinstance(reasons, list) or len(reasons) != len(operations):
+                    raise
+                codes = [reason.get('Code') if isinstance(reason, dict) else None for reason in reasons]
+                if 'ConditionalCheckFailed' in codes:
+                    raise Conflict() from None
+                # Retry only a proven aborted transaction. Preserve the original CAS
+                # and token; timeout, missing reasons, and other failures stay unknown.
+                contention_only = 'TransactionConflict' in codes and all(
+                    reason in ('None', 'TransactionConflict') for reason in codes)
+                if not contention_only or attempt + 1 == TRANSACTION_ATTEMPTS:
+                    raise
+                ceiling = min(TRANSACTION_BACKOFF_CAP_SECONDS, TRANSACTION_BACKOFF_SECONDS * 2 ** attempt)
+                time.sleep(random.uniform(0, ceiling))
