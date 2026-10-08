@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>WorshipCueRemoteProvider</key>
+    <string>$(REMOTE_PROVIDER)</string>
+    <key>WorshipCueAWSAPIURL</key>
+    <string>$(AWS_API_URL)</string>
+    <key>WorshipCueAWSWebSocketURL</key>
+    <string>$(AWS_WEBSOCKET_URL)</string>
+    <key>WorshipCueSupabaseURL</key>
+    <string>$(SUPABASE_URL)</string>
+    <key>WorshipCueSupabaseKey</key>
+    <string>$(SUPABASE_PUBLISHABLE_KEY)</string>
+</dict>
+</plist>

@@ -16,7 +16,14 @@ struct TeamRow: Identifiable {
     init(_ value: TeamJSON) throws { id = try value.requiredID("id"); self.value = value }
 }
 
-/// Tokens remain on this device; each account/church gets an independent protected vault.
+struct TeamChatDraft: Identifiable, Codable, Equatable {
+    let id: UUID
+    let body: String
+    let setlistID: UUID?
+    let replyToID: UUID?
+}
+
+/// Tokens remain on this device; server/account/church/team vaults never share local state.
 @MainActor final class TeamWorkspace: ObservableObject {
     @Published private(set) var session: RemoteSession?
     @Published private(set) var memberships: [TeamJSON] = []
@@ -38,11 +45,23 @@ struct TeamRow: Identifiable {
     @Published private(set) var selectedChurch: UUID?
     @Published private(set) var selectedTeam: UUID?
     @Published private(set) var cache: MusicStand?
+    @Published private(set) var chatMembers: [TeamJSON] = []
+    @Published private(set) var chatMessages: [TeamRow] = []
+    @Published private(set) var chatDrafts: [TeamChatDraft] = []
+    @Published private(set) var chatComposer = ""
+    @Published private(set) var chatSetlistID: UUID?
+    @Published private(set) var chatSending = false
+    @Published private(set) var chatError: String?
+    private var chatRevision: Int64 = 0
+    private var chatVisible = false
     @Published private(set) var preferredVersions: [UUID: UUID] = [:]
     private var cacheObservation: AnyCancellable?
     private var assets: [TeamRow] = []
     private var api: RemoteAPI?
     private var polling: Task<Void, Never>?
+    private var catalogHintRefresh: (id: UUID, task: Task<Void, Never>)?
+    private var catalogHintPending = false
+    private var catalogRefreshSchedule = CatalogRefreshSchedule()
     private let hints = RealtimeHints()
     private var syncing = false
     private var context = UUID()
@@ -60,9 +79,9 @@ struct TeamRow: Identifiable {
     var scopeID: UUID { context }
     var configured: Bool { api != nil }
     var canLead: Bool {
-        memberships.contains { $0["church_id"].uuid == selectedChurch && ["admin", "leader"].contains($0["role"].text ?? "") }
+        memberships.contains { $0["church_id"].uuid == selectedChurch && $0["team_id"].uuid == selectedTeam && ["admin", "leader"].contains($0["role"].text ?? "") }
     }
-    var canAdmin: Bool { memberships.contains { $0["church_id"].uuid == selectedChurch && $0["role"].text == "admin" } }
+    var canAdmin: Bool { memberships.contains { $0["church_id"].uuid == selectedChurch && $0["team_id"].uuid == selectedTeam && $0["role"].text == "admin" } }
     var hasLease: Bool {
         guard lease["active"].flag, lease["device_id"].uuid == deviceID, lease["controller_user_id"].uuid == session?.userID,
               let expiry = lease["expires_at"].text, let date = Self.parseDate(expiry) else { return false }
@@ -88,9 +107,14 @@ struct TeamRow: Identifiable {
         if stored == nil { UserDefaults.standard.set(deviceID.uuidString, forKey: "worshipcue.device") }
         let url = Bundle.main.object(forInfoDictionaryKey: "WorshipCueSupabaseURL") as? String ?? ""
         let key = Bundle.main.object(forInfoDictionaryKey: "WorshipCueSupabaseKey") as? String ?? ""
-        let config = configuration ?? URL(string: url).flatMap { try? RemoteConfiguration(url: $0, publishableKey: key) }
+        let provider = Bundle.main.object(forInfoDictionaryKey: "WorshipCueRemoteProvider") as? String ?? "aws"
+        let awsURL = Bundle.main.object(forInfoDictionaryKey: "WorshipCueAWSAPIURL") as? String ?? ""
+        let socketURL = Bundle.main.object(forInfoDictionaryKey: "WorshipCueAWSWebSocketURL") as? String ?? ""
+        let config = configuration ?? (provider == "aws"
+            ? URL(string: awsURL).flatMap { try? RemoteConfiguration(url: $0, provider: .aws, webSocketURL: URL(string: socketURL)) }
+            : URL(string: url).flatMap { try? RemoteConfiguration(url: $0, publishableKey: key) })
         if let config { api = RemoteAPI(configuration: config, transport: transport) }
-        keychainService = "com.worshipcue.session." + Self.hash(Data((config?.url.absoluteString ?? "unconfigured").utf8))
+        keychainService = "com.worshipcue.session." + Self.hash(Data(((config?.provider == .aws ? "aws:" : "") + (config?.url.absoluteString ?? "unconfigured")).utf8))
         if configured { message = String(localized: "로그인하면 팀 악보를 연결할 수 있어요.") }
     }
 
@@ -130,7 +154,7 @@ struct TeamRow: Identifiable {
             guard let api else { throw RemoteError.configuration }
             if guest && session == nil {
                 let captured = context
-                let value = try await api.guest()
+                let value = try await api.guest(invitationToken: token.trimmingCharacters(in: .whitespacesAndNewlines))
                 guard captured == context else { throw RemoteError.authentication }
                 try secureWrite(JSONEncoder().encode(value)); session = value; context = UUID()
             }
@@ -144,11 +168,46 @@ struct TeamRow: Identifiable {
     }
     func createWorkspace(_ name: String) async -> Bool {
         await perform {
-            let receipt = try await rpc("create_church_and_default_team", ["display_name": .string(name), "timezone": .string(TimeZone.current.identifier)])
-            try await switchContext(church: receipt.requiredID("church_id"), team: receipt.requiredID("team_id"))
+            let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, name.count <= 100 else { throw RemoteError.configuration }
+            let command = try creationCommand("workspace", name: name)
+            let receipt = try await rpc("create_church_and_default_team", ["command_id": .id(command), "display_name": .string(name), "timezone": .string(TimeZone.current.identifier)])
+            let church = try receipt.requiredID("church_id"), team = try receipt.requiredID("team_id")
+            try finishCreation("workspace")
+            try await switchContext(church: church, team: team)
             try await fetchLibrary()
         }
     }
+    func createTeam(_ name: String) async -> Bool {
+        await perform {
+            guard canAdmin, let church = selectedChurch, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw RemoteError.forbidden }
+            let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard name.count <= 100 else { throw RemoteError.configuration }
+            let command = try creationCommand("team", name: name, church: church)
+            let receipt = try await rpc("create_team", ["command_id": .id(command), "church_id": .id(church), "display_name": .string(name)])
+            let team = try receipt.requiredID("team_id")
+            try finishCreation("team")
+            try await switchContext(church: church, team: team)
+            try await fetchLibrary()
+        }
+    }
+    private func creationFile(_ kind: String) throws -> URL {
+        guard let session else { throw RemoteError.authentication }
+        let folder = root.appendingPathComponent(keychainService).appendingPathComponent(session.userID.uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder.appendingPathComponent("pending-" + kind + ".json")
+    }
+    private func creationCommand(_ kind: String, name: String, church: UUID? = nil) throws -> UUID {
+        let file = try creationFile(kind), scope = church.map(TeamJSON.id) ?? .null
+        if FileManager.default.fileExists(atPath: file.path) {
+            let prior = try JSONDecoder().decode(TeamJSON.self, from: Data(contentsOf: file))
+            if prior["display_name"].text == name, prior["church_id"] == scope { return try prior.requiredID("command_id") }
+        }
+        let id = UUID(), value = TeamJSON.object(["display_name": .string(name), "church_id": scope, "command_id": .id(id)])
+        try JSONEncoder().encode(value).write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        return id
+    }
+    private func finishCreation(_ kind: String) throws { try FileManager.default.removeItem(at: creationFile(kind)) }
     func chooseWorkspace(_ membership: TeamJSON) async {
         _ = await perform {
             try await switchContext(church: membership.requiredID("church_id"), team: membership.requiredID("team_id"))
@@ -157,13 +216,15 @@ struct TeamRow: Identifiable {
     }
     private func switchContext(church: UUID, team: UUID) async throws {
         if selectedChurch == church, selectedTeam == team { return }
+        let prior = context
         try await reader?.flush(); try await cache?.flush()
+        guard prior == context else { throw RemoteError.authentication }
         try saveReaderSelection()
-        context = UUID(); openGeneration &+= 1; polling?.cancel(); await hints.disconnect()
+        context = UUID(); openGeneration &+= 1; polling?.cancel(); polling = nil; clearCatalogRefresh(); await hints.disconnect()
         refreshFlight?.task.cancel(); refreshFlight = nil
         cacheObservation?.cancel(); cacheObservation = nil
         reader = nil; cache = nil; live = nil; displayedCall = nil; snapshot = .null; lease = .null
-        conflicts = []; sharedHeads = [:]; publishCommand = nil
+        conflicts = []; sharedHeads = [:]; publishCommand = nil; clearChatContext()
         preferredVersions = [:]; pendingPreferences = [:]; preferenceGeneration &+= 1
         songs = []; versions = []; assets = []; setlists = []; items = []
         selectedChurch = church; selectedTeam = team; online = false
@@ -174,15 +235,15 @@ struct TeamRow: Identifiable {
             try await reader?.flush()
             try saveReaderSelection(active: false)
             let signedOut = session, revoke = online
-            try secureDelete(); polling?.cancel(); context = UUID(); openGeneration &+= 1
+            try secureDelete(); polling?.cancel(); polling = nil; context = UUID(); openGeneration &+= 1; clearCatalogRefresh()
             refreshFlight?.task.cancel(); refreshFlight = nil
-            await hints.disconnect(); conflicts = []; cacheObservation?.cancel(); cacheObservation = nil;
+            await hints.disconnect(); clearChatContext(); conflicts = []; cacheObservation?.cancel(); cacheObservation = nil;
             session = nil; reader = nil; cache = nil; live = nil; displayedCall = nil; snapshot = .null; lease = .null
             songs = []; versions = []; setlists = []; items = []; assets = []; memberships = []
             selectedChurch = nil; selectedTeam = nil; online = false
             preferredVersions = [:]; pendingPreferences = [:]; sharedHeads = [:]; publishCommand = nil; preferenceGeneration &+= 1
             message = String(localized: "로그아웃했어요. 이 계정의 메모는 기기에 보관됩니다.")
-            if revoke, let api, let signedOut { try? await api.signOut(token: signedOut.accessToken) }
+            if revoke, let api, let signedOut { try? await api.signOut(token: signedOut.accessToken, refreshToken: signedOut.refreshToken) }
         }
     }
     private func credentials() async throws -> RemoteSession {
@@ -196,6 +257,9 @@ struct TeamRow: Identifiable {
             value = try await flight.task.value
             guard context == captured, session?.userID == user else { throw RemoteError.authentication }
             try secureWrite(JSONEncoder().encode(value)); session = value
+            // A ticket is bound to the old managed token's lifetime; obtain a fresh one on the next subscription check.
+            await hints.disconnect()
+            guard context == captured, session?.userID == user else { throw RemoteError.authentication }
         }
         return value
     }
@@ -203,57 +267,82 @@ struct TeamRow: Identifiable {
         guard let api else { throw RemoteError.configuration }
         let captured = context, auth = try await credentials()
         guard captured == context else { throw RemoteError.authentication }
-        let result = try await api.rpc(name, token: auth.accessToken, payload)
+        var scoped = payload
+        if let selectedTeam, name != "create_church_and_default_team" {
+            scoped["selected_team_id"] = .id(selectedTeam)
+            if scoped["team_id"] == nil { scoped["team_id"] = .id(selectedTeam) }
+        }
+        let result = try await api.rpc(name, token: auth.accessToken, scoped)
         guard captured == context else { throw RemoteError.authentication }
         return result
     }
-    func refresh() async {
+    func refresh(maintainSubscription: Bool = true) async {
         guard configured, session != nil else { return }
-        _ = await perform { try await fetchLibrary(); try await syncPreferences(); try await reconcile() }
+        _ = await perform { try await fetchLibrary(maintainSubscription: maintainSubscription); try await syncPreferences(); try await reconcile(); await refreshChat() }
     }
-    private func fetchLibrary() async throws {
+    private func belongsToSelectedTeam(_ value: TeamJSON) -> Bool {
+        guard let church = selectedChurch, let team = selectedTeam else { return false }
+        return value["church_id"].uuid == church && value["team_id"].uuid == team
+    }
+    private func fetchLibrary(maintainSubscription: Bool = true) async throws {
         guard let api else { throw RemoteError.configuration }
-        let auth = try await credentials(), captured = context, prefGeneration = preferenceGeneration
+        let auth = try await credentials(), initial = context
         let membershipValues = try await api.rows("memberships", token: auth.accessToken)
-        let songValues = try await api.rows("songs", token: auth.accessToken)
-        let versionValues = try await api.rows("chart_versions", token: auth.accessToken)
-        let assetValues = try await api.rows("assets", token: auth.accessToken)
-        let setlistValues = try await api.rows("setlists", token: auth.accessToken)
-        let itemValues = try await api.rows("performance_items", token: auth.accessToken)
-        let preferenceValues = auth.anonymous ? [] : try await api.rows("personal_preferences", token: auth.accessToken)
-        guard captured == context else { throw RemoteError.authentication }
+        guard initial == context else { throw RemoteError.authentication }
         memberships = membershipValues.filter { $0["user_id"].uuid == auth.userID && $0["active"].flag }
-        if selectedChurch == nil {
-            selectedChurch = memberships.first?["church_id"].uuid ?? setlistValues.first?["church_id"].uuid
-            selectedTeam = memberships.first?["team_id"].uuid ?? setlistValues.first?["team_id"].uuid
+        if selectedTeam == nil, let first = memberships.first {
+            try await switchContext(church: first.requiredID("church_id"), team: first.requiredID("team_id"))
         }
-        let church = selectedChurch
-        songs = try songValues.filter { $0["church_id"].uuid == church }.map(TeamRow.init)
-        versions = try versionValues.filter { $0["church_id"].uuid == church }.map(TeamRow.init)
-        assets = try assetValues.filter { $0["church_id"].uuid == church }.map(TeamRow.init)
-        setlists = try setlistValues.filter { $0["church_id"].uuid == church && $0["team_id"].uuid == selectedTeam }.map(TeamRow.init)
-        items = try itemValues.filter { $0["church_id"].uuid == church }.map(TeamRow.init)
+        guard let team = selectedTeam else { online = true; return }
+        let captured = context, prefGeneration = preferenceGeneration
+        let songValues, versionValues, assetValues, setlistValues, itemValues, preferenceValues: [TeamJSON]
+        if api.configuration.provider == .aws {
+            let catalog = try await api.teamCatalog(token: auth.accessToken, teamID: team)
+            songValues = catalog["songs"].list; versionValues = catalog["chart_versions"].list
+            assetValues = catalog["assets"].list; setlistValues = catalog["setlists"].list
+            itemValues = catalog["performance_items"].list
+            preferenceValues = auth.anonymous ? [] : catalog["personal_preferences"].list
+        } else {
+            songValues = try await api.rows("songs", token: auth.accessToken, teamID: team)
+            versionValues = try await api.rows("chart_versions", token: auth.accessToken, teamID: team)
+            assetValues = try await api.rows("assets", token: auth.accessToken, teamID: team)
+            setlistValues = try await api.rows("setlists", token: auth.accessToken, teamID: team)
+            itemValues = try await api.rows("performance_items", token: auth.accessToken, teamID: team)
+            preferenceValues = auth.anonymous ? [] : try await api.rows("personal_preferences", token: auth.accessToken, teamID: team)
+        }
+        guard captured == context else { throw RemoteError.authentication }
+        songs = try songValues.filter(belongsToSelectedTeam).map(TeamRow.init)
+        versions = try versionValues.filter(belongsToSelectedTeam).map(TeamRow.init)
+        assets = try assetValues.filter(belongsToSelectedTeam).map(TeamRow.init)
+        setlists = try setlistValues.filter(belongsToSelectedTeam).map(TeamRow.init)
+        items = try itemValues.filter(belongsToSelectedTeam).map(TeamRow.init)
         if prefGeneration == preferenceGeneration {
-            preferredVersions = Dictionary(uniqueKeysWithValues: try preferenceValues.filter {
-                $0["church_id"].uuid == church && $0["user_id"].uuid == auth.userID
-            }.map { (try $0.requiredID("song_id"), try $0.requiredID("preferred_version_id")) })
+            preferredVersions = [:]
+            for value in preferenceValues where belongsToSelectedTeam(value) && value["user_id"].uuid == auth.userID {
+                preferredVersions[try value.requiredID("song_id")] = try value.requiredID("preferred_version_id")
+            }
             preferredVersions.merge(pendingPreferences) { _, local in local }
         }
         online = true; message = String(localized: "팀 자료 확인됨 · 페이지 이동은 기기별로")
         try ensureCache(); await cache?.start()
         guard captured == context else { throw RemoteError.authentication }
         try applyCachedPreferences(); try savePreferences(); try saveCatalog(); try await loadConflicts()
+        guard captured == context else { throw RemoteError.authentication }
+        catalogRefreshSchedule.refreshed()
+        if maintainSubscription, api.configuration.provider == .aws { try? await subscribe(); startPolling() }
     }
     private var partition: URL? {
-        guard let session, let church = selectedChurch else { return nil }
-        return root.appendingPathComponent(keychainService).appendingPathComponent(session.userID.uuidString).appendingPathComponent(church.uuidString)
+        guard let session, let church = selectedChurch, let team = selectedTeam else { return nil }
+        // Legacy church-only vaults remain untouched; ownership is never inferred.
+        return root.appendingPathComponent(keychainService).appendingPathComponent(session.userID.uuidString)
+            .appendingPathComponent(church.uuidString).appendingPathComponent(team.uuidString)
     }
     private func ensureCache() throws {
         guard let partition, let session, let church = selectedChurch else { return }
         if cache == nil {
             cacheObservation?.cancel()
             let stand = MusicStand(applicationSupport: partition, churchID: church, ownerID: session.userID, seedFixtures: false,
-                preferenceNamespace: accountDefaultsKey + "." + church.uuidString)
+                preferenceNamespace: accountDefaultsKey + "." + church.uuidString + "." + (selectedTeam?.uuidString ?? "none"))
             cache = stand
             cacheObservation = stand.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         }
@@ -278,8 +367,8 @@ struct TeamRow: Identifiable {
     private func loadPartitionCatalog() throws {
         guard let partition, FileManager.default.fileExists(atPath: partition.appendingPathComponent("team-catalog.json").path) else { return }
         let json = try JSONDecoder().decode(TeamJSON.self, from: Data(contentsOf: partition.appendingPathComponent("team-catalog.json")))
-        songs = try json["songs"].list.map(TeamRow.init); versions = try json["versions"].list.map(TeamRow.init)
-        assets = try json["assets"].list.map(TeamRow.init); setlists = try json["setlists"].list.map(TeamRow.init); items = try json["items"].list.map(TeamRow.init)
+        songs = try json["songs"].list.filter(belongsToSelectedTeam).map(TeamRow.init); versions = try json["versions"].list.filter(belongsToSelectedTeam).map(TeamRow.init)
+        assets = try json["assets"].list.filter(belongsToSelectedTeam).map(TeamRow.init); setlists = try json["setlists"].list.filter(belongsToSelectedTeam).map(TeamRow.init); items = try json["items"].list.filter(belongsToSelectedTeam).map(TeamRow.init)
         memberships = json["memberships"].list.filter { $0["user_id"].uuid == session?.userID && $0["active"].flag }
         try ensureCache()
         try loadPreferences()
@@ -560,16 +649,16 @@ struct TeamRow: Identifiable {
     func sessions() async -> [TeamRow] {
         do { guard let api else { return [] }; let auth = try await credentials()
             let captured = context
-            let values = try await api.rows("live_sessions", token: auth.accessToken)
+            let values = try await api.rows("live_sessions", token: auth.accessToken, teamID: selectedTeam)
             guard captured == context, session?.userID == auth.userID else { return [] }
-            return try values.filter { $0["church_id"].uuid == selectedChurch }.map(TeamRow.init)
+            return try values.filter(belongsToSelectedTeam).map(TeamRow.init)
         } catch { report(error); return [] }
     }
     func acquire(_ setlistID: UUID, takeover: Bool) async -> Bool {
         await perform {
             guard let api else { throw RemoteError.configuration }
             let auth = try await credentials(), captured = context
-            let leases = try await api.rows("editor_leases", token: auth.accessToken)
+            let leases = try await api.rows("editor_leases", token: auth.accessToken, teamID: selectedTeam)
             guard captured == context else { throw RemoteError.authentication }
             let current = leases.first { $0["setlist_id"].uuid == setlistID }
             lease = try await rpc("acquire_editor", ["setlist_id": .id(setlistID), "device_id": .id(deviceID),
@@ -619,11 +708,16 @@ struct TeamRow: Identifiable {
         await perform {
             guard let live, let epoch = lease["epoch"].integer else { throw RemoteError.conflict }
             let value = try await rpc("end_session", ["session_id": .id(live.sessionID), "command_id": .id(UUID()), "device_id": .id(deviceID), "epoch": .int(epoch)])
-            try applySnapshot(value); polling?.cancel(); await hints.disconnect()
+            try applySnapshot(value)
+            if api?.configuration.provider == .aws {
+                try? await subscribe(reconcileAfter: false); startPolling()
+            } else {
+                polling?.cancel(); polling = nil; clearCatalogRefresh(); await hints.disconnect()
+            }
         }
     }
     private func applySnapshot(_ value: TeamJSON, persist: Bool = true) throws {
-        guard let live, try value.requiredID("id") == live.sessionID else { throw RemoteError.invalidResponse }
+        guard let live, belongsToSelectedTeam(value), try value.requiredID("id") == live.sessionID else { throw RemoteError.invalidResponse }
         guard (value["latest_sequence"].integer ?? 0) >= (live.latest?.sequence ?? 0) else { return }
         guard (value["state_revision"].integer ?? 0) >= (snapshot["state_revision"].integer ?? 0),
               !live.ended || value["status"].text == "ENDED" else { return }
@@ -704,54 +798,85 @@ struct TeamRow: Identifiable {
             try saveReaderSelection()
         } catch { report(error) }
     }
-    private func subscribe() async throws {
-        guard let api, let live else { return }
+    private func subscribe(reconcileAfter: Bool = true) async throws {
+        guard let api, let team = selectedTeam else { return }
         let auth = try await credentials(), captured = context
         if realtimeEnabled {
-            try? await hints.connect(configuration: api.configuration, token: auth.accessToken, sessionID: live.sessionID) { [weak self] in
+            try? await hints.connect(api: api, token: auth.accessToken, teamID: team, sessionID: live?.ended == false ? live?.sessionID : nil) { [weak self] in
                 await self?.hintReceived(captured)
             }
         }
-        try await reconcile()
+        if reconcileAfter { try await reconcile() }
     }
-    private func hintReceived(_ captured: UUID) async {
+    func hintReceived(_ captured: UUID) async {
         guard captured == context else { return }
-        do { try await reconcile() } catch { report(error) }
+        if api?.configuration.provider == .aws {
+            catalogHintPending = true; scheduleCatalogHintRefresh()
+            return
+        }
+        do { try await reconcile(); await refreshChat() } catch { if captured == context { report(error) } }
+    }
+    private func scheduleCatalogHintRefresh() {
+        guard !busy, catalogHintPending, catalogHintRefresh == nil, selectedTeam != nil else { return }
+        let captured = context, id = UUID()
+        catalogHintRefresh = (id, Task { [weak self] in
+            guard let self else { return }
+            defer { if catalogHintRefresh?.id == id { catalogHintRefresh = nil } }
+            while catalogHintPending, captured == context, !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(Int.random(in: 100...400))) } catch { return }
+                guard captured == context, !Task.isCancelled else { return }
+                guard !busy else { return }
+                catalogHintPending = false
+                await refresh(maintainSubscription: false)
+            }
+        })
+    }
+    private func clearCatalogRefresh() {
+        catalogHintRefresh?.task.cancel(); catalogHintRefresh = nil; catalogHintPending = false
+        catalogRefreshSchedule.reset()
     }
     private func startPolling() {
-        polling?.cancel()
+        guard polling == nil else { return }
+        let captured = context
         polling = Task { [weak self] in
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(15)) } catch { return }
-                guard let self else { return }
+                guard let self, captured == self.context else { return }
                 do {
-                    if let setlist = lease["setlist_id"].uuid, let epoch = lease["epoch"].integer {
+                    if live?.ended != true, let setlist = lease["setlist_id"].uuid, let epoch = lease["epoch"].integer {
                         do { lease = try await rpc("renew_editor", ["setlist_id": .id(setlist), "device_id": .id(deviceID), "epoch": .int(epoch)]) }
                         catch RemoteError.conflict { lease = .null }
                         catch RemoteError.forbidden { lease = .null }
-                        catch { online = false }
+                        catch { if captured == context { online = false } }
                     }
-                    try await reconcile()
-                    try await syncPreferences()
+                    try? await subscribe(reconcileAfter: false)
+                    guard captured == context else { return }
+                    if api?.configuration.provider == .aws, catalogRefreshSchedule.isDue(), !busy {
+                        await refresh(maintainSubscription: false)
+                    } else {
+                        try await reconcile()
+                        try await syncPreferences()
+                        await refreshChat()
+                    }
                     await syncPersonal()
-                } catch { report(error) }
+                } catch { if captured == context { report(error) } }
             }
         }
     }
-    func suspend() { polling?.cancel(); polling = nil; Task { await hints.disconnect() }; live?.setConnectivity(.stale); online = false }
-    func resume() async { await refresh(); await syncPersonal(); if live?.ended == false { try? await subscribe(); startPolling() } }
+    func suspend() { polling?.cancel(); polling = nil; clearCatalogRefresh(); Task { await hints.disconnect() }; live?.setConnectivity(.stale); online = false }
+    func resume() async { await refresh(); await syncPersonal(); if selectedTeam != nil { try? await subscribe(); startPolling() } }
     private func layer(_ chart: UUID, page: Int, item: UUID? = nil) throws -> [String: TeamJSON] {
-        guard let church = selectedChurch, let session else { throw RemoteError.authentication }
-        return ["church_id": .id(church), "chart_version_id": .id(chart), "page_index": .int(Int64(page)),
+        guard let church = selectedChurch, let team = selectedTeam, let session else { throw RemoteError.authentication }
+        return ["team_id": .id(team), "church_id": .id(church), "chart_version_id": .id(chart), "page_index": .int(Int64(page)),
             "scope": .string(item == nil ? "personal" : "team"), "owner_user_id": item == nil ? .id(session.userID) : .null,
             "performance_item_id": item.map(TeamJSON.id) ?? .null]
     }
     private func assetData(_ id: UUID, maximum: Int) async throws -> Data {
         guard let api else { throw RemoteError.configuration }
         let captured = context, auth = try await credentials()
-        let current = try await api.rows("assets", token: auth.accessToken)
+        let current = try await api.rows("assets", token: auth.accessToken, teamID: selectedTeam)
         guard captured == context else { throw RemoteError.authentication }
-        guard let asset = current.first(where: { $0["id"].uuid == id }), let bytes = asset["bytes"].integer else { throw RemoteError.invalidResponse }
+        guard let asset = current.first(where: { $0["id"].uuid == id && belongsToSelectedTeam($0) }), let bytes = asset["bytes"].integer else { throw RemoteError.invalidResponse }
         let data = try await api.download(key: asset.requiredText("storage_key"), token: auth.accessToken, maximumBytes: maximum)
         guard captured == context else { throw RemoteError.authentication }
         guard data.count == bytes, Self.hash(data) == asset["sha256"].text else { throw VaultError.checksum }; return data
@@ -829,7 +954,7 @@ struct TeamRow: Identifiable {
     }
     private func saveSharedSnapshot(_ head: TeamJSON, archive: Data, item: UUID, chart: UUID, page: Int) throws -> Bool {
         guard head["performance_item_id"].uuid == item, head["chart_version_id"].uuid == chart,
-              head["page_index"].integer == Int64(page), head["church_id"].uuid == selectedChurch,
+              head["page_index"].integer == Int64(page), belongsToSelectedTeam(head),
               let revision = head["revision_number"].integer, revision > 0,
               Self.hash(archive) == head["native_sha256"].text, head["native_bytes"].integer == Int64(archive.count),
               try Self.geometry(head["geometry"]) == cachedGeometry(chart: chart, page: page) else { throw RemoteError.invalidResponse }
@@ -841,7 +966,7 @@ struct TeamRow: Identifiable {
             if number == revision, known["native_sha256"] != head["native_sha256"] { throw RemoteError.invalidResponse }
         }
         _ = try PKDrawing(data: archive)
-        try JSONEncoder().encode(TeamJSON.object(["church_id": .id(cache!.church), "item": .id(item), "chart": .id(chart), "page": .int(Int64(page)),
+        try JSONEncoder().encode(TeamJSON.object(["team_id": selectedTeam.map(TeamJSON.id) ?? .null, "church_id": .id(cache!.church), "item": .id(item), "chart": .id(chart), "page": .int(Int64(page)),
             "head": head, "archive": .string(archive.base64EncodedString())])).write(
             to: sharedSnapshotURL(item: item, chart: chart, page: page), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         sharedHeads[key] = head
@@ -851,12 +976,12 @@ struct TeamRow: Identifiable {
         let file = try sharedSnapshotURL(item: item, chart: chart, page: page)
         guard FileManager.default.fileExists(atPath: file.path) else { return nil }
         let value = try JSONDecoder().decode(TeamJSON.self, from: Data(contentsOf: file))
-        guard value["church_id"].uuid == selectedChurch, value["item"].uuid == item, value["chart"].uuid == chart,
+        guard belongsToSelectedTeam(value), value["item"].uuid == item, value["chart"].uuid == chart,
               value["page"].integer == Int64(page), let archive = Data(base64Encoded: try value.requiredText("archive")),
               archive.count <= LocalInkStore.maximumArchiveBytes else { throw RemoteError.invalidResponse }
         let head = value["head"]
         if head != .null {
-            guard head["scope"].text == "team", head["owner_user_id"] == .null, head["church_id"].uuid == selectedChurch,
+            guard head["scope"].text == "team", head["owner_user_id"] == .null, belongsToSelectedTeam(head),
                   head["performance_item_id"].uuid == item, head["chart_version_id"].uuid == chart, head["page_index"].integer == Int64(page),
                   Self.hash(archive) == head["native_sha256"].text, head["native_bytes"].integer == Int64(archive.count),
                   let revision = head["revision_number"].integer, revision > 0,
@@ -865,7 +990,7 @@ struct TeamRow: Identifiable {
         return (try PKDrawing(data: archive), head)
     }
     private func verifiedTeamArchive(_ head: TeamJSON, expectedContext: UUID) async throws -> Data {
-        guard context == expectedContext, head["church_id"].uuid == selectedChurch, head["scope"].text == "team",
+        guard context == expectedContext, belongsToSelectedTeam(head), head["scope"].text == "team",
               head["owner_user_id"] == .null, let api, let bytes = head["native_bytes"].integer,
               bytes > 0, bytes <= LocalInkStore.maximumArchiveBytes else { throw RemoteError.invalidResponse }
         let auth = try await credentials()
@@ -884,7 +1009,7 @@ struct TeamRow: Identifiable {
         if head == .null {
             if let cached = try cachedTeamDrawing(item: item, chart: chart, page: page), cached.1 != .null { return cached }
             guard captured == context, let church = selectedChurch else { throw RemoteError.authentication }
-            let value = TeamJSON.object(["church_id": .id(church), "item": .id(item), "chart": .id(chart), "page": .int(Int64(page)),
+            let value = TeamJSON.object(["team_id": selectedTeam.map(TeamJSON.id) ?? .null, "church_id": .id(church), "item": .id(item), "chart": .id(chart), "page": .int(Int64(page)),
                 "head": .null, "archive": .string(PKDrawing().dataRepresentation().base64EncodedString())])
             try JSONEncoder().encode(value).write(to: sharedSnapshotURL(item: item, chart: chart, page: page), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
             return (PKDrawing(), head)
@@ -925,8 +1050,113 @@ struct TeamRow: Identifiable {
             }
         }
     }
+    private var chatRoomFile: String { "chat-" + (chatSetlistID?.uuidString ?? "team") + ".json" }
+    private func clearChatContext() {
+        chatMembers = []; chatMessages = []; chatDrafts = []; chatComposer = ""; chatRevision = 0
+        chatSetlistID = nil; chatVisible = false; chatError = nil; chatSending = false
+    }
+    private func persistChat() throws {
+        guard let partition else { throw RemoteError.authentication }
+        try FileManager.default.createDirectory(at: partition, withIntermediateDirectories: true)
+        let drafts = try JSONDecoder().decode(TeamJSON.self, from: JSONEncoder().encode(chatDrafts))
+        let value = TeamJSON.object(["team_id": selectedTeam.map(TeamJSON.id) ?? .null,
+            "revision": .int(chatRevision), "messages": .array(chatMessages.map(\.value)),
+            "composer": .string(chatComposer), "drafts": drafts])
+        try JSONEncoder().encode(value).write(to: partition.appendingPathComponent(chatRoomFile), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+    }
+    func updateChatComposer(_ text: String) {
+        chatComposer = String(text.prefix(2000))
+        do { try persistChat(); chatError = nil }
+        catch { chatError = String(localized: "대화 초안을 저장하지 못했어요. 다시 시도해 주세요.") }
+    }
+    func openChat(setlistID: UUID? = nil) async {
+        guard session?.anonymous == false, selectedTeam != nil else { return }
+        chatSetlistID = setlistID; chatMessages = []; chatComposer = ""; chatDrafts = []; chatRevision = 0; chatError = nil; chatVisible = true
+        if let partition {
+            let file = partition.appendingPathComponent(chatRoomFile)
+            do {
+                if FileManager.default.fileExists(atPath: file.path) {
+                    let value = try JSONDecoder().decode(TeamJSON.self, from: Data(contentsOf: file))
+                    guard value["team_id"].uuid == selectedTeam else { throw RemoteError.forbidden }
+                    chatMessages = try value["messages"].list.map(TeamRow.init); chatRevision = value["revision"].integer ?? 0
+                    chatComposer = value["composer"].text ?? ""
+                    chatDrafts = try JSONDecoder().decode([TeamChatDraft].self, from: JSONEncoder().encode(value["drafts"]))
+                }
+            } catch { chatError = String(localized: "저장된 대화를 확인하지 못했어요. 팀 자료는 그대로 보관됩니다.") }
+        }
+        let captured = context
+        if let team = selectedTeam, let roster = try? await rpc("get_team_roster", ["team_id": .id(team)]), captured == context {
+            chatMembers = roster["members"].list
+        }
+        await refreshChat()
+    }
+    func chatAuthorName(_ id: UUID?) -> String {
+        if id == session?.userID { return String(localized: "나") }
+        return chatMembers.first { $0["user_id"].uuid == id || $0["id"].uuid == id }?["display_name"].text ?? String(localized: "팀원")
+    }
+    func closeChat() { chatVisible = false }
+    func refreshChat() async {
+        guard chatVisible, session?.anonymous == false, let team = selectedTeam else { return }
+        let captured = context, room = chatSetlistID
+        var payload: [String: TeamJSON] = ["team_id": .id(team), "after_revision": .int(chatRevision)]
+        if let room { payload["setlist_id"] = .id(room) }
+        do {
+            let value = try await rpc("get_chat_snapshot", payload)
+            guard captured == context, room == chatSetlistID, let revision = value["revision"].integer, revision >= chatRevision else { return }
+            var messages: [UUID: TeamRow] = [:]
+            for message in chatMessages { messages[message.id] = message }
+            for row in value["messages"].list {
+                let message = try TeamRow(row)
+                guard let rowRevision = row["revision"].integer, rowRevision <= revision,
+                      row["setlist_id"].uuid == room, row["author_id"].uuid != nil,
+                      row["deleted"].flag || row["body"].text != nil else { throw RemoteError.invalidResponse }
+                if rowRevision >= (messages[message.id]?.value["revision"].integer ?? 0) { messages[message.id] = message }
+            }
+            chatMessages = messages.values.sorted { ($0.value["revision"].integer ?? 0) < ($1.value["revision"].integer ?? 0) }
+            chatRevision = revision; try persistChat(); chatError = nil
+            _ = try await rpc("mark_chat_read", payload.merging(["revision": .int(revision)]) { _, right in right })
+        } catch {
+            guard captured == context, room == chatSetlistID else { return }
+            chatError = String(localized: "대화 연결을 확인하지 못했어요. 초안은 기기에 저장되며 자동으로 전송하지 않습니다.")
+        }
+    }
+    func sendChat(replyToID: UUID? = nil) async -> Bool {
+        let body = chatComposer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty, body.count <= 2000, !chatSending, session?.anonymous == false else { return false }
+        let draft = TeamChatDraft(id: UUID(), body: body, setlistID: chatSetlistID, replyToID: replyToID)
+        chatDrafts.append(draft); chatComposer = ""
+        do { try persistChat() }
+        catch { chatDrafts.removeAll { $0.id == draft.id }; chatComposer = body; chatError = String(localized: "대화 초안을 저장하지 못했어요. 다시 시도해 주세요."); return false }
+        return await retryChat(draft)
+    }
+    func retryChat(_ draft: TeamChatDraft) async -> Bool {
+        guard !chatSending, session?.anonymous == false, let team = selectedTeam,
+              chatDrafts.contains(draft), draft.setlistID == chatSetlistID else { return false }
+        let captured = context, room = chatSetlistID
+        chatSending = true; defer { if captured == context { chatSending = false } }
+        do {
+            var payload: [String: TeamJSON] = ["team_id": .id(team), "command_id": .id(draft.id), "body": .string(draft.body)]
+            if let room { payload["setlist_id"] = .id(room) }
+            if let reply = draft.replyToID { payload["reply_to_id"] = .id(reply) }
+            _ = try await rpc("send_chat_message", payload)
+            guard captured == context, room == chatSetlistID else { return false }
+            let pending = chatDrafts
+            chatDrafts.removeAll { $0.id == draft.id }
+            do { try persistChat() } catch { chatDrafts = pending; throw error }
+            await refreshChat(); return true
+        } catch {
+            guard captured == context, room == chatSetlistID else { return false }
+            chatError = String(localized: "전송을 확인하지 못했어요. 저장된 메시지를 직접 다시 시도해 주세요."); return false
+        }
+    }
+    func discardChatDraft(_ draft: TeamChatDraft) {
+        guard !chatSending else { return }
+        let pending = chatDrafts
+        chatDrafts.removeAll { $0.id == draft.id }
+        do { try persistChat() } catch { chatDrafts = pending; chatError = String(localized: "대화 초안을 저장하지 못했어요. 다시 시도해 주세요.") }
+    }
     @discardableResult private func perform(_ work: () async throws -> Void) async -> Bool {
-        guard !busy else { return false }; busy = true; defer { busy = false }
+        guard !busy else { return false }; busy = true; defer { busy = false; scheduleCatalogHintRefresh() }
         do { try await work(); error = nil; return true } catch { report(error); return false }
     }
     private func report(_ failure: Error) {
@@ -977,7 +1207,7 @@ extension TeamWorkspace {
             guard try await !store.hasPending(address) else { continue }
             let head = try await rpc("get_annotation_head", ["layer_identity": .object(try layer(versionID, page: page))])
             guard head != .null, let revision = head["revision_number"].integer else { continue }
-            guard head["church_id"].uuid == cache.church, head["owner_user_id"].uuid == cache.owner,
+            guard belongsToSelectedTeam(head), head["owner_user_id"].uuid == cache.owner,
                   head["scope"].text == "personal", head["chart_version_id"].uuid == versionID,
                   head["page_index"].integer == Int64(page) else { throw RemoteError.invalidResponse }
             let data = try await assetData(head.requiredID("native_asset_id"), maximum: 2 * 1024 * 1024)

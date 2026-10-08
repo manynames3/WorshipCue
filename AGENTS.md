@@ -1,7 +1,7 @@
 # WorshipCue engineering rules
 
 ## Authority and scope
-Read `docs/02_DECISIONS.md` first. These decisions supersede earlier pitch documents. This is a native iPad pilot with a managed Supabase backend, not a generic church-management platform. Respect existing repository work and the user's current instructions. Never overwrite or discard unrelated changes.
+Read `docs/02_DECISIONS.md` first. These decisions supersede earlier pitch documents. This is a native iPad pilot with the user-selected AWS backend (D45). Preserve the earlier Supabase implementation and existing local work. Respect the user's current instructions. Never overwrite or discard unrelated changes.
 
 ## Product invariants
 1. Incoming live calls NEVER navigate; musician taps do.
@@ -37,6 +37,6 @@ python3 scripts/verify_package.py
 During M0 add actual app commands to `PROJECT_STATE.md` after discovering valid scheme and simulator IDs. Never invent a destination UUID. Keep coverage focused on invariants and failure paths, not an arbitrary percentage.
 
 ## Security and operations
-No secrets, PDFs, handwriting, emails, invite tokens, or copyrighted lyrics in logs or fixtures. Supabase publishable keys still require RLS; service-role keys are server-only. Secure-definer RPCs require explicit actor checks, fixed search paths, minimal grants, and adversarial tests. Use immutable asset paths and access-controlled storage.
+No secrets, PDFs, handwriting, emails, invite tokens, or copyrighted lyrics in logs or fixtures. AWS credentials and server privileges are never in the iPad bundle. Check managed identity and exact team membership on every operation; use transactional conditional writes and adversarial tests. Presigned S3 URLs must be short-lived and checksum-bound; enforce conditional immutable writes. The preserved Supabase adapter still requires RLS; service-role keys are server-only. Use immutable asset paths and access-controlled storage.
 
 Do not modify cloud accounts, billing, production schema, publishing, or repository remotes without permission. Do not run destructive reset/clean commands. Keep `PROJECT_STATE.md` factual and current; write milestone evidence to `verification/`. Report assumptions and blocked tests honestly.

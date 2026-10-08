@@ -11,15 +11,16 @@ Native iPad application
        |
        | managed authentication / authorized reads / transactional RPCs
        v
-Supabase
-  Auth: email OTP; scoped guest identity
-  Postgres: tenants, versions, setlists, calls, annotation revision heads
-  Private Storage: immutable PDFs, drawings, preview assets
-  Realtime Postgres Changes: invalidation hints on small metadata rows
-  Edge Functions: invitation redemption, bounded asset validation, account lifecycle
+AWS development backend (D45)
+  Cognito + SES: managed email OTP and scoped guest identity
+  API Gateway HTTP + Lambda: exact-team authorization and PDF validation
+  DynamoDB: conditional transactions, immutable versions, heads, calls, chat
+  Private S3: checksum-bound immutable PDFs, drawings and previews
+  API Gateway WebSocket: one-use tickets and content-free invalidation hints
+  DynamoDB PITR + daily independent metadata/file backups
 ```
 
-This is an engineering choice, not a previously deployed stack. The original Cloudflare proposal is superseded. The current behavior is tap-to-open, with no shared page cursor, so we do not need a bespoke real-time orchestration tier or several distributed stores. Supabase consolidates identity, relational transactions, file access policy, and event delivery. Its official Swift client and RLS/Storage facilities are documented in [S03–S06]. A managed service does not make our authorization or offline logic correct automatically.
+The user selected AWS on 2026-10-08 under D45. The separate development stack is deployed; qualification and remaining device gates are recorded in `verification/AWS.md`. The original Cloudflare proposal and provider default are superseded. The earlier Supabase implementation remains available as preserved work, not the active deployment. Managed services do not make authorization or offline behavior correct automatically: Cognito validates identity, while the application authorizes exact team/resource relationships before DynamoDB conditional transactions and S3 capabilities.
 
 ## B. Native iPad choice
 Use SwiftUI for navigation, sheets, metadata, and accessible controls; use a tightly scoped UIKit wrapper for PDFKit/PencilKit lifecycles. PDF page overlays and PencilKit integration are supported mechanisms documented by Apple [S01–S02], not a guarantee that our canvas selection, rotation, persistence, or gesture handling will work without testing.
@@ -36,7 +37,7 @@ No React Native, Flutter, PWA, or Android music stand in the pilot. A future And
 | Library | Import, metadata, aliases, setlists, immutable version selection | Auto-merge by title or rewrite original PDFs |
 | LocalStore | GRDB transactions, local heads, durable outbox, manifests | Lose dirty notes on logout or conflict |
 | Sync | Snapshot reconciliation, retries, auth refresh, CAS resolution | Queue offline live calls or overwrite local dirty ink |
-| BackendAdapter | Authenticated RPC, Storage, subscriptions | Expose service-role key or turn events directly into navigation |
+| BackendAdapter | Authenticated RPC, private files, subscriptions | Expose AWS credentials/service keys or turn events directly into navigation |
 | AppShell | Korean UX, roles, navigation, lifecycle | Treat network availability as proof of fresh server state |
 
 One actor owns each local store. Stable `(owner, scope, version, page)` keys travel with immutable save requests. Never let an asynchronous page-save callback read “currently selected chart” to decide where to write.
@@ -78,7 +79,7 @@ Initial qualification limits: 100 MB / 200 pages per source packet; 20 pages per
 ## H. Development configuration
 Create `apps/ipad`, `packages/domain` or adopt the existing module layout; place server migrations/functions under `supabase`. The included `reference/WorshipCueCore` is a portable reference; reuse or migrate it deliberately to the production domain module and keep a single owner for each rule.
 
-Keep `.xcconfig.example` with only placeholder Supabase URL/publishable key. The real local config is ignored. Server secrets remain in a secrets manager or development environment. Supabase publishable/anon keys are not authorization: every table/bucket/RPC still needs RLS and grants.
+Keep `.xcconfig.example` with empty public AWS endpoints and optional legacy Supabase public settings. The real local config is ignored. AWS credentials, sender addresses and server privileges never enter the iPad. An explicit source Info.plist expands the endpoint values; inspect the compiled bundle to verify configuration. The preserved Supabase adapter still requires its original RLS/grant defenses.
 
 Use separate local/dev/staging/production environments. No production migrations during initial building. Pin native SDKs and Supabase CLI after verifying current official interfaces. No hard-coded claimed current library version in this document.
 

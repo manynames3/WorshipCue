@@ -54,14 +54,13 @@ for target in ['app','tests']:
 
 base = {'IPHONEOS_DEPLOYMENT_TARGET':'16.0','SDKROOT':'iphoneos','SWIFT_VERSION':'5.0','CLANG_ENABLE_MODULES':'YES'}
 app = {'TARGETED_DEVICE_FAMILY':'2','PRODUCT_NAME':'$(TARGET_NAME)','PRODUCT_BUNDLE_IDENTIFIER':'com.worshipcue.spike',
-       'GENERATE_INFOPLIST_FILE':'YES','INFOPLIST_KEY_UILaunchScreen_Generation':'YES',
+       'GENERATE_INFOPLIST_FILE':'YES','INFOPLIST_FILE':'WorshipCue/Info.plist',
+       'INFOPLIST_EXPAND_BUILD_SETTINGS':'YES','INFOPLIST_KEY_UILaunchScreen_Generation':'YES',
        'INFOPLIST_KEY_UIApplicationSceneManifest_Generation':'YES','INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents':'YES',
        'INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad':'UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight',
        'SUPPORTED_PLATFORMS':'iphoneos iphonesimulator','SUPPORTS_MACCATALYST':'NO','CODE_SIGN_STYLE':'Automatic',
-       'MARKETING_VERSION':'0.0.1','CURRENT_PROJECT_VERSION':'5','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','SWIFT_EMIT_LOC_STRINGS':'YES',
-       'LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks',
-       'INFOPLIST_KEY_WorshipCueSupabaseURL':'$(SUPABASE_URL)',
-       'INFOPLIST_KEY_WorshipCueSupabaseKey':'$(SUPABASE_PUBLISHABLE_KEY)'}
+       'MARKETING_VERSION':'0.0.1','CURRENT_PROJECT_VERSION':'6','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','SWIFT_EMIT_LOC_STRINGS':'YES',
+       'LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks'}
 tests = {'TARGETED_DEVICE_FAMILY':'2','PRODUCT_NAME':'$(TARGET_NAME)','PRODUCT_BUNDLE_IDENTIFIER':'com.worshipcue.spike.tests',
          'GENERATE_INFOPLIST_FILE':'YES','TEST_HOST':'$(BUILT_PRODUCTS_DIR)/WorshipCue.app/WorshipCue',
          'BUNDLE_LOADER':'$(TEST_HOST)','CODE_SIGN_STYLE':'Automatic',
@@ -116,6 +115,10 @@ obj('ref:teamconfig', 'isa = PBXFileReference; lastKnownFileType = text.xcconfig
 objects[ident('group:root')] = objects[ident('group:root')].replace(ident('group:app')+',', ident('group:app')+', '+ident('ref:teamconfig')+',')
 for config in ['Debug','Release']:
     objects[ident('project:'+config)] = objects[ident('project:'+config)].replace('buildSettings =', f'baseConfigurationReference = {ident("ref:teamconfig")}; buildSettings =')
+# Custom keys need a source plist: Xcode does not synthesize arbitrary INFOPLIST_KEY settings.
+# Append the reference so existing target and scheme identities remain stable.
+obj('ref:infoplist', 'isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>";')
+objects[ident('group:app')] = objects[ident('group:app')].replace(ident('ref:strings')+',', ident('ref:infoplist')+', '+ident('ref:strings')+',')
 project = APP/'WorshipCue.xcodeproj'
 project.mkdir(exist_ok=True)
 (project/'project.pbxproj').write_text('// !$*UTF8*$!\n{\narchiveVersion = 1; classes = {}; objectVersion = 56;\nobjects = {\n'+'\n'.join(f'{key} = {{ {value} }};' for key,value in objects.items())+f'\n}};\nrootObject = {ident("project")};\n}}\n')

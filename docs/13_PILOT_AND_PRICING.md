@@ -1,5 +1,7 @@
 # Pilot, buyer validation, and pricing hypothesis
 
+**Current provider:** the user selected AWS under D45 on 2026-10-08. The isolated development stack and core chat are implemented; [AWS setup](../aws/README.md) and [qualification](../verification/AWS.md) are current. Provider comparisons below retain their historical assumptions and are not measured bills. No subscription, paid Apple enrollment or production SES upgrade was purchased. The current account has a ten-concurrent-execution Lambda quota; real 50/100-client capacity remains unverified.
+
 ## Positioning
 For this initial Korean-speaking, iPad-using team: preserve personal chart work through revisions, share rehearsal handwriting, and communicate spontaneous song calls without controlling the musician's screen. Do not claim every Korean church has the same equipment, rehearses the same way, or will pay.
 

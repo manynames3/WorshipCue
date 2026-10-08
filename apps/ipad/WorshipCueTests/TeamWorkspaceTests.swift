@@ -48,18 +48,33 @@ private final class TeamFixture: @unchecked Sendable {
     private let lock = NSLock()
     var charts: [TeamJSON] = [], assets: [TeamJSON] = [], originals: [UUID: Data] = [:]
     private var user = userA, offline = false, ended = false, revision: Int64 = 1
+    var extraMemberships: [TeamJSON] = []
+    private var extraSongs: [TeamJSON] = []
+    private var chatMessages: [TeamJSON] = [], chatRevision: Int64 = 0
     private var preferences: [UUID: UUID] = [userA: a1, userB: a2]
     private var latest: TeamJSON = .null, calls: [TeamJSON] = [], requests: [(String, TeamJSON)] = []
+    private var failCreation = false
     private var failPublication = false, conflictInk = false, failHeadReads = false, pausedPath: String?
     private var waiting: [((Int, TeamJSON) -> Void)] = []
     private var heads: [String: TeamJSON] = [:], blobs: [String: Data] = [:]
+    private func catalogRows(_ name: String) -> TeamJSON {
+        switch name {
+        case "songs": return .array([Self.songA, Self.songB].map { .object(["id": .id($0), "church_id": .id(Self.church), "team_id": .id(Self.team), "canonical_title": .string($0 == Self.songA ? "Synthetic A" : "Synthetic B")]) } + extraSongs)
+        case "chart_versions": return .array(charts)
+        case "assets": return .array(assets)
+        case "setlists": return .array([.object(["id": .id(Self.setlist), "church_id": .id(Self.church), "team_id": .id(Self.team), "title": .string("Synthetic rehearsal"), "revision": .int(1)])])
+        case "performance_items": return .array([Self.itemA, Self.itemB].enumerated().map { index, id in .object(["id": .id(id), "church_id": .id(Self.church), "team_id": .id(Self.team), "setlist_id": .id(Self.setlist), "song_id": .id(index == 0 ? Self.songA : Self.songB), "team_chart_version_id": .id(index == 0 ? Self.a2 : Self.b1), "performance_key": .string("G"), "kind": .string("planned"), "active": .bool(true), "position": .int(Int64(index))]) })
+        case "personal_preferences": return .array([.object(["user_id": .id(user), "church_id": .id(Self.church), "team_id": .id(Self.team), "song_id": .id(Self.songA), "preferred_version_id": .id(preferences[user] ?? Self.a1)])])
+        default: return .array([])
+        }
+    }
     private func identityKey(_ i: TeamJSON) -> String {
         [i["scope"].text ?? "", i["owner_user_id"].text ?? "", i["performance_item_id"].text ?? "", i["chart_version_id"].text ?? "", String(i["page_index"].integer ?? 0)].joined(separator: "/")
     }
     func installHead(_ head: TeamJSON, archive: Data) {
         lock.withLock {
             heads[identityKey(head)] = head; blobs[head["native_storage_key"].text!] = archive
-            assets.append(.object(["id": head["native_asset_id"], "church_id": .id(Self.church), "storage_key": head["native_storage_key"], "sha256": head["native_sha256"], "bytes": head["native_bytes"]]))
+            assets.append(.object(["id": head["native_asset_id"], "church_id": .id(Self.church), "team_id": .id(Self.team), "storage_key": head["native_storage_key"], "sha256": head["native_sha256"], "bytes": head["native_bytes"]]))
         }
     }
     func blob(_ request: URLRequest) -> Data? {
@@ -70,7 +85,12 @@ private final class TeamFixture: @unchecked Sendable {
     }
 
     func setUser(_ value: UUID) { lock.withLock { user = value } }
+    func addSong(_ value: TeamJSON) { lock.withLock { extraSongs.append(value) } }
+    func catalogValue() -> TeamJSON {
+        lock.withLock { .object(Dictionary(uniqueKeysWithValues: ["songs", "chart_versions", "assets", "setlists", "performance_items", "personal_preferences"].map { ($0, catalogRows($0)) })) }
+    }
     func setOffline(_ value: Bool) { lock.withLock { offline = value } }
+    func failCreations(_ value: Bool) { lock.withLock { failCreation = value } }
     func failCalls(_ value: Bool) { lock.withLock { failPublication = value } }
     func rejectInk(_ value: Bool) { lock.withLock { conflictInk = value } }
     func failHeads(_ value: Bool) { lock.withLock { failHeadReads = value } }
@@ -90,7 +110,7 @@ private final class TeamFixture: @unchecked Sendable {
         lock.withLock { snapshot(ended: ended ?? self.ended, revision: revision ?? self.revision) }
     }
     private func snapshot(ended: Bool, revision: Int64) -> TeamJSON {
-        .object(["id": .id(Self.live), "church_id": .id(Self.church), "setlist_id": .id(Self.setlist),
+        .object(["id": .id(Self.live), "church_id": .id(Self.church), "team_id": .id(Self.team), "setlist_id": .id(Self.setlist),
             "status": .string(ended ? "ENDED" : "LIVE"), "state_revision": .int(revision),
             "latest_sequence": latest["sequence"] == .null ? .int(0) : latest["sequence"], "latest_call": latest, "history": .array(calls)])
     }
@@ -112,17 +132,29 @@ private final class TeamFixture: @unchecked Sendable {
         if name == pausedPath { waiting.append(completion); lock.unlock(); return }
         var result: TeamJSON = .null, status = 200
         switch name {
+        case "otp": result = .object(["session": .string("synthetic-challenge"), "challenge": .string("EMAIL_OTP")])
         case "verify", "token":
             result = .object(["user": .object(["id": .id(user), "is_anonymous": .bool(false)]),
                 "access_token": .string("synthetic-access"), "refresh_token": .string("synthetic-refresh"), "expires_in": .int(3600)])
-        case "memberships": result = .array([.object(["user_id": .id(user), "church_id": .id(Self.church), "team_id": .id(Self.team), "role": .string("admin"), "active": .bool(true)])])
-        case "songs": result = .array([Self.songA, Self.songB].map { .object(["id": .id($0), "church_id": .id(Self.church), "canonical_title": .string($0 == Self.songA ? "Synthetic A" : "Synthetic B")]) })
-        case "chart_versions": result = .array(charts)
-        case "assets": result = .array(assets)
-        case "setlists": result = .array([.object(["id": .id(Self.setlist), "church_id": .id(Self.church), "team_id": .id(Self.team), "title": .string("Synthetic rehearsal"), "revision": .int(1)])])
-        case "performance_items": result = .array([Self.itemA, Self.itemB].enumerated().map { index, id in .object(["id": .id(id), "church_id": .id(Self.church), "setlist_id": .id(Self.setlist), "song_id": .id(index == 0 ? Self.songA : Self.songB), "team_chart_version_id": .id(index == 0 ? Self.a2 : Self.b1), "performance_key": .string("G"), "kind": .string("planned"), "active": .bool(true), "position": .int(Int64(index))]) })
-        case "personal_preferences": result = .array([.object(["user_id": .id(user), "church_id": .id(Self.church), "song_id": .id(Self.songA), "preferred_version_id": .id(preferences[user] ?? Self.a1)])])
+        case "memberships": result = .array([.object(["user_id": .id(user), "church_id": .id(Self.church), "team_id": .id(Self.team), "role": .string("admin"), "active": .bool(true)])] + extraMemberships)
+        case "songs", "chart_versions", "assets", "setlists", "performance_items", "personal_preferences": result = catalogRows(name)
+        case "get_team_catalog":
+            result = .object(Dictionary(uniqueKeysWithValues: ["songs", "chart_versions", "assets", "setlists", "performance_items", "personal_preferences"].map { ($0, catalogRows($0)) }))
         case "set_personal_preference": preferences[user] = p["preferred_version_id"].uuid!; result = .object(["revision": .int(1)])
+        case "create_church_and_default_team", "create_team":
+            if failCreation { status = 503 }
+            else { result = .object(["church_id": .id(Self.church), "team_id": .id(Self.team)]) }
+        case "get_chat_snapshot":
+            result = .object(["revision": .int(chatRevision), "messages": .array(chatMessages.filter { $0["setlist_id"] == p["setlist_id"] })])
+        case "send_chat_message":
+            if let prior = chatMessages.first(where: { $0["id"] == p["command_id"] }) { result = prior }
+            else {
+                chatRevision += 1
+                result = .object(["id": p["command_id"], "author_id": .id(user), "body": p["body"], "revision": .int(chatRevision),
+                    "created_at": .string(ISO8601DateFormatter().string(from: Date())), "reply_to_id": p["reply_to_id"],
+                    "setlist_id": p["setlist_id"], "deleted": .bool(false)])
+                chatMessages.append(result)
+            }
         case "get_session_snapshot": result = snapshot(ended: ended, revision: revision)
         case "get_annotation_head":
             if failHeadReads { status = 503 }
@@ -136,7 +168,7 @@ private final class TeamFixture: @unchecked Sendable {
             else { result = .object(["command_id": p["command_id"]]) }
         case "stage_asset":
             let id = UUID()
-            result = .object(["id": .id(id), "church_id": .id(Self.church), "storage_key": .string("synthetic/\(id)"), "sha256": p["sha256"], "bytes": p["expected_bytes"]])
+            result = .object(["id": .id(id), "church_id": .id(Self.church), "team_id": .id(Self.team), "storage_key": .string("synthetic/\(id)"), "sha256": p["sha256"], "bytes": p["expected_bytes"]])
             assets.append(result)
         case "finalize-asset": result = assets.first { $0["id"] == body["asset_id"] } ?? .null
         case "save_annotation_revision":
@@ -152,22 +184,24 @@ private final class TeamFixture: @unchecked Sendable {
 @MainActor final class TeamWorkspaceTests: XCTestCase {
     private func expectTrue(_ value: Bool, file: StaticString = #filePath, line: UInt = #line) { XCTAssertTrue(value, file: file, line: line) }
     private func expectFalse(_ value: Bool, file: StaticString = #filePath, line: UInt = #line) { XCTAssertFalse(value, file: file, line: line) }
-    private func setupWorkspace() async throws -> (TeamWorkspace, TeamFixture, URL, RemoteConfiguration, URLSession) {
+    private func setupWorkspace(provider: RemoteProvider = .supabase) async throws -> (TeamWorkspace, TeamFixture, URL, RemoteConfiguration, URLSession) {
         let fixture = TeamFixture()
         for (index, tuple) in [(TeamFixture.a1, TeamFixture.songA, "song_A_v1_G"), (TeamFixture.a2, TeamFixture.songA, "song_A_v2_G"), (TeamFixture.b1, TeamFixture.songB, "song_A_v3_A")].enumerated() {
             let source = try XCTUnwrap(Bundle.main.url(forResource: tuple.2, withExtension: "pdf", subdirectory: "pdfs"))
             let data = try Data(contentsOf: source), document = try XCTUnwrap(PDFDocument(data: data)), asset = UUID()
             let pages = try (0..<document.pageCount).map { try TeamWorkspace.jsonGeometry(document.page(at: $0)!.canonicalGeometry()) }
             fixture.originals[tuple.0] = data
-            fixture.charts.append(.object(["id": .id(tuple.0), "church_id": .id(TeamFixture.church), "song_id": .id(tuple.1), "version_number": .int(index == 1 ? 2 : 1), "label": .string(tuple.2), "written_key": .string("G"), "pdf_asset_id": .id(asset), "page_count": .int(Int64(document.pageCount)), "page_manifest": .array(pages)]))
-            fixture.assets.append(.object(["id": .id(asset), "church_id": .id(TeamFixture.church), "storage_key": .string("synthetic/\(asset).pdf"), "sha256": .string(TeamWorkspace.hash(data)), "bytes": .int(Int64(data.count))]))
+            fixture.charts.append(.object(["id": .id(tuple.0), "church_id": .id(TeamFixture.church), "team_id": .id(TeamFixture.team), "song_id": .id(tuple.1), "version_number": .int(index == 1 ? 2 : 1), "label": .string(tuple.2), "written_key": .string("G"), "pdf_asset_id": .id(asset), "page_count": .int(Int64(document.pageCount)), "page_manifest": .array(pages)]))
+            fixture.assets.append(.object(["id": .id(asset), "church_id": .id(TeamFixture.church), "team_id": .id(TeamFixture.team), "storage_key": .string("synthetic/\(asset).pdf"), "sha256": .string(TeamWorkspace.hash(data)), "bytes": .int(Int64(data.count))]))
         }
         TeamTestProtocol.fixture = fixture
         let c = URLSessionConfiguration.ephemeral; c.protocolClasses = [TeamTestProtocol.self]
         let transport = URLSession(configuration: c), root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let config = try RemoteConfiguration(url: URL(string: "https://unit-\(UUID().uuidString.lowercased()).invalid")!, publishableKey: "sb_publishable_synthetic")
+        let config = try RemoteConfiguration(url: URL(string: "https://unit-\(UUID().uuidString.lowercased()).invalid")!,
+            publishableKey: provider == .aws ? "" : "sb_publishable_synthetic", provider: provider)
         let team = TeamWorkspace(testRoot: root, configuration: config, transport: transport, realtimeEnabled: false)
         addTeardownBlock { @MainActor in fixture.release(); team.suspend(); _ = await team.logout(); transport.invalidateAndCancel(); TeamTestProtocol.fixture = nil; try? FileManager.default.removeItem(at: root) }
+        if provider == .aws { expectTrue(await team.sendCode("synthetic@example.test")) }
         expectTrue(await team.signIn("synthetic@example.test", code: "123456"))
         XCTAssertNil(team.reader); XCTAssertTrue(try XCTUnwrap(team.cache).charts.isEmpty, "Remote cache must not seed local sample charts")
         try seed(team, fixture)
@@ -189,7 +223,7 @@ private final class TeamFixture: @unchecked Sendable {
     }
     private func head(chart: UUID, page: Int, geometry: PageGeometry, archive: Data, item: UUID? = nil) throws -> TeamJSON {
         let id = UUID()
-        return .object(["church_id": .id(TeamFixture.church), "chart_version_id": .id(chart), "page_index": .int(Int64(page)),
+        return .object(["church_id": .id(TeamFixture.church), "team_id": .id(TeamFixture.team), "chart_version_id": .id(chart), "page_index": .int(Int64(page)),
             "scope": .string(item == nil ? "personal" : "team"), "owner_user_id": item == nil ? .id(TeamFixture.userA) : .null,
             "performance_item_id": item.map(TeamJSON.id) ?? .null, "revision_number": .int(1), "native_asset_id": .id(id),
             "native_storage_key": .string("synthetic/\(id).drawing"), "native_sha256": .string(TeamWorkspace.hash(archive)),
@@ -455,4 +489,123 @@ private final class TeamFixture: @unchecked Sendable {
         let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)!.allObjects.compactMap { $0 as? URL }
         XCTAssertFalse(files.contains { $0.path.contains(TeamFixture.userB.uuidString) && $0.lastPathComponent.hasPrefix("conflict-") })
     }
+    func testTeamsWithinOneChurchHaveSeparateRolesCatalogsAndVaults() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace()
+        expectTrue(await team.openVersion(TeamFixture.a1)); await team.reader?.turnPage(1); team.navigationChanged()
+        let original = try XCTUnwrap(team.cache)
+        let otherTeam = UUID()
+        let membership = TeamJSON.object(["user_id": .id(TeamFixture.userA), "church_id": .id(TeamFixture.church),
+            "team_id": .id(otherTeam), "role": .string("member"), "active": .bool(true)])
+        fixture.extraMemberships = [membership]
+        await team.chooseWorkspace(membership)
+        XCTAssertEqual(team.selectedTeam, otherTeam); XCTAssertFalse(team.canLead); XCTAssertFalse(team.canAdmin)
+        XCTAssertTrue(team.songs.isEmpty); XCTAssertTrue(team.versions.isEmpty); XCTAssertTrue(team.items.isEmpty)
+        XCTAssertNil(team.reader); XCTAssertFalse(team.cache === original); XCTAssertTrue(try XCTUnwrap(team.cache).charts.isEmpty)
+        let back = try XCTUnwrap(team.memberships.first { $0["team_id"].uuid == TeamFixture.team })
+        await team.chooseWorkspace(back)
+        expectTrue(await team.openVersion(TeamFixture.a1)); XCTAssertEqual(team.reader?.pageIndex, 1)
+        XCTAssertTrue(team.canLead); XCTAssertTrue(team.canAdmin)
+    }
+    func testAWSLibraryRefreshUsesOneScopedCatalogAndPreservesReader() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace(provider: .aws)
+        team.suspend()
+        expectTrue(await team.openVersion(TeamFixture.a1)); await team.reader?.turnPage(1); team.navigationChanged()
+        let reader = team.reader, before = fixture.recorded("get_team_catalog").count
+        await team.refresh(); team.suspend()
+        XCTAssertEqual(fixture.recorded("get_team_catalog").count, before + 1)
+        XCTAssertEqual(fixture.recorded("get_team_catalog").last?["team_id"].uuid, TeamFixture.team)
+        XCTAssertEqual(fixture.recorded("get_team_catalog").last?["selected_team_id"].uuid, TeamFixture.team)
+        for name in ["songs", "chart_versions", "assets", "setlists", "performance_items", "personal_preferences"] {
+            XCTAssertTrue(fixture.recorded(name).isEmpty, "AWS must refresh catalog rows in one request")
+        }
+        XCTAssertEqual(team.songs.count, 2); XCTAssertEqual(team.versions.count, 3)
+        XCTAssertEqual(team.items.count, 2); XCTAssertEqual(team.preferredVersions[TeamFixture.songA], TeamFixture.a1)
+        XCTAssertTrue(team.reader === reader); XCTAssertEqual(team.reader?.pageIndex, 1)
+    }
+    func testIncompleteAWSCatalogCannotEraseCachedLibrary() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace(provider: .aws)
+        team.suspend()
+        let songs = team.songs.map(\.value), versions = team.versions.map(\.value), items = team.items.map(\.value)
+        fixture.pause("get_team_catalog")
+        let refresh = Task { await team.refresh() }; try await waitPaused(fixture)
+        fixture.release(200, .object(["songs": .array([])])); await refresh.value
+        XCTAssertEqual(team.songs.map(\.value), songs); XCTAssertEqual(team.versions.map(\.value), versions); XCTAssertEqual(team.items.map(\.value), items)
+        XCTAssertNotNil(team.error)
+    }
+    func testAWSMetadataHintsCoalesceWithoutLiveSessionAndPreserveReaderPage() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace(provider: .aws)
+        team.suspend()
+        expectTrue(await team.openVersion(TeamFixture.a1)); await team.reader?.turnPage(1); team.navigationChanged()
+        let reader = team.reader, newSong = UUID(), before = fixture.recorded("get_team_catalog").count
+        XCTAssertNil(team.live)
+        fixture.addSong(.object(["id": .id(newSong), "church_id": .id(TeamFixture.church), "team_id": .id(TeamFixture.team), "canonical_title": .string("New synthetic team chart")]))
+        fixture.pause("get_team_catalog")
+        await team.hintReceived(team.scopeID); try await waitPaused(fixture)
+        for _ in 0..<10 { await team.hintReceived(team.scopeID) }
+        XCTAssertEqual(fixture.recorded("get_team_catalog").count, before + 1)
+        fixture.release(200, fixture.catalogValue())
+        let deadline = ContinuousClock().now.advanced(by: .seconds(5))
+        while (!team.songs.contains { $0.id == newSong } || fixture.recorded("get_team_catalog").count < before + 2 || team.busy), ContinuousClock().now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(team.songs.contains { $0.id == newSong })
+        XCTAssertEqual(fixture.recorded("get_team_catalog").count, before + 2, "Burst hints coalesce into one pending refresh")
+        XCTAssertTrue(team.reader === reader); XCTAssertEqual(team.reader?.pageIndex, 1); XCTAssertNil(team.live)
+        XCTAssertTrue(fixture.recorded("acknowledge_open").isEmpty)
+    }
+    func testChatDraftSurvivesOfflineRelaunchWithoutAutomaticSendAndRetryKeepsCommand() async throws {
+        let (team, fixture, root, config, transport) = try await setupWorkspace()
+        await team.openChat(); team.updateChatComposer("Synthetic rehearsal message")
+        fixture.setOffline(true); expectFalse(await team.sendChat())
+        let draft = try XCTUnwrap(team.chatDrafts.first), attempts = fixture.recorded("send_chat_message")
+        XCTAssertEqual(attempts.count, 1); XCTAssertEqual(attempts.first?["command_id"].uuid, draft.id)
+        team.suspend()
+        let restored = TeamWorkspace(testRoot: root, configuration: config, transport: transport, realtimeEnabled: false)
+        await restored.restore(); await restored.openChat()
+        XCTAssertEqual(restored.chatDrafts, [draft]); XCTAssertEqual(fixture.recorded("send_chat_message").count, 1)
+        fixture.setOffline(false); await restored.refresh(); XCTAssertEqual(fixture.recorded("send_chat_message").count, 1)
+        expectTrue(await restored.retryChat(draft)); XCTAssertTrue(restored.chatDrafts.isEmpty)
+        let retries = fixture.recorded("send_chat_message"); XCTAssertEqual(retries.count, 2); XCTAssertEqual(retries[0], retries[1])
+        XCTAssertEqual(restored.chatMessages.first?.value["body"].text, draft.body)
+        restored.suspend(); _ = await restored.logout()
+    }
+    func testLateChatSnapshotCannotEnterAnotherTeamsState() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace()
+        fixture.pause("get_chat_snapshot")
+        let loading = Task { await team.openChat() }; try await waitPaused(fixture)
+        let otherTeam = UUID(), membership = TeamJSON.object(["user_id": .id(TeamFixture.userA), "church_id": .id(TeamFixture.church),
+            "team_id": .id(otherTeam), "role": .string("member"), "active": .bool(true)])
+        fixture.extraMemberships = [membership]; await team.chooseWorkspace(membership)
+        fixture.release(200, .object(["revision": .int(1), "messages": .array([.object(["id": .id(UUID()), "author_id": .id(TeamFixture.userA),
+            "body": .string("Old team message"), "revision": .int(1), "setlist_id": .null, "deleted": .bool(false)])])]))
+        await loading.value; XCTAssertEqual(team.selectedTeam, otherTeam); XCTAssertTrue(team.chatMessages.isEmpty); XCTAssertNil(team.chatError)
+    }
+    func testChatReconciliationNeverChangesReaderPageOrPendingCue() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace()
+        expectTrue(await team.openVersion(TeamFixture.a1)); await team.reader?.turnPage(1); team.navigationChanged()
+        let call = fixture.call(1); fixture.deliver(call); expectTrue(await team.joinSession(TeamFixture.live))
+        let reader = team.reader; await team.openChat(); team.updateChatComposer("Synthetic message")
+        expectTrue(await team.sendChat())
+        XCTAssertTrue(team.reader === reader); XCTAssertEqual(team.reader?.current?.id, TeamFixture.a1)
+        XCTAssertEqual(team.reader?.pageIndex, 1); XCTAssertEqual(team.pending?.id, call["id"].uuid)
+        XCTAssertTrue(fixture.recorded("acknowledge_open").isEmpty); XCTAssertTrue(fixture.recorded("publish_call").isEmpty)
+    }
+
+    func testExplicitCreationRetryUsesDurableCommandIdentity() async throws {
+        let (team, fixture, root, config, transport) = try await setupWorkspace()
+        fixture.failCreations(true)
+        expectFalse(await team.createWorkspace("Synthetic church"))
+        let first = try XCTUnwrap(fixture.recorded("create_church_and_default_team").first)
+        team.suspend()
+        let restored = TeamWorkspace(testRoot: root, configuration: config, transport: transport, realtimeEnabled: false)
+        await restored.restore(); fixture.failCreations(false)
+        expectTrue(await restored.createWorkspace("Synthetic church"))
+        let retry = try XCTUnwrap(fixture.recorded("create_church_and_default_team").last)
+        XCTAssertEqual(first, retry); XCTAssertNotNil(first["command_id"].uuid)
+        fixture.failCreations(true); expectFalse(await restored.createTeam("Synthetic team"))
+        fixture.failCreations(false); expectTrue(await restored.createTeam("Synthetic team"))
+        let teams = fixture.recorded("create_team"); XCTAssertEqual(teams.count, 2); XCTAssertEqual(teams[0], teams[1])
+        restored.suspend(); _ = await restored.logout()
+    }
+
 }

@@ -1,4 +1,7 @@
 // Unconfigured builds keep the complete local rehearsal workflow available.
+REMOTE_PROVIDER = aws
+AWS_API_URL =
+AWS_WEBSOCKET_URL =
 SUPABASE_URL =
 SUPABASE_PUBLISHABLE_KEY =
 #include? "Secrets.xcconfig"

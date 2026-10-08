@@ -21,6 +21,8 @@ struct TeamPanel: View {
     @State private var setlistSheet = false
     @State private var controllerSheet = false
     @State private var query = ""
+    @State private var chatSheet = false
+    @State private var teamName = ""
 
     var body: some View {
         NavigationStack {
@@ -61,9 +63,9 @@ struct TeamPanel: View {
                             ForEach(Array(team.memberships.enumerated()), id: \.offset) { _, membership in
                                 Button { Task { await team.chooseWorkspace(membership); await reloadSessions() } } label: {
                                     HStack {
-                                        Text(membership["role"].text == "admin" ? "내 교회 · 관리자" : "초대받은 팀")
+                                        Text(membership["team_name"].text ?? (membership["role"].text == "admin" ? String(localized: "내 팀 · 관리자") : String(localized: "초대받은 팀")))
                                         Spacer()
-                                        if membership["church_id"].uuid == team.selectedChurch { Image(systemName: "checkmark") }
+                                        if membership["church_id"].uuid == team.selectedChurch && membership["team_id"].uuid == team.selectedTeam { Image(systemName: "checkmark") }
                                     }
                                 }
                             }
@@ -73,6 +75,18 @@ struct TeamPanel: View {
                         Section("교회·팀 만들기") {
                             TextField("교회 이름", text: $workspaceName)
                             Button("새 비공개 교회·팀 만들기") { Task { _ = await team.createWorkspace(workspaceName) } }.disabled(workspaceName.isEmpty)
+                        }
+                    }
+                    if team.canAdmin {
+                        Section("같은 교회에 팀 추가") {
+                            TextField("팀 이름", text: $teamName)
+                            Button("새 비공개 팀 만들기") { Task { if await team.createTeam(teamName) { teamName = ""; await reloadSessions() } } }.disabled(teamName.isEmpty)
+                            Text("팀마다 악보·대화·예배 목록을 따로 보관합니다.").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    if team.session?.anonymous == false, team.selectedTeam != nil {
+                        Section("팀 대화") {
+                            Button { chatSheet = true } label: { Label("팀 대화 열기", systemImage: "bubble.left.and.bubble.right") }.frame(minHeight: 44)
                         }
                     }
                     Section("초대 코드로 참여") {
@@ -154,6 +168,7 @@ struct TeamPanel: View {
                 .onChange(of: team.scopeID) { _ in sessions = []; Task { await reloadSessions() } }
                 .sheet(isPresented: $publishSheet) { TeamPublishSheet(team: team, local: local) }
                 .sheet(isPresented: $setlistSheet) { TeamSetlistSheet(team: team) }
+                .sheet(isPresented: $chatSheet) { TeamChatView(team: team) }
                 .sheet(isPresented: $controllerSheet) { TeamControllerSheet(team: team) }
                 .sheet(isPresented: $team.showConflicts) { PersonalConflictSheet(team: team) }
         }.preferredColorScheme(.light)

@@ -145,4 +145,165 @@ final class RemoteAPITests: XCTestCase {
         json["sequence"] = .int(0); XCTAssertThrowsError(try RemoteJSON.object(json).call())
         json["sequence"] = .int(1); json["performance_key"] = .string("invalid"); XCTAssertThrowsError(try RemoteJSON.object(json).call())
     }
+    private func awsAPI() throws -> RemoteAPI {
+        let c = URLSessionConfiguration.ephemeral; c.protocolClasses = [StubProtocol.self]
+        return RemoteAPI(configuration: try RemoteConfiguration(url: URL(string: "https://example.execute-api.us-east-1.amazonaws.com")!,
+            provider: .aws, webSocketURL: URL(string: "wss://socket.execute-api.us-east-1.amazonaws.com/pilot")), transport: URLSession(configuration: c))
+    }
+    func testAWSConfigurationRequiresSecureKeylessEndpointsAndTicketOnlySocketURL() throws {
+        let config = try RemoteConfiguration(url: URL(string: "https://api.example.test")!, provider: .aws,
+            webSocketURL: URL(string: "wss://socket.example.test/pilot"))
+        let socket = try RealtimeHints.awsSocketURL(configuration: config, ticket: "one-time_abc123")
+        XCTAssertEqual(socket.query, "ticket=one-time_abc123")
+        XCTAssertThrowsError(try RealtimeHints.awsSocketURL(configuration: config, ticket: "Bearer secret"))
+        XCTAssertThrowsError(try RemoteConfiguration(url: config.url, publishableKey: "private", provider: .aws))
+        XCTAssertThrowsError(try RemoteConfiguration(url: config.url, provider: .aws, webSocketURL: URL(string: "ws://socket.example.test")))
+    }
+    func testAWSManagedEmailOTPChallengeIsBoundToRequestedEmail() async throws {
+        let api = try awsAPI(), id = user
+        StubProtocol.handler = { request in
+            XCTAssertNil(request.value(forHTTPHeaderField: "apikey")); XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            let body = try JSONDecoder().decode(RemoteJSON.self, from: Self.body(request))
+            if request.url!.lastPathComponent == "otp" { return (200, .object(["session": .string("managed-session"), "challenge": .string("EMAIL_OTP")])) }
+            XCTAssertEqual(body["session"].text, "managed-session"); XCTAssertEqual(body["challenge"].text, "EMAIL_OTP")
+            return (200, self.auth(id))
+        }
+        try await api.sendOTP(email: "synthetic@example.test")
+        do { _ = try await api.verifyOTP(email: "other@example.test", code: "123456"); XCTFail("Wrong challenge email accepted") }
+        catch { XCTAssertEqual(error as? RemoteError, .authentication) }
+        let result = try await api.verifyOTP(email: "synthetic@example.test", code: "123456"); XCTAssertEqual(result.userID, id)
+    }
+    func testAWSGuestCannotBeCreatedWithoutScopedInvitation() async throws {
+        let api = try awsAPI()
+        StubProtocol.handler = { request in
+            let body = try JSONDecoder().decode(RemoteJSON.self, from: Self.body(request))
+            XCTAssertEqual(body["invitation_token"].text, "scoped-invite"); return (200, self.auth(self.user, anonymous: true))
+        }
+        do { _ = try await api.guest(); XCTFail("Unrestricted guest accepted") }
+        catch { XCTAssertEqual(error as? RemoteError, .configuration) }
+        let guest = try await api.guest(invitationToken: "scoped-invite"); XCTAssertTrue(guest.anonymous)
+    }
+    func testAWSRowsIncludeExplicitTeamAndNoProviderKey() async throws {
+        let api = try awsAPI(), team = UUID()
+        StubProtocol.handler = { request in
+            XCTAssertEqual(request.url!.query, "team_id=\(team.uuidString.lowercased())")
+            XCTAssertNil(request.value(forHTTPHeaderField: "apikey")); XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer account")
+            return (200, .array([]))
+        }
+        _ = try await api.rows("songs", token: "account", teamID: team)
+    }
+    func testAWSCatalogUsesOneRequestWithExactSelectedTeam() async throws {
+        let api = try awsAPI(), team = UUID()
+        let catalog: RemoteJSON = .object(["songs": .array([]), "chart_versions": .array([]), "assets": .array([]),
+            "setlists": .array([]), "performance_items": .array([]), "personal_preferences": .array([])])
+        nonisolated(unsafe) var requests = 0
+        StubProtocol.handler = { request in
+            requests += 1
+            XCTAssertEqual(request.httpMethod, "POST"); XCTAssertEqual(request.url!.path, "/rest/v1/rpc/get_team_catalog")
+            XCTAssertNil(request.value(forHTTPHeaderField: "apikey")); XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer account")
+            let body = try JSONDecoder().decode(RemoteJSON.self, from: Self.body(request))
+            XCTAssertEqual(body["p"], .object(["team_id": .id(team), "selected_team_id": .id(team)]))
+            return (200, catalog)
+        }
+        let result = try await api.teamCatalog(token: "account", teamID: team)
+        XCTAssertEqual(result, catalog); XCTAssertEqual(requests, 1)
+    }
+    func testAWSCatalogRejectsIncompletePayloadInsteadOfClearingCachedRows() async throws {
+        let api = try awsAPI()
+        let invalid: [RemoteJSON] = [.array([]), .object(["songs": .array([])]),
+            .object(["songs": .array([]), "chart_versions": .array([]), "assets": .array([]), "setlists": .array([]),
+                "performance_items": .array([]), "personal_preferences": .null])]
+        for value in invalid {
+            StubProtocol.handler = { _ in (200, value) }
+            do { _ = try await api.teamCatalog(token: "account", teamID: UUID()); XCTFail("Incomplete catalog accepted") }
+            catch { XCTAssertEqual(error as? RemoteError, .invalidResponse) }
+        }
+    }
+    func testAWSSignedUploadNeverLeaksAccountCredentialsToS3() async throws {
+        let api = try awsAPI()
+        StubProtocol.handler = { request in
+            if request.url!.host!.contains("execute-api") {
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer account")
+                let body = try JSONDecoder().decode(RemoteJSON.self, from: Self.body(request))
+                XCTAssertEqual(body["key"].text, "team/asset.pdf"); XCTAssertEqual(body["bytes"].integer, 3)
+                return (200, .object(["url": .string("https://bucket.s3.us-east-1.amazonaws.com/team/asset.pdf?X-Amz-Signature=signed"), "headers": .object(["If-None-Match": .string("*"), "x-amz-checksum-sha256": .string("synthetic-checksum"), "Content-Type": .string("application/pdf")])]))
+            }
+            XCTAssertEqual(request.httpMethod, "PUT"); XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            XCTAssertNil(request.value(forHTTPHeaderField: "apikey")); XCTAssertEqual(Self.body(request), Data([1, 2, 3]))
+            XCTAssertEqual(request.value(forHTTPHeaderField: "If-None-Match"), "*"); XCTAssertEqual(request.value(forHTTPHeaderField: "x-amz-checksum-sha256"), "synthetic-checksum")
+            return (200, .null)
+        }
+        try await api.upload(key: "team/asset.pdf", bytes: Data([1, 2, 3]), type: "application/pdf", token: "account")
+    }
+    func testAWSSignedAssetURLRejectsOtherHostsAndInsecureURLs() async throws {
+        let api = try awsAPI()
+        for url in ["http://bucket.s3.us-east-1.amazonaws.com/a?X-Amz-Signature=x", "https://evil.example/a?X-Amz-Signature=x", "https://s3.us-east-1.amazonaws.com.evil.example/a?X-Amz-Signature=x", "https://user:secret@bucket.s3.us-east-1.amazonaws.com/a?X-Amz-Signature=x"] {
+            StubProtocol.handler = { request in
+                XCTAssertTrue(request.url!.host!.contains("execute-api")); return (200, .object(["url": .string(url)]))
+            }
+            do { try await api.upload(key: "team/a", bytes: Data([1]), type: "application/pdf", token: "account"); XCTFail("Unsafe signed URL accepted") }
+            catch { XCTAssertEqual(error as? RemoteError, .configuration) }
+        }
+    }
+
+    func testAWSSignedDownloadNeverLeaksCredentialsAndStillBoundsBytes() async throws {
+        let api = try awsAPI(), drawing = RemoteJSON.string("synthetic archive")
+        StubProtocol.handler = { request in
+            if request.url!.host!.contains("execute-api") {
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer account")
+                return (200, .object(["url": .string("https://bucket.s3.us-east-1.amazonaws.com/team/archive?X-Amz-Signature=signed")]))
+            }
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization")); XCTAssertNil(request.value(forHTTPHeaderField: "apikey"))
+            return (200, drawing)
+        }
+        let data = try await api.download(key: "team/archive", token: "account", maximumBytes: 1024)
+        XCTAssertEqual(data, try JSONEncoder().encode(drawing))
+        do { _ = try await api.download(key: "team/archive", token: "account", maximumBytes: 2); XCTFail("Oversized archive accepted") }
+        catch { XCTAssertEqual(error as? RemoteError, .tooLarge) }
+    }
+    func testAWSSignedUploadRejectsCredentialHeaders() async throws {
+        let api = try awsAPI()
+        StubProtocol.handler = { _ in (200, .object(["url": .string("https://bucket.s3.us-east-1.amazonaws.com/team/archive?X-Amz-Signature=signed"), "headers": .object(["Authorization": .string("private")])])) }
+        do { try await api.upload(key: "team/archive", bytes: Data([1]), type: "application/pdf", token: "account"); XCTFail("Credential header accepted") }
+        catch { XCTAssertEqual(error as? RemoteError, .invalidResponse) }
+    }
+
+    func testRealtimeFailureBackoffIsBoundedAndResetsAfterRecovery() {
+        let now = Date(timeIntervalSince1970: 1_000), next = now.addingTimeInterval(1)
+        var retry = RealtimeRetryPolicy()
+        XCTAssertTrue(retry.permitsAttempt(at: now))
+        retry.failed(at: now, jitter: 1)
+        XCTAssertFalse(retry.permitsAttempt(at: now)); XCTAssertTrue(retry.permitsAttempt(at: next))
+        for _ in 0..<20 { retry.failed(at: now, jitter: 1.2) }
+        XCTAssertLessThanOrEqual(retry.retryAt.timeIntervalSince(now), 60)
+        XCTAssertTrue(retry.permitsAttempt(at: now.addingTimeInterval(60)))
+        retry.succeeded(); XCTAssertEqual(retry.failures, 0); XCTAssertTrue(retry.permitsAttempt(at: now))
+    }
+    func testCatalogFallbackWaitsSixtySecondsWithoutDelayingLivePolls() {
+        var schedule = CatalogRefreshSchedule()
+        XCTAssertTrue(schedule.isDue(at: 1_000)); schedule.refreshed(at: 1_000)
+        for time in [1_015.0, 1_030.0, 1_045.0, 1_059.9] { XCTAssertFalse(schedule.isDue(at: time)) }
+        XCTAssertTrue(schedule.isDue(at: 1_060)); schedule.refreshed(at: 1_060)
+        XCTAssertFalse(schedule.isDue(at: 1_075)); XCTAssertTrue(schedule.isDue(at: 1_120))
+        schedule.reset(); XCTAssertTrue(schedule.isDue(at: 1_121))
+    }
+    func testRealtimeFailedTicketDoesNotStormAPIAndExplicitResetObtainsFreshTicket() async throws {
+        let api = try awsAPI(), hints = RealtimeHints(), team = UUID()
+        nonisolated(unsafe) var attempts = 0
+        StubProtocol.handler = { request in
+            XCTAssertEqual(request.url!.path, "/functions/v1/realtime-ticket")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), attempts == 0 ? "Bearer first" : "Bearer refreshed")
+            attempts += 1; return (503, .null)
+        }
+        do { try await hints.connect(api: api, token: "first", teamID: team, sessionID: nil, changed: {}); XCTFail("Ticket failure accepted") }
+        catch { XCTAssertEqual(error as? RemoteError, .unavailable) }
+        do { try await hints.connect(api: api, token: "refreshed", teamID: team, sessionID: nil, changed: {}); XCTFail("Immediate retry accepted") }
+        catch { XCTAssertEqual(error as? RemoteError, .unavailable) }
+        XCTAssertEqual(attempts, 1)
+        await hints.disconnect()
+        do { try await hints.connect(api: api, token: "refreshed", teamID: team, sessionID: nil, changed: {}); XCTFail("Ticket failure accepted") }
+        catch { XCTAssertEqual(error as? RemoteError, .unavailable) }
+        XCTAssertEqual(attempts, 2); let connected = await hints.connected; XCTAssertFalse(connected)
+    }
+
 }

@@ -50,24 +50,46 @@ public enum RemoteJSON: Codable, Equatable, Sendable {
     }
 }
 
+public enum RemoteProvider: String, Codable, Sendable { case supabase, aws }
+
 public struct RemoteConfiguration: Codable, Equatable, Sendable {
+    public let provider: RemoteProvider
     public let url: URL
     public let publishableKey: String
-    public init(url: URL, publishableKey: String, allowLocalHTTP: Bool = false) throws {
+    public let webSocketURL: URL?
+    public init(url: URL, publishableKey: String = "", provider: RemoteProvider = .supabase,
+                webSocketURL: URL? = nil, allowLocalHTTP: Bool = false) throws {
         guard url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
               url.path.isEmpty || url.path == "/",
               url.scheme == "https" || (allowLocalHTTP && url.scheme == "http" && ["localhost", "127.0.0.1"].contains(url.host)),
-              !(url.host ?? "").isEmpty, !publishableKey.isEmpty, !publishableKey.contains(where: { $0.isWhitespace }),
-              !publishableKey.hasPrefix("sb_secret_") else { throw RemoteError.configuration }
-        if !publishableKey.hasPrefix("sb_publishable_") {
-            let parts = publishableKey.split(separator: ".")
-            guard parts.count == 3 else { throw RemoteError.configuration }
-            var body = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
-            body += String(repeating: "=", count: (4 - body.count % 4) % 4)
-            guard let data = Data(base64Encoded: body), let jwt = try? JSONDecoder().decode(RemoteJSON.self, from: data),
-                  jwt["role"].text == "anon" else { throw RemoteError.configuration }
+              !(url.host ?? "").isEmpty else { throw RemoteError.configuration }
+        if provider == .supabase {
+            guard !publishableKey.isEmpty, !publishableKey.contains(where: { $0.isWhitespace }),
+                  !publishableKey.hasPrefix("sb_secret_") else { throw RemoteError.configuration }
+            if !publishableKey.hasPrefix("sb_publishable_") {
+                let parts = publishableKey.split(separator: ".")
+                guard parts.count == 3 else { throw RemoteError.configuration }
+                var body = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+                body += String(repeating: "=", count: (4 - body.count % 4) % 4)
+                guard let data = Data(base64Encoded: body), let jwt = try? JSONDecoder().decode(RemoteJSON.self, from: data),
+                      jwt["role"].text == "anon" else { throw RemoteError.configuration }
+            }
+        } else {
+            guard publishableKey.isEmpty else { throw RemoteError.configuration }
         }
-        self.url = url; self.publishableKey = publishableKey
+        if let webSocketURL {
+            guard provider == .aws, webSocketURL.scheme == "wss", !(webSocketURL.host ?? "").isEmpty,
+                  webSocketURL.user == nil, webSocketURL.password == nil, webSocketURL.query == nil,
+                  webSocketURL.fragment == nil else { throw RemoteError.configuration }
+        }
+        self.provider = provider; self.url = url; self.publishableKey = publishableKey; self.webSocketURL = webSocketURL
+    }
+    private enum CodingKeys: String, CodingKey { case provider, url, publishableKey, webSocketURL }
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(url: c.decode(URL.self, forKey: .url), publishableKey: c.decodeIfPresent(String.self, forKey: .publishableKey) ?? "",
+                      provider: c.decodeIfPresent(RemoteProvider.self, forKey: .provider) ?? .supabase,
+                      webSocketURL: c.decodeIfPresent(URL.self, forKey: .webSocketURL))
     }
 }
 
@@ -88,8 +110,9 @@ public struct RemoteSession: Codable, Equatable, Sendable {
 }
 
 public actor RemoteAPI {
-    public let configuration: RemoteConfiguration
+    public nonisolated let configuration: RemoteConfiguration
     private let transport: URLSession
+    private var otpChallenge: (email: String, session: String, challenge: String)?
     public init(configuration: RemoteConfiguration, transport: URLSession = .shared) {
         self.configuration = configuration; self.transport = transport
     }
@@ -97,7 +120,7 @@ public actor RemoteAPI {
         guard !path.contains(".."), !path.contains("?"), !path.contains("#"), !path.contains("\\") else { throw RemoteError.configuration }
         var r = URLRequest(url: configuration.url.appendingPathComponent(path), timeoutInterval: 30)
         r.httpMethod = method; r.httpBody = body
-        r.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        if configuration.provider == .supabase { r.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey") }
         if let token { r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         r.setValue(type, forHTTPHeaderField: "Content-Type")
         r.setValue("no-store", forHTTPHeaderField: "Cache-Control")
@@ -130,19 +153,58 @@ public actor RemoteAPI {
         guard name.allSatisfy({ $0.isLowercase || $0 == "_" }) else { throw RemoteError.configuration }
         return try await json("rest/v1/rpc/\(name)", token: token, body: .object(["p": .object(payload)]))
     }
-    public func rows(_ table: String, token: String) async throws -> [RemoteJSON] {
-        guard table.allSatisfy({ $0.isLowercase || $0 == "_" }) else { throw RemoteError.configuration }
-        return try await json("rest/v1/\(table)", method: "GET", token: token).list
+    public func rows(_ table: String, token: String, teamID: UUID? = nil) async throws -> [RemoteJSON] {
+        guard !table.isEmpty, table.allSatisfy({ $0.isLowercase || $0 == "_" }) else { throw RemoteError.configuration }
+        var r = try request("rest/v1/\(table)", method: "GET", token: token, body: nil)
+        if configuration.provider == .aws, let teamID {
+            var url = URLComponents(url: r.url!, resolvingAgainstBaseURL: false)!
+            url.queryItems = [URLQueryItem(name: "team_id", value: teamID.uuidString.lowercased())]; r.url = url.url
+        }
+        let (data, response) = try await transport.data(for: r)
+        guard data.count <= 4 * 1024 * 1024 else { throw RemoteError.tooLarge }
+        try validate(response, data: data)
+        return try JSONDecoder().decode(RemoteJSON.self, from: data).list
+    }
+    public func teamCatalog(token: String, teamID: UUID) async throws -> RemoteJSON {
+        guard configuration.provider == .aws else { throw RemoteError.configuration }
+        let value = try await rpc("get_team_catalog", token: token,
+            ["team_id": .id(teamID), "selected_team_id": .id(teamID)])
+        guard case .object = value else { throw RemoteError.invalidResponse }
+        for key in ["songs", "chart_versions", "assets", "setlists", "performance_items", "personal_preferences"] {
+            guard case .array = value[key] else { throw RemoteError.invalidResponse }
+        }
+        return value
     }
     public func sendOTP(email: String) async throws {
-        _ = try await json("auth/v1/otp", body: .object(["email": .string(email), "create_user": .bool(true)]))
+        otpChallenge = nil
+        let result = try await json("auth/v1/otp", body: .object(["email": .string(email), "create_user": .bool(true)]))
+        if configuration.provider == .aws {
+            otpChallenge = (email, try result.requiredText("session"), try result.requiredText("challenge"))
+        }
     }
     public func verifyOTP(email: String, code: String) async throws -> RemoteSession {
-        try await RemoteSession(response: json("auth/v1/verify", body: .object(["email": .string(email), "token": .string(code), "type": .string("email")])))
+        var payload: [String: RemoteJSON] = ["email": .string(email), "token": .string(code), "type": .string("email")]
+        if configuration.provider == .aws {
+            guard let otpChallenge, otpChallenge.email == email else { throw RemoteError.authentication }
+            payload["session"] = .string(otpChallenge.session); payload["challenge"] = .string(otpChallenge.challenge)
+        }
+        let result = try await RemoteSession(response: json("auth/v1/verify", body: .object(payload)))
+        otpChallenge = nil
+        return result
     }
-    public func guest() async throws -> RemoteSession { try await RemoteSession(response: json("auth/v1/signup")) }
-    public func signOut(token: String) async throws {
-        var r = try request("auth/v1/logout", method: "POST", token: token, body: nil)
+    public func guest(invitationToken: String? = nil) async throws -> RemoteSession {
+        var payload: [String: RemoteJSON] = [:]
+        if configuration.provider == .aws {
+            guard let invitationToken, !invitationToken.isEmpty, invitationToken.count <= 2048 else { throw RemoteError.configuration }
+            payload["invitation_token"] = .string(invitationToken)
+        }
+        let result = try await RemoteSession(response: json("auth/v1/signup", body: .object(payload)))
+        guard result.anonymous else { throw RemoteError.invalidResponse }
+        return result
+    }
+    public func signOut(token: String, refreshToken: String? = nil) async throws {
+        let body = configuration.provider == .aws ? try JSONEncoder().encode(RemoteJSON.object(["refresh_token": refreshToken.map(RemoteJSON.string) ?? .null])) : nil
+        var r = try request("auth/v1/logout", method: "POST", token: token, body: body)
         var url = URLComponents(url: r.url!, resolvingAgainstBaseURL: false)!
         url.queryItems = [URLQueryItem(name: "scope", value: "local")]; r.url = url.url; r.timeoutInterval = 5
         let (data, response) = try await transport.data(for: r); try validate(response, data: data)
@@ -160,18 +222,55 @@ public actor RemoteAPI {
     public func upload(key: String, bytes: Data, type: String, token: String) async throws {
         try validateKey(key)
         guard !bytes.isEmpty, bytes.count <= 100 * 1024 * 1024 else { throw RemoteError.tooLarge }
+        if configuration.provider == .aws {
+            let signed = try await json("functions/v1/asset-upload-url", token: token, body: .object([
+                "key": .string(key), "content_type": .string(type), "bytes": .int(Int64(bytes.count))]))
+            var r = URLRequest(url: try signedAssetURL(signed.requiredText("url")), timeoutInterval: 120)
+            r.httpMethod = "PUT"; r.httpBody = bytes; r.setValue(type, forHTTPHeaderField: "Content-Type")
+            guard case .object(let headers) = signed["headers"] else { throw RemoteError.invalidResponse }
+            var normalized: [String: RemoteJSON] = [:]
+            for (name, value) in headers {
+                guard normalized[name.lowercased()] == nil else { throw RemoteError.invalidResponse }
+                normalized[name.lowercased()] = value
+            }
+            guard normalized["if-none-match"]?.text == "*", normalized["content-type"]?.text == type,
+                  let checksum = normalized["x-amz-checksum-sha256"]?.text, !checksum.isEmpty else { throw RemoteError.invalidResponse }
+            do {
+                for (name, value) in headers {
+                    guard ["if-none-match", "x-amz-checksum-sha256", "content-type"].contains(name.lowercased()),
+                          let text = value.text, !text.contains("\r"), !text.contains("\n"), text.count <= 256 else { throw RemoteError.invalidResponse }
+                    r.setValue(text, forHTTPHeaderField: name)
+                }
+            }
+            let (data, response) = try await transport.data(for: r); try validate(response, data: data)
+            return
+        }
         var r = try request("storage/v1/object/worshipcue-private/\(key)", method: "POST", token: token, body: bytes, type: type)
         r.setValue("false", forHTTPHeaderField: "x-upsert")
         let (data, response) = try await transport.data(for: r); try validate(response, data: data)
     }
     public func download(key: String, token: String, maximumBytes: Int) async throws -> Data {
         try validateKey(key)
-        let (file, response) = try await transport.download(for: request("storage/v1/object/authenticated/worshipcue-private/\(key)", method: "GET", token: token, body: nil))
+        let r: URLRequest
+        if configuration.provider == .aws {
+            let signed = try await json("functions/v1/asset-download-url", token: token, body: .object(["key": .string(key)]))
+            r = URLRequest(url: try signedAssetURL(signed.requiredText("url")), timeoutInterval: 120)
+        } else { r = try request("storage/v1/object/authenticated/worshipcue-private/\(key)", method: "GET", token: token, body: nil) }
+        let (file, response) = try await transport.download(for: r)
         defer { try? FileManager.default.removeItem(at: file) }
         try validate(response, data: Data())
         let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
         guard size > 0, size <= maximumBytes else { throw RemoteError.tooLarge }
         return try Data(contentsOf: file, options: .mappedIfSafe)
+    }
+    private func signedAssetURL(_ value: String) throws -> URL {
+        guard let url = URL(string: value), url.scheme == "https", url.user == nil, url.password == nil,
+              url.fragment == nil, url.port == nil || url.port == 443, let host = url.host?.lowercased(),
+              host.hasSuffix(".amazonaws.com"), host.contains(".s3.") || host.hasPrefix("s3."),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              components.queryItems?.contains(where: { $0.name == "X-Amz-Signature" && !($0.value ?? "").isEmpty }) == true
+        else { throw RemoteError.configuration }
+        return url
     }
     private func validateKey(_ key: String) throws {
         guard !key.isEmpty, key.count <= 300, !key.hasPrefix("/"), !key.contains(".."),

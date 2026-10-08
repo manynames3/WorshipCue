@@ -22,7 +22,7 @@ Date: 2026-10-07. `USER` means explicitly chosen in the conversation. `DEFAULT` 
 | D17 | DEFAULT | Incoming or resumed state NEVER changes the chart, version, page, preference, or open preview. |
 | D18 | DEFAULT | Controller privately stages song + exact team chart + performance key, then sends with one explicit action. Search/preview/upload never publish. |
 | D19 | DEFAULT | Main screens: Today, Library, Music Stand. Versions, transfer, session history, preparation, invitations, and controller tools are contextual panels. |
-| D20 | DEFAULT | Native SwiftUI + UIKit/PDFKit/PencilKit, local SQLite/GRDB, Supabase Auth/Postgres/private Storage/Realtime. No browser-based music stand in pilot. |
+| D20 | USER, amended 2026-10-08 | Native SwiftUI + UIKit/PDFKit/PencilKit, local SQLite/GRDB; AWS Cognito/DynamoDB/private S3/API Gateway WebSockets under D45. Preserve the prior Supabase adapter and v1 checkpoint. No browser-based music stand in pilot. |
 | D21 | DEFAULT | Realtime is a wake-up/invalidation signal. Durable server snapshots, monotonic sequences, idempotency, and reconciliation define state. |
 | D22 | DEFAULT | One controller/shared-ink editor per setlist at a time; explicit takeover, expiring lease, increasing fencing epoch. No simultaneous shared canvas editing. |
 | D23 | DEFAULT | Personal ink persists per user + version + page. Shared ink is per performance item + version + page, preventing last week's “repeat twice” from silently carrying over. |
@@ -47,6 +47,7 @@ Date: 2026-10-07. `USER` means explicitly chosen in the conversation. `DEFAULT` 
 | D42 | DEFAULT | One member edits private ink on one device at a time in the expected pilot workflow. Concurrent edits still preserve both revisions and require manual resolution. |
 | D43 | USER | Team chat is required, added 2026-10-08. Reuse managed identities and exact team permissions; do not change song/page/ink behavior when a message arrives. Cloud accounts, spending and paid Apple enrollment still require authorization. Implementation and activation gates are recorded in the build plan. |
 | D44 | USER | Start with one church and 10–20 members, with easy addition of other churches/teams. Each team, including teams in the same church, has a separate PDF library, chat and setlists. Use explicit target-team membership for content access; shared hosting does not imply shared content. Build 5's church-wide library does not yet satisfy this requirement. |
+| D45 | USER | Use AWS for the cloud backend, selected 2026-10-08. Use managed Cognito email OTP and invite-bound managed guest identities, on-demand DynamoDB with transactional CAS, immutable private S3 assets, and API Gateway WebSockets as durable-state hints. Start with a separate development stack in the existing account/us-east-1. No EC2, RDS, NAT gateway, paid Apple enrollment, automatic song changes, page syncing or automatic note merging. |
 
 ## Explicit supersessions
 - The original one-page PDF is historical context, not current specification. Do not bundle it as authoritative build instructions.
@@ -60,6 +61,8 @@ Date: 2026-10-07. `USER` means explicitly chosen in the conversation. `DEFAULT` 
 
 ## Decision amendments
 Record ID, old behavior, new behavior, evidence, affected tests, and whether user approval is required. Never change a USER decision because a framework makes a different behavior easier.
+
+2026-10-08 · **D20/D45**: the user explicitly selected AWS after comparing all three providers and their messaging capabilities. This authorizes the AWS integration and dedicated development setup, preserving local documents/notes and the existing Supabase implementation. Cloud qualification must cover exact-team authorization, managed identities, immutable source validation, CAS and editor fencing, durable chat/reconnect, and no-navigation invariants. The user approved `pypdf==6.19.0` (BSD-3-Clause) for server PDF validation and supplied an initial SES sender privately; do not put that address or credentials in repository files. SES sender verification and sandbox/production restrictions remain operational gates, not a reason to fake successful OTP delivery.
 
 2026-10-08 · **D40/D43**: the user explicitly requested team chat while asking for a reliable, inexpensive cloud plan. Remove only the prior chat exclusion; retain all other exclusions and live-reader invariants. This records a requirement and planning scope, not implemented chat or authorization to deploy/bill. Add exact-team RLS, member/guest isolation, idempotent message retries, edits/deletions, account-switch, reconnect and no-navigation tests before claiming the feature. Foreground chat can use free development signing; real APNs and wider distribution remain subject to the user's later Apple enrollment.
 
