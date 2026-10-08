@@ -58,6 +58,8 @@ enum InkColor: String, CaseIterable, Identifiable {
     @Published private(set) var penColor: InkColor = .black
     @Published private(set) var markerColor: InkColor = .yellow
     var selectedInkColor: InkColor { selectedToolKind == 1 ? markerColor : penColor }
+    var currentLibraryVersion: LibraryVersion? { library.versions.first { $0.id == current?.id } }
+    var currentSongTitle: String? { library.songs.first { $0.id == currentLibraryVersion?.songID }?.title }
     private let church = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
     private let owner = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
     private let occurrence = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
@@ -249,6 +251,15 @@ enum InkColor: String, CaseIterable, Identifiable {
         guard !busy, let vault, let chart = charts.first(where: { $0.id == id }) else { return nil }
         do { let count = try vault.open(chart).pageCount; try refreshLibrary(); return count }
         catch { self.error = String(localized: "이 PDF를 확인하지 못했어요. 원본을 다시 가져와 주세요."); return nil }
+    }
+
+    /// Read-only previews never replace the reader or capture/change a note layer.
+    func chartThumbnail(_ id: UUID, page: Int = 0) -> UIImage? {
+        guard let vault, let chart = charts.first(where: { $0.id == id }) else { return nil }
+        do {
+            guard let source = try vault.open(chart).page(at: page) else { return nil }
+            return source.thumbnail(of: CGSize(width: 120, height: 160), for: .cropBox)
+        } catch { return nil } // The inspector reports an unavailable preview; opening remains verified separately.
     }
 
     /// Called only by the musician's explicit destination action; it previews and never commits ink.

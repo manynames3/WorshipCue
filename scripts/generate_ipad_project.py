@@ -57,7 +57,7 @@ app = {'TARGETED_DEVICE_FAMILY':'2','PRODUCT_NAME':'$(TARGET_NAME)','PRODUCT_BUN
        'INFOPLIST_KEY_UIApplicationSceneManifest_Generation':'YES','INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents':'YES',
        'INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad':'UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight',
        'SUPPORTED_PLATFORMS':'iphoneos iphonesimulator','SUPPORTS_MACCATALYST':'NO','CODE_SIGN_STYLE':'Automatic',
-       'MARKETING_VERSION':'0.0.1','CURRENT_PROJECT_VERSION':'3','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','SWIFT_EMIT_LOC_STRINGS':'YES',
+       'MARKETING_VERSION':'0.0.1','CURRENT_PROJECT_VERSION':'4','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','SWIFT_EMIT_LOC_STRINGS':'YES',
        'LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks'}
 tests = {'TARGETED_DEVICE_FAMILY':'2','PRODUCT_NAME':'$(TARGET_NAME)','PRODUCT_BUNDLE_IDENTIFIER':'com.worshipcue.spike.tests',
          'GENERATE_INFOPLIST_FILE':'YES','TEST_HOST':'$(BUILT_PRODUCTS_DIR)/WorshipCue.app/WorshipCue',

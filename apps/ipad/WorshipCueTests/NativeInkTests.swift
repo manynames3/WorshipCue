@@ -182,6 +182,41 @@ import WorshipCueLocal
         }
     }
 
+    func testV2ReadOnlyPreviewsKeepChartBookmarkPreferenceAndExactInk() async throws {
+        let (stand, root) = try await testStand()
+        let overlay = try await readyOverlay(stand)
+        let original = try XCTUnwrap(stand.current)
+        let bytes = try Data(contentsOf: root.appendingPathComponent("pdfs").appendingPathComponent(original.filename))
+        overlay.personal.drawing = MusicStand.sampleTeamDrawing()
+        stand.canvasViewDrawingDidChange(overlay.personal)
+        try await stand.flush()
+        let store = try LocalInkStore(url: root.appendingPathComponent("personal.sqlite"))
+        let before = try await store.load(overlay.address)
+        let other = try XCTUnwrap(stand.library.versions.first { $0.number == 2 && $0.songID == stand.currentLibraryVersion?.songID })
+        XCTAssertTrue(stand.prefer(other))
+        await stand.turnPage(1)
+        let document = try XCTUnwrap(stand.pdfView.document)
+        let preferences = stand.library.preferences
+        for version in stand.library.versions(for: other.songID) {
+            let thumbnail = try XCTUnwrap(stand.chartThumbnail(version.id))
+            XCTAssertLessThanOrEqual(thumbnail.size.width, 160)
+            XCTAssertLessThanOrEqual(thumbnail.size.height, 160)
+        }
+        XCTAssertNil(stand.chartThumbnail(original.id, page: 999))
+        XCTAssertNil(stand.chartThumbnail(UUID()))
+        let otherChart = try XCTUnwrap(stand.charts.first { $0.id == other.id })
+        try Data("invalid synthetic PDF".utf8).write(to: root.appendingPathComponent("pdfs").appendingPathComponent(otherChart.filename))
+        XCTAssertNil(stand.chartThumbnail(other.id), "A corrupt preview is unavailable, never substituted")
+        XCTAssertTrue(stand.pdfView.document === document)
+        XCTAssertEqual(stand.current?.id, original.id)
+        XCTAssertEqual(stand.pageIndex, 1)
+        XCTAssertEqual(stand.library.preferences, preferences)
+        XCTAssertNil(stand.error)
+        let after = try await store.load(overlay.address)
+        XCTAssertEqual(before, after)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("pdfs").appendingPathComponent(original.filename)), bytes)
+    }
+
     func testM1LegacyMigrationPreservesPDFAndExactExistingInk() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let pdfs = root.appendingPathComponent("pdfs")

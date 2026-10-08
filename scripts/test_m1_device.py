@@ -13,10 +13,13 @@ def main():
     parser.add_argument('--group', choices=['native', 'ui', 'all'], default='all')
     parser.add_argument('--full-native', action='store_true', help='Include existing M0 native regressions (private PDF case skips without its inputs)')
     parser.add_argument('--regressions', action='store_true', help='Also run the four existing synthetic reader UI workflows in separate sessions')
-    parser.add_argument('--only', nargs='+', choices=['native', 'workspace', 'export-ui', 'packet', 'clone', 'drawing', 'colors', 'transfer', 'team'],
+    parser.add_argument('--only', nargs='+', choices=['native', 'workspace', 'export-ui', 'packet', 'clone', 'drawing', 'colors', 'transfer', 'team', 'v2'],
                         help='Run only selected groups; reader UI groups also require --regressions')
     parser.add_argument('--batch-ui', action='store_true', help='Run selected UI workflows in one runner; keep individual results available through --only')
+    parser.add_argument('--command-timeout', type=int, help='Bound an individual command in seconds; a timeout remains a failed/unverified check')
     args = parser.parse_args()
+    if args.command_timeout is not None and args.command_timeout < 1:
+        parser.error('Command timeout must be positive')
     repo = Path(__file__).resolve().parents[1]
     tools = Path(os.environ.get('WORSHIPCUE_TOOLS_ROOT', repo.parent / 'DeveloperTools')).resolve()
     if tools == repo or repo in tools.parents:
@@ -36,7 +39,7 @@ def main():
         with (output / f'{label}.log').open('wb') as log:
             try:
                 completed = subprocess.run(wrapper + command, cwd=repo, stdout=log, stderr=subprocess.STDOUT,
-                                           timeout=1800 if label == 'ui-batch' else 900)
+                                           timeout=args.command_timeout or (1800 if label == 'ui-batch' else 900))
                 code = completed.returncode
             except subprocess.TimeoutExpired:
                 code = 124
@@ -73,7 +76,8 @@ def main():
         for label, case in [('workspace', 'testM1WorkspaceSearchPreferenceSetlistStandbyAndColdRelaunch'),
                             ('export-ui', 'testM1ExportLayerChoiceAndShareSheet'),
                             ('packet', 'testM1WeeklyPacketRangesKeepReaderAndCreateIndependentSongs'),
-                            ('clone', 'testM1SetlistRepeatAndCloneKeepOriginalOccurrencesAndKeys')]:
+                            ('clone', 'testM1SetlistRepeatAndCloneKeepOriginalOccurrencesAndKeys'),
+                            ('v2', 'testV2ConceptLayoutNavigationAndManualVersionInspector')]:
             groups.append((label, [f'WorshipCueUITests/MusicStandUITests/{case}']))
         if args.regressions:
             for label, case in [('drawing', 'testDrawingToolsSaveAndColdRelaunch'),

@@ -52,6 +52,16 @@
         }
       }
     },
+    "%lld쪽 · %lld획": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld쪽 · %lld획"
+          }
+        }
+      }
+    },
     "Apple Pencil": {
       "localizations": {
         "ko": {
@@ -152,6 +162,17 @@
         }
       }
     },
+    "Pencil": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pencil"
+          }
+        }
+      }
+    },
     "WorshipCue": {
       "localizations": {
         "ko": {
@@ -169,6 +190,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "v%lld"
+          }
+        }
+      }
+    },
+    "v%lld · %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%lld · %@"
           }
         }
       }
@@ -253,12 +284,32 @@
         }
       }
     },
+    "개인 기본 악보": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인 기본 악보"
+          }
+        }
+      }
+    },
     "개인 기본 악보로 지정": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "개인 기본 악보로 지정"
+          }
+        }
+      }
+    },
+    "개인 메모": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인 메모"
           }
         }
       }
@@ -279,6 +330,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "개인 메모 · Apple Pencil"
+          }
+        }
+      }
+    },
+    "개인 메모 복사": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인 메모 복사"
           }
         }
       }
@@ -309,6 +370,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "검색 정보"
+          }
+        }
+      }
+    },
+    "검색어 지우기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "검색어 지우기"
           }
         }
       }
@@ -379,6 +450,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "곡 구분"
+          }
+        }
+      }
+    },
+    "곡 라이브러리": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "곡 라이브러리"
           }
         }
       }
@@ -543,6 +624,16 @@
         }
       }
     },
+    "나의 예배 준비": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "나의 예배 준비"
+          }
+        }
+      }
+    },
     "내 개인 메모 포함": {
       "localizations": {
         "ko": {
@@ -573,12 +664,32 @@
         }
       }
     },
+    "다른 곡 · 악보 · 페이지 선택": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 곡 · 악보 · 페이지 선택"
+          }
+        }
+      }
+    },
     "다른 곡 범위 추가": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "다른 곡 범위 추가"
+          }
+        }
+      }
+    },
+    "다른 악보": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 악보"
           }
         }
       }
@@ -653,6 +764,16 @@
         }
       }
     },
+    "대상 페이지 %lld / %lld": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "대상 페이지 %lld / %lld"
+          }
+        }
+      }
+    },
     "라이브러리": {
       "localizations": {
         "ko": {
@@ -723,6 +844,26 @@
         }
       }
     },
+    "메모 원본": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메모 원본"
+          }
+        }
+      }
+    },
+    "메모 원본 · v%lld": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메모 원본 · v%lld"
+          }
+        }
+      }
+    },
     "메모를 먼저 저장한 뒤 준비 상태를 다시 확인해 주세요.": {
       "localizations": {
         "ko": {
@@ -763,12 +904,32 @@
         }
       }
     },
+    "미리보기 없음": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미리보기 없음"
+          }
+        }
+      }
+    },
     "미리보기를 드래그해 위치를 정해 주세요.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "미리보기를 드래그해 위치를 정해 주세요."
+          }
+        }
+      }
+    },
+    "버전 목록": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "버전 목록"
           }
         }
       }
@@ -789,6 +950,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "버전 이름 · 예: 편곡자 · 날짜"
+          }
+        }
+      }
+    },
+    "버전과 메모": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "버전과 메모"
           }
         }
       }
@@ -963,6 +1134,16 @@
         }
       }
     },
+    "선택 복사": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택 복사"
+          }
+        }
+      }
+    },
     "선택 복사 (%lld)": {
       "localizations": {
         "ko": {
@@ -979,6 +1160,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "선택됨"
+          }
+        }
+      }
+    },
+    "선택한 개인 메모": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택한 개인 메모"
+          }
+        }
+      }
+    },
+    "선택한 개인 메모 미리보기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택한 개인 메모 미리보기"
           }
         }
       }
@@ -1174,6 +1375,16 @@
         }
       }
     },
+    "악보대": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "악보대"
+          }
+        }
+      }
+    },
     "악보로 돌아가기": {
       "localizations": {
         "ko": {
@@ -1214,6 +1425,26 @@
         }
       }
     },
+    "악보에서 메모 선택": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "악보에서 메모 선택"
+          }
+        }
+      }
+    },
+    "악보에서 옮길 메모만 선택한 뒤 새 버전에 직접 배치하세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "악보에서 옮길 메모만 선택한 뒤 새 버전에 직접 배치하세요."
+          }
+        }
+      }
+    },
     "악보와 연주 키가 다릅니다": {
       "localizations": {
         "ko": {
@@ -1250,6 +1481,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "열기는 현재 악보만 바꿉니다. 개인 기본 악보는 별도로 지정하세요. 새 버전에 메모가 자동으로 옮겨지지 않습니다."
+          }
+        }
+      }
+    },
+    "열기와 개인 기본 악보 지정은 별도입니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "열기와 개인 기본 악보 지정은 별도입니다."
           }
         }
       }
@@ -1454,12 +1695,42 @@
         }
       }
     },
+    "원본 메모 유지": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "원본 메모 유지"
+          }
+        }
+      }
+    },
+    "원본 버전의 메모는 그대로 유지됩니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "원본 버전의 메모는 그대로 유지됩니다."
+          }
+        }
+      }
+    },
     "이 PDF를 확인하지 못했어요. 원본을 다시 가져와 주세요.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "이 PDF를 확인하지 못했어요. 원본을 다시 가져와 주세요."
+          }
+        }
+      }
+    },
+    "이 iPad에 저장": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 iPad에 저장"
           }
         }
       }
@@ -1504,6 +1775,16 @@
         }
       }
     },
+    "이 악보에 붙여넣기 미리보기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 악보에 붙여넣기 미리보기"
+          }
+        }
+      }
+    },
     "이 예배 목록이 변경되었어요. 닫은 뒤 다시 열어 확인해 주세요.": {
       "localizations": {
         "ko": {
@@ -1520,6 +1801,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이번 예배를 준비해 보세요"
+          }
+        }
+      }
+    },
+    "이번 예배의 악보와 메모를 편안하게 준비하세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이번 예배의 악보와 메모를 편안하게 준비하세요."
           }
         }
       }
@@ -1560,6 +1851,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "작업 공간"
+          }
+        }
+      }
+    },
+    "작업 중": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "작업 중"
           }
         }
       }
@@ -1774,6 +2075,16 @@
         }
       }
     },
+    "지우개": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지우개"
+          }
+        }
+      }
+    },
     "찬송가 · 선택 사항": {
       "localizations": {
         "ko": {
@@ -1850,6 +2161,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "키를 G, Bb, F#m처럼 입력해 주세요."
+          }
+        }
+      }
+    },
+    "터치": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "터치"
           }
         }
       }
@@ -1995,6 +2317,16 @@
         }
       }
     },
+    "필기 입력 설정": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "필기 입력 설정"
+          }
+        }
+      }
+    },
     "필기 중…": {
       "localizations": {
         "ko": {
@@ -2021,6 +2353,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "한 곡의 시작·끝 페이지를 직접 지정하세요. 표지나 안내 페이지는 빼도 됩니다. 원본과 편곡자 메모를 보존하고 별도 PDF로 저장합니다."
+          }
+        }
+      }
+    },
+    "현재 악보": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재 악보"
           }
         }
       }

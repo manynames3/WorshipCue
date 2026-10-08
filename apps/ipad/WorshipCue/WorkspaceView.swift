@@ -12,7 +12,9 @@ private struct ImportSource: Identifiable { let id = UUID(); let url: URL }
 struct WorkspaceView: View {
     @ObservedObject var stand: MusicStand
     @Environment(\.dismiss) private var dismiss
-    @State private var tab = 0
+    @Binding var tab: Int
+    var embedded = false
+    var onOpen: (() -> Void)?
     @State private var query = ""
     @State private var favorites = false
     @State private var panel: WorkspacePanel?
@@ -20,18 +22,26 @@ struct WorkspaceView: View {
     @State private var importSource: ImportSource?
     @FocusState private var searchFocused: Bool
 
+    init(stand: MusicStand, tab: Binding<Int>, embedded: Bool = false, onOpen: (() -> Void)? = nil) {
+        self.stand = stand; _tab = tab; self.embedded = embedded; self.onOpen = onOpen
+    }
+    private func returnToReader() { if let onOpen { onOpen() } else { dismiss() } }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("작업 공간", selection: $tab) {
-                    Text("오늘").tag(0); Text("라이브러리").tag(1)
-                }.pickerStyle(.segmented).padding().accessibilityIdentifier("workspaceTab")
+                if !embedded {
+                    Picker("작업 공간", selection: $tab) {
+                        Text("오늘").tag(0); Text("라이브러리").tag(1)
+                    }.pickerStyle(.segmented).padding().accessibilityIdentifier("workspaceTab")
+                }
                 if tab == 0 { today } else { songLibrary }
             }
-            .navigationTitle("WorshipCue")
+            .navigationTitle(tab == 0 ? "예배 준비" : "곡 라이브러리")
+            .navigationBarTitleDisplayMode(.inline)
             .onChange(of: tab) { _ in searchFocused = false }
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("악보로 돌아가기") { dismiss() }.accessibilityIdentifier("closeWorkspace") }
+                ToolbarItem(placement: .cancellationAction) { Button("악보로 돌아가기") { returnToReader() }.accessibilityIdentifier("closeWorkspace") }
                 ToolbarItem(placement: .primaryAction) {
                     if tab == 0 {
                         Button { panel = .setlist(LocalSetlist(title: String(localized: "주일 예배"))) } label: { Label("예배 목록 만들기", systemImage: "plus") }
@@ -43,8 +53,8 @@ struct WorkspaceView: View {
             }
             .sheet(item: $panel) { panel in
                 switch panel {
-                case .song(let id): SongDetailSheet(stand: stand, songID: id, onOpen: { dismiss() })
-                case .setlist(let draft): SetlistEditor(stand: stand, initial: draft, onOpen: { dismiss() })
+                case .song(let id): SongDetailSheet(stand: stand, songID: id, onOpen: { returnToReader() })
+                case .setlist(let draft): SetlistEditor(stand: stand, initial: draft, onOpen: { returnToReader() })
                 }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.pdf]) { result in
@@ -59,69 +69,108 @@ struct WorkspaceView: View {
     }
 
     private var today: some View {
-        List {
-            Section {
-                if let chart = stand.current {
-                    Button { dismiss() } label: {
-                        Label { VStack(alignment: .leading, spacing: 5) {
-                            Text("이어서 보기").font(.headline)
-                            Text(chart.name).lineLimit(2)
-                            Text("마지막 페이지 \(stand.pageIndex + 1)").font(.caption).foregroundStyle(.secondary)
-                        } } icon: { Image(systemName: "book") }
-                        .frame(minHeight: 56)
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("나의 예배 준비").font(.largeTitle).fontWeight(.semibold)
+                    Text("이번 예배의 악보와 메모를 편안하게 준비하세요.").font(.subheadline).foregroundStyle(.secondary)
                 }
-                Text("이 iPad에 저장하는 개인 작업 공간입니다. 예배 목록과 기본 악보를 준비한 뒤 PDF로 백업할 수 있습니다.")
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
-            Section("예배 목록") {
+                if let chart = stand.current {
+                    Button { returnToReader() } label: {
+                        HStack(spacing: 18) {
+                            ChartThumbnail(stand: stand, versionID: chart.id, page: stand.pageIndex)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("이어서 보기").font(.caption).foregroundStyle(.secondary)
+                                Text(stand.currentSongTitle ?? chart.name).font(.title3).fontWeight(.semibold).lineLimit(2)
+                                Text("마지막 페이지 \(stand.pageIndex + 1)").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.up.right").font(.title3).foregroundStyle(StandStyle.blue)
+                        }.padding(20).frame(maxWidth: .infinity, minHeight: 110, alignment: .leading)
+                            .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 18))
+                    }.buttonStyle(.plain).accessibilityIdentifier("resumeChart")
+                }
+                HStack {
+                    Text("예배 목록").font(.title2).fontWeight(.semibold)
+                    Spacer()
+                    Label("이 iPad에 저장", systemImage: "ipad").font(.caption).foregroundStyle(.secondary)
+                }
                 if stand.library.setlists.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Image(systemName: "music.note.list").font(.largeTitle).foregroundStyle(StandStyle.blue)
                         Text("이번 예배를 준비해 보세요").font(.headline)
                         Text("순서대로 부를 곡과 대기곡을 함께 담고, 곡마다 사용할 악보와 연주 키를 정하세요.").foregroundStyle(.secondary)
-                    }.padding(.vertical, 12)
+                        Button { panel = .setlist(LocalSetlist(title: String(localized: "주일 예배"))) } label: {
+                            Label("예배 목록 만들기", systemImage: "plus").frame(minHeight: 44)
+                        }.buttonStyle(.borderedProminent).accessibilityIdentifier("emptyNewSetlist")
+                    }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 18))
                 }
-                ForEach(stand.library.setlists) { set in
-                    Button { panel = .setlist(set) } label: {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(set.title).font(.headline).lineLimit(2)
-                            Text(set.serviceDate, style: .date).font(.subheadline)
-                            Text("예정곡 \(set.items.filter { $0.section == .planned }.count) · 대기곡 \(set.items.filter { $0.section == .standby }.count)")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }.frame(minHeight: 56)
-                    }.accessibilityIdentifier("setlist.\(set.id.uuidString)")
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 16)], spacing: 16) {
+                    ForEach(stand.library.setlists) { set in
+                        Button { panel = .setlist(set) } label: {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Image(systemName: "calendar").foregroundStyle(StandStyle.blue)
+                                    Text(set.serviceDate, style: .date).font(.subheadline).foregroundStyle(.secondary)
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                                }
+                                Text(set.title).font(.title3).fontWeight(.semibold).lineLimit(2)
+                                Text("예정곡 \(set.items.filter { $0.section == .planned }.count) · 대기곡 \(set.items.filter { $0.section == .standby }.count)")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }.padding(20).frame(maxWidth: .infinity, minHeight: 144, alignment: .leading)
+                                .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 18))
+                        }.buttonStyle(.plain).accessibilityIdentifier("setlist.\(set.id.uuidString)")
+                    }
                 }
-            }
-        }
+            }.padding(24)
+        }.background(StandStyle.surface)
     }
     private var songLibrary: some View {
         VStack(spacing: 0) {
-            HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("곡 제목 · 초성 · 별칭 · 찬송가 번호", text: $query)
-                    .textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityIdentifier("librarySearch")
-                    .focused($searchFocused).submitLabel(.search).onSubmit { searchFocused = false }
-                Toggle("즐겨찾기", isOn: $favorites).toggleStyle(.button).accessibilityIdentifier("favoritesOnly")
-            }.padding(.horizontal).frame(minHeight: 56)
+            HStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("곡 제목 · 초성 · 별칭 · 찬송가 번호", text: $query)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityIdentifier("librarySearch")
+                        .focused($searchFocused).submitLabel(.search).onSubmit { searchFocused = false }
+                    if !query.isEmpty {
+                        Button { query = "" } label: { Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44) }
+                            .accessibilityLabel(Text("검색어 지우기"))
+                    }
+                }.padding(.horizontal, 14).frame(minHeight: 56).background(StandStyle.surface, in: RoundedRectangle(cornerRadius: 14))
+                Toggle(isOn: $favorites) { Image(systemName: favorites ? "star.fill" : "star").frame(width: 44, height: 44) }
+                    .toggleStyle(.button).accessibilityLabel(Text("즐겨찾기")).accessibilityIdentifier("favoritesOnly")
+            }.padding(20)
             let results = stand.library.search(query, favoritesOnly: favorites)
-            List {
-                if results.isEmpty { Text("검색 결과가 없어요. PDF를 가져오거나 검색어를 바꿔 주세요.").foregroundStyle(.secondary) }
-                ForEach(results) { song in
-                    Button { searchFocused = false; panel = .song(song.id) } label: {
-                        HStack {
-                            Image(systemName: song.favorite ? "star.fill" : "music.note").foregroundStyle(.teal)
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(song.title).font(.headline).lineLimit(2)
-                                Text("악보 \(stand.library.versions(for: song.id).count)개").font(.caption).foregroundStyle(.secondary)
-                                if let number = song.hymnNumber { Text("\(song.hymnEdition ?? "") \(number)장").font(.caption) }
-                            }
-                            Spacer(); Image(systemName: "chevron.right").foregroundStyle(.secondary)
-                        }.frame(minHeight: 56)
-                    }.accessibilityIdentifier("song.\(song.id.uuidString)")
-                }
-            }
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    if results.isEmpty { Text("검색 결과가 없어요. PDF를 가져오거나 검색어를 바꿔 주세요.").foregroundStyle(.secondary).padding(24) }
+                    ForEach(results) { song in
+                        Button { searchFocused = false; panel = .song(song.id) } label: {
+                            HStack(spacing: 16) {
+                                if let version = stand.library.versions(for: song.id).last {
+                                    ChartThumbnail(stand: stand, versionID: version.id)
+                                }
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text(song.title).font(.headline).lineLimit(2)
+                                        if song.favorite { Image(systemName: "star.fill").font(.caption).foregroundStyle(StandStyle.blue) }
+                                    }
+                                    Text("악보 \(stand.library.versions(for: song.id).count)개").font(.caption).foregroundStyle(.secondary)
+                                    if let number = song.hymnNumber { Text("\(song.hymnEdition ?? "") \(number)장").font(.caption).foregroundStyle(.secondary) }
+                                }
+                                Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                            }.padding(16).frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+                                .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 16))
+                        }.buttonStyle(.plain).accessibilityIdentifier("song.\(song.id.uuidString)")
+                    }
+                }.padding(.horizontal, 20).padding(.bottom, 20)
+            }.background(StandStyle.surface)
         }
     }
+
 }
 
 struct SongDetailSheet: View {

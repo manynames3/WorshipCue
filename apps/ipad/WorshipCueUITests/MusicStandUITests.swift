@@ -12,6 +12,7 @@ final class MusicStandUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(canvas.waitForExistence(timeout: 15))
         assertCount(0)
+        app.buttons["openInputMode"].tap()
         app.buttons["손가락 필기"].tap()
     }
 
@@ -24,8 +25,19 @@ final class MusicStandUITests: XCTestCase {
 
     private func assertCount(_ count: Int) { wait(canvas, predicate: "value CONTAINS %@", argument: "\(count)획") }
     private func saved() { wait(app.staticTexts["saveStatus"], predicate: "label == %@", argument: "기기에 저장됨") }
+    private func uprightScreenshot(_ source: UIImage) -> UIImage {
+        var oriented = source
+        if let raw = source.cgImage, raw.width < raw.height, app.frame.width > app.frame.height {
+            oriented = UIImage(cgImage: raw, scale: source.scale,
+                               orientation: XCUIDevice.shared.orientation == .landscapeRight ? .right : .left)
+        }
+        let format = UIGraphicsImageRendererFormat(); format.scale = source.scale
+        return UIGraphicsImageRenderer(size: app.frame.size, format: format).image { _ in
+            oriented.draw(in: CGRect(origin: .zero, size: app.frame.size))
+        }
+    }
     private func capture(_ name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        let attachment = XCTAttachment(image: uprightScreenshot(XCUIScreen.main.screenshot().image))
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
@@ -40,7 +52,10 @@ final class MusicStandUITests: XCTestCase {
                                      verticalTolerance: CGFloat = 2,
                                      matches: (UInt8, UInt8, UInt8) -> Bool,
                                      file: StaticString = #filePath, line: UInt = #line) throws {
-        let image = try XCTUnwrap(app.screenshot().image.cgImage, file: file, line: line)
+        // Screen and element frames share device coordinates. The app-cropped
+        // screenshot can retain pre-rotation dimensions on older iPad runtimes.
+        let screenshot = XCUIScreen.main.screenshot().image
+        let image = try XCTUnwrap(uprightScreenshot(screenshot).cgImage, file: file, line: line)
         let frame = element.frame
         let scaleX = CGFloat(image.width) / app.frame.width
         let scaleY = CGFloat(image.height) / app.frame.height
@@ -61,6 +76,15 @@ final class MusicStandUITests: XCTestCase {
                 matches(buffer[$0], buffer[$0 + 1], buffer[$0 + 2]) && buffer[$0 + 3] > 200
             }.count
         }
+        if inkPixels <= crop.width / 2 {
+            let details = "App: \(app.frame); canvas: \(frame); source: \(screenshot.size); raw: \(screenshot.cgImage?.width ?? 0)x\(screenshot.cgImage?.height ?? 0); image orientation: \(screenshot.imageOrientation.rawValue); device orientation: \(XCUIDevice.shared.orientation.rawValue); checked region: \(region)"
+            for attachment in [XCTAttachment(string: details), XCTAttachment(image: screenshot),
+                               XCTAttachment(image: uprightScreenshot(screenshot))] {
+                attachment.name = "Rendered ink visibility failure"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+        }
         XCTAssertGreaterThan(inkPixels, crop.width / 2, "Selected ink color must render visibly on white PDF paper", file: file, line: line)
     }
     private func tool(_ identifier: String) {
@@ -70,13 +94,19 @@ final class MusicStandUITests: XCTestCase {
     }
     private func reveal(_ element: XCUIElement) {
         let strip = app.scrollViews["toolStrip"]
+        for _ in 0..<8 {
+            if element.frame.minY >= strip.frame.minY,
+               element.frame.maxY <= strip.frame.maxY, element.isHittable { return }
+            if element.frame.midY < strip.frame.midY { strip.swipeDown() }
+            else { strip.swipeUp() }
+        }
+        XCTAssertTrue(element.isHittable)
+    }
+    private func revealInspector(_ element: XCUIElement) {
+        let scroll = app.scrollViews["versionInspectorScroll"]
         for _ in 0..<6 {
-            // A partly visible Toggle label is hittable while its switch is
-            // still outside the viewport. Reveal the whole control first.
-            if element.frame.minX >= strip.frame.minX,
-               element.frame.maxX <= strip.frame.maxX, element.isHittable { return }
-            if element.frame.midX < strip.frame.midX { strip.swipeRight() }
-            else { strip.swipeLeft() }
+            if element.isHittable && element.frame.minY >= scroll.frame.minY && element.frame.maxY <= scroll.frame.maxY { return }
+            scroll.swipeUp()
         }
         XCTAssertTrue(element.isHittable)
     }
@@ -98,12 +128,84 @@ final class MusicStandUITests: XCTestCase {
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count) + text)
     }
 
+    func testV2ConceptLayoutNavigationAndManualVersionInspector() throws {
+        tool("tool.pen"); stroke(at: 0.4); assertCount(1); saved()
+        capture("V2 reader in initial device orientation")
+        app.buttons["nextPage"].tap(); assertCount(0)
+        app.buttons["nav.0"].tap()
+        XCTAssertTrue(app.buttons["resumeChart"].waitForExistence(timeout: 10))
+        capture("V2 Today preparation cards")
+        app.buttons["nav.1"].tap()
+        XCTAssertTrue(app.textFields["librarySearch"].waitForExistence(timeout: 10))
+        capture("V2 searchable library")
+        app.buttons["nav.2"].tap()
+        XCTAssertTrue(canvas.waitForExistence(timeout: 10)); assertCount(0)
+        XCTAssertEqual(app.staticTexts["currentChart"].label, "song_A_v1_G")
+        XCTAssertEqual(app.staticTexts["pagePosition"].label, "현재 페이지 2, 전체 2")
+        app.buttons["openVersionInspector"].tap()
+        XCTAssertTrue(app.buttons["inspectorOpenVersion.2"].waitForExistence(timeout: 10))
+        capture("V2 version panel in initial device orientation")
+        app.buttons["closeVersionInspector"].tap()
+        XCTAssertEqual(app.staticTexts["pagePosition"].label, "현재 페이지 2, 전체 2")
+        assertCount(0)
+
+        // One deliberate orientation change qualifies the docked layout in this workflow.
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.activate()
+        capture("V2 after landscape orientation request")
+        let landscape = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            self.app.frame.width > self.app.frame.height
+        }, object: app)
+        XCTAssertEqual(XCTWaiter.wait(for: [landscape], timeout: 15), .completed)
+        app.buttons["openVersionInspector"].tap()
+        let second = app.buttons["inspectorOpenVersion.2"]
+        XCTAssertTrue(second.waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(second.frame.minX, app.buttons["nextPage"].frame.maxX, "Versions must dock beside the chart in landscape")
+        XCTAssertGreaterThan(app.buttons["tool.pen"].frame.minX, app.buttons["nav.2"].frame.maxX)
+        XCTAssertGreaterThanOrEqual(app.buttons["tool.pen"].frame.height, 44)
+        let preference = app.buttons["inspectorPreferVersion.2"]
+        XCTAssertGreaterThanOrEqual(preference.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(preference.frame.height, 44)
+        preference.tap()
+        XCTAssertEqual(app.staticTexts["currentChart"].label, "song_A_v1_G", "Preference never navigates")
+        XCTAssertEqual(app.staticTexts["pagePosition"].label, "현재 페이지 2, 전체 2")
+        app.buttons["previousPage"].tap(); assertCount(1)
+        tool("tool.select")
+        let transfer = app.descendants(matching: .any)["noteTransferCanvas"]
+        transfer.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.32))
+            .press(forDuration: 0.05, thenDragTo: transfer.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.48)))
+        wait(app.buttons["copySelection"], predicate: "label CONTAINS %@", argument: "(1)")
+        app.buttons["copySelection"].tap()
+        second.tap(); assertCount(0)
+        let paste = app.buttons["inspectorPastePreview"]
+        revealInspector(paste); paste.tap()
+        XCTAssertTrue(app.buttons["commitPaste"].waitForExistence(timeout: 10))
+        assertCount(0)
+        let preserved = app.descendants(matching: .any)["sourceNotesPreserved"]
+        XCTAssertTrue(preserved.exists && preserved.isHittable, "Source preservation must remain visible while placing notes")
+        XCTAssertLessThan(preserved.frame.maxY, app.buttons["commitPaste"].frame.minY)
+        capture("V2 landscape manual transfer and locked source notes")
+        app.buttons["cancelTransfer"].tap(); assertCount(0)
+        revealInspector(paste); paste.tap()
+        app.buttons["scaleDown"].tap(); app.buttons["scaleUp"].tap()
+        app.buttons["commitPaste"].tap(); assertCount(1)
+        tool("tool.undo"); assertCount(0)
+        tool("tool.redo"); assertCount(1); saved()
+        app.buttons["closeVersionInspector"].tap()
+        choose("song_A_v1_G"); assertCount(1)
+        choose("song_A_v2_G"); assertCount(1)
+        capture("V2 landscape reader after explicit paste and undo redo")
+        app.terminate(); app.launch()
+        XCTAssertTrue(canvas.waitForExistence(timeout: 15)); assertCount(1)
+        XCTAssertEqual(app.staticTexts["currentChart"].label, "song_A_v2_G")
+    }
+
     func testM1WorkspaceSearchPreferenceSetlistStandbyAndColdRelaunch() throws {
         let songID = "20000000-0000-0000-0000-000000000001"
         let v2 = "10000000-0000-0000-0000-000000000002"
         let v3 = "10000000-0000-0000-0000-000000000003"
-        app.buttons["openWorkspace"].tap()
-        app.buttons["라이브러리"].tap()
+        app.buttons["nav.0"].tap()
+        app.buttons["nav.1"].tap()
         let search = app.textFields["librarySearch"]
         search.tap(); search.typeText("ㅇㅅㄱ")
         XCTAssertTrue(app.buttons["song.\(songID)"].waitForExistence(timeout: 10))
@@ -122,7 +224,7 @@ final class MusicStandUITests: XCTestCase {
         app.buttons["openVersion.3"].tap()
         wait(app.staticTexts["currentChart"], predicate: "label == %@", argument: "song_A_v3_A")
         assertCount(0)
-        app.buttons["openWorkspace"].tap()
+        app.buttons["nav.0"].tap()
         app.buttons["newSetlist"].tap()
         replaceText(app.textFields["setlistTitle"], with: "수요 리허설")
         app.buttons["addPlannedSong"].tap()
@@ -143,9 +245,9 @@ final class MusicStandUITests: XCTestCase {
         app.terminate(); app.launch()
         XCTAssertTrue(canvas.waitForExistence(timeout: 15))
         wait(app.staticTexts["currentChart"], predicate: "label == %@", argument: "song_A_v3_A")
-        app.buttons["openWorkspace"].tap()
+        app.buttons["nav.0"].tap()
         XCTAssertTrue(app.staticTexts["수요 리허설"].waitForExistence(timeout: 10))
-        app.buttons["라이브러리"].tap()
+        app.buttons["nav.1"].tap()
         app.textFields["librarySearch"].tap(); app.textFields["librarySearch"].typeText("ㅈㅎㄴㄴ")
         XCTAssertTrue(app.buttons["song.\(songID)"].waitForExistence(timeout: 10))
         app.buttons["song.\(songID)"].tap()
@@ -155,6 +257,7 @@ final class MusicStandUITests: XCTestCase {
 
     func testM1ExportLayerChoiceAndShareSheet() throws {
         tool("tool.pen"); stroke(at: 0.8); assertCount(1); saved()
+        app.buttons["standActions"].tap()
         app.buttons["openExport"].tap()
         let personal = app.switches["exportPersonalInk"]
         XCTAssertTrue(personal.waitForExistence(timeout: 10)); personal.tap()
@@ -165,7 +268,7 @@ final class MusicStandUITests: XCTestCase {
     }
 
     func testM1WeeklyPacketRangesKeepReaderAndCreateIndependentSongs() throws {
-        app.buttons["openWorkspace"].tap(); app.buttons["라이브러리"].tap()
+        app.buttons["nav.0"].tap(); app.buttons["nav.1"].tap()
         app.textFields["librarySearch"].tap(); app.textFields["librarySearch"].typeText("weekly_packet")
         let source = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "song.", "weekly_packet")).firstMatch
         XCTAssertTrue(source.waitForExistence(timeout: 10)); source.tap()
@@ -200,7 +303,7 @@ final class MusicStandUITests: XCTestCase {
 
     func testM1SetlistRepeatAndCloneKeepOriginalOccurrencesAndKeys() throws {
         let v1 = "10000000-0000-0000-0000-000000000001", v2 = "10000000-0000-0000-0000-000000000002"
-        app.buttons["openWorkspace"].tap(); app.buttons["newSetlist"].tap()
+        app.buttons["nav.0"].tap(); app.buttons["newSetlist"].tap()
         replaceText(app.textFields["setlistTitle"], with: "주일 원본")
         app.buttons["addPlannedSong"].tap(); app.buttons["addVersion.\(v1)"].tap()
         app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "itemActions.")).firstMatch.tap()
@@ -236,6 +339,7 @@ final class MusicStandUITests: XCTestCase {
         app.launchArguments = ["--ui-test-store", run.uuidString]
         app.launch()
         XCTAssertTrue(canvas.waitForExistence(timeout: 15))
+        app.buttons["openInputMode"].tap()
         app.buttons["손가락 필기"].tap()
         choose("Private arrangement A")
         for _ in 0..<3 { app.buttons["nextPage"].tap() }
@@ -385,9 +489,11 @@ final class MusicStandUITests: XCTestCase {
     }
 
     func testReadOnlyTeamLayerUsesExactVersionAndPage() {
+        app.buttons["openInputMode"].tap()
         let toggle = app.switches["teamSample"]
-        reveal(toggle); toggle.tap()
+        toggle.tap()
         wait(toggle, predicate: "value == %@", argument: "1")
+        app.buttons["closeInputMode"].tap()
         XCTAssertFalse(app.images["teamInkLayer"].exists)
         choose("song_A_v2_G")
         XCTAssertTrue(app.images["teamInkLayer"].waitForExistence(timeout: 10))

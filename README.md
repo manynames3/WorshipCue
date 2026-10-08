@@ -6,7 +6,9 @@
 <p align="center"><strong>Your charts. Your notes. Your cue.</strong></p>
 <p align="center">A Korean-first native iPad music stand for worship teams.</p>
 <p align="center">악보와 필기는 각자 편하게. 곡 안내와 팀 필기는 함께.</p>
-<p align="center"><a href="README.ko.md">한국어 소개</a> · <a href="#working-today">Working today</a> · <a href="#development">Development</a> · <a href="verification/M1.md">Test evidence</a></p>
+<p align="center"><a href="README.ko.md">한국어 소개</a> · <a href="#working-today">Working today</a> · <a href="#development">Development</a> · <a href="verification/V2.md">Test evidence</a></p>
+
+**Development versions:** [v1](https://github.com/manynames3/WorshipCue/tree/v1) preserves the original working interface (Build 3). [v2](https://github.com/manynames3/WorshipCue/tree/v2) develops the native interface from the design concepts (Build 4). `main` stays at v1 while v2 is being qualified. These are development checkpoints, not App Store releases.
 
 ## Why WorshipCue exists
 
@@ -28,8 +30,9 @@ It is for musicians and singers who already rehearse from PDF charts on iPad, an
 
 ## Working today
 
-The current app is an early **M1 local music stand build**, developed and tested on a real iPad. It is not an App Store release or a qualified rehearsal pilot. [Current verification](verification/M1.md) separates native evidence, UI evidence and open device requirements.
+The v2 branch is an early **native music stand with M1 local preparation features**, developed and tested on a real iPad. It is not an App Store release or a qualified rehearsal pilot. [Current verification](verification/V2.md) separates native evidence, UI evidence and open device requirements; [v1/M1 evidence](verification/M1.md) retains the prior results.
 
+- **Give the music room to breathe.** A light reader, compact song/version/key header, vertical annotation tools and local page controls keep the PDF central. Today, Library and Stand remain within reach.
 - **Read PDFs on iPad.** Import from Files into validated, app-owned immutable assets; an import failure preserves the chart already open.
 - **Prepare a weekly set.** Create, reorder and clone local setlists with separate standby songs; choose an exact chart version and performance key for each occurrence.
 - **Find the chart you rehearsed.** Korean title/initial/alias/hymn-number search, favorites, immutable numbered versions and an explicitly selected personal preferred chart. Opening another chart does not change your preference.
@@ -38,20 +41,20 @@ The current app is an early **M1 local music stand build**, developed and tested
 - **Make personal notes.** Pen, highlighter, stroke eraser, undo and redo. Apple Pencil integration is implemented; the visible **손가락 필기** mode supports tested finger drawing.
 - **Change colors quickly.** Eight named colors in one compact popover. Pen and highlighter remember separate choices. Select a color, tap ×, or tap outside to close it.
 - **Keep notes attached to the right chart.** Ink is stored against the exact version and page. Local save status follows a database commit, with recovery and save-failure handling.
-- **Move selected notes deliberately.** Select strokes, copy, choose a destination, drag/scale the paste preview, then confirm or cancel. The source notes stay intact; a committed paste can be undone.
+- **Move selected notes deliberately.** The charcoal version/notes panel shows real chart thumbnails and your selected source ink beside the page in landscape. Select strokes, copy, choose a destination, drag/scale the paste preview, then confirm or cancel. A pinned source-preservation lock explains that original notes stay intact; a committed paste can be undone. Narrow layouts use a dismissible sheet.
 - **Keep your own place.** Page turns are local. The reader remembers its chart/page and restores locally saved notes after reopening.
 - **Inspect separate team ink.** A read-only sample demonstrates exact-version/page isolation. It is a local development example, not a synchronization service.
 
 ### Actual app screens
 
-These screenshots come from device UI tests using synthetic charts and isolated test stores. They show the running app, not proposed designs or private musician handwriting.
+The Build 2/v1 screenshots below come from device UI tests using synthetic charts and isolated test stores. They are retained as historical evidence; current v2 captures and qualifications belong in [V2 evidence](verification/V2.md).
 
 <p align="center">
   <img src="verification/m0-color-popover.png" width="340" alt="Running WorshipCue iPad app with compact eight-color pen popover">
   <img src="verification/m0-blue-pen-pink-highlighter.png" width="340" alt="Running WorshipCue iPad app showing a blue pen stroke and pink highlighter on a synthetic chart">
 </p>
 
-The more polished layouts in [UI concepts](docs/ui-concepts/README.md) are design explorations for later milestones.
+The [UI concepts](docs/ui-concepts/README.md) guide the v2 reader and manual-transfer panel. Their future live cue and shared-team states still require backing services and are not shown as available features.
 
 ## The musician stays in control
 
@@ -87,6 +90,7 @@ Use macOS with an iOS SDK and a Swift 6.1+ toolchain. Current successful Debug/d
 ```sh
 git clone https://github.com/manynames3/WorshipCue.git
 cd WorshipCue
+git switch v2
 open apps/ipad/WorshipCue.xcodeproj
 ```
 
@@ -115,16 +119,16 @@ Scheme **WorshipCue** contains hosted native tests; **WorshipCueUI** also contai
 
 | Evidence | Recorded result |
 |---|---|
-| Current native suite | **18 passed, 0 failed, 1 private-input skip** in the full run, plus **1 fresh private case passed** separately on iPadOS 17.7.11. Includes M0 regressions and M1 migration, packet extraction, corrupt-file preflight and visibly rendered PDF export. |
-| Weekly-preparation UI | **1 passed**: Korean search, metadata, favorites, preferred versions, planned/standby setlists, key warnings, preflight and cold relaunch. Files/packet/clone/reorder/new destination-panel UI remain unverified; see the exact report. |
-| Current color and export UI | **1 color workflow and 1 export/share workflow passed** in separate sessions. Covers visible pigments, popup dismissal, recovery and native PDF sharing presentation. |
+| V2 native suite | **19 passed, 0 failed, 1 private-input skip**, total 20, on iPadOS 17.7.11. Includes M0/M1 regressions and read-only previews that preserve the reader, bookmarks, preferences, source bytes and exact ink. |
+| V2 reader/manual-inspector UI | **1 complete workflow passed**: navigation/page retention, landscape docking, separate preference/open actions, selected transfer/cancel/commit/undo/redo, source isolation and cold recovery. Later layout and color checks are recorded individually in the current report. |
+| V1 UI history | Weekly-preparation, rendered compact colors and export/share workflows passed in separate sessions. These historical results do not qualify every v2 UI path. |
 | Xcode 27 Release build | **Passed**, with iPadOS 16.0 deployment target. |
 | Earlier M0 baseline | 13 hosted native tests; separate drawing and team-isolation UI workflows passed. Earlier functional transfer passed; final transfer requalification remains blocked. |
-| Current portable checks | **8 local library tests, 55 core tests, 32 Python tests and 9 ink check groups passed.** Earlier macOS framework evidence is recorded separately. |
-| Current private real-arrangement native case | **1 passed**, including same-song v1/v2 preference, embedded annotations, different geometry, explicit transfer/cold recovery and rendered fallback comparison. The historical M0 private finger UI pass is recorded separately. Charts and captures remain local. |
+| Portable checks | **55 core and 32 Python tests passed** for v2. V1's **8 local library tests and 9 ink check groups** remain evidence for unchanged packages. |
+| Private real-arrangement history | The v1/M1 native case passed, including same-song chart v1/v2 preference, embedded annotations, different geometry, explicit transfer/cold recovery and rendered fallback comparison. V2 synthetic runs skip that opt-in case; charts/captures remain local. |
 | Remaining physical gates | Original iPadOS 16 device, Apple Pencil, memory/thermal/resume and multi-iPad behavior **not verified**. |
 
-See [M1 evidence](verification/M1.md), [Build 2 history](verification/M0-colors-icon.md), [private-pair evidence](verification/M0-private-pdf-pair.md), [M0 history](verification/M0.md) and the [device checklist](verification/M0-device-checklist.md). Separate successful runs do not imply one clean combined run or pilot readiness.
+See [V2 evidence](verification/V2.md), [v1/M1 evidence](verification/M1.md), [Build 2 history](verification/M0-colors-icon.md), [private-pair evidence](verification/M0-private-pdf-pair.md), [M0 history](verification/M0.md) and the [device checklist](verification/M0-device-checklist.md). Separate successful runs do not imply one clean combined run or pilot readiness.
 
 ## Repository map
 
