@@ -2,7 +2,7 @@
 
 Repository: https://github.com/manynames3/WorshipCue
 
-Visibility: private (the optional visibility question was unanswered; private was the announced development default).
+Visibility: public (changed from the initial private development default after the user explicitly selected Public; GitHub API verified `PUBLIC`).
 
 Initial source commit: `090e321f6a35e6cd5b6fe59d79cb384b5e5c965a`. The remote `main` branch matched this commit after the successful create/push command, exit0. GitHub About description and11 topics were inspected through the API and live repository page. Both READMEs, the icon and the two synthetic screenshot blobs match their local committed Git blobs.
 
