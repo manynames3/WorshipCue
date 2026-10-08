@@ -31,7 +31,7 @@ Users still prepare all notes in Goodnotes because ink/selection feels unreliabl
 
 ## Cloud infrastructure and budget · 2026-10-08
 
-Status: researched recommendation, not a deployment or hosting benchmark. Assumptions pending user sizing: one church, 10–20 members, one hosted project and in-app chat first. No account/credential/resource/billing change occurred. Existing Supabase remains the primary backend under D20; AWS is an optional supporting service, not an approved replacement.
+Status: researched recommendation, not a deployment or hosting benchmark. Confirmed sizing: one church, 10–20 members first, with easy onboarding of more churches/teams and separate PDF libraries/chat/setlists per team (D44). One shared hosted deployment can serve these isolated workspaces; adding a church is not another project fee. In-app chat first remains the assumption while background-notification preference is pending. No account/credential/resource/billing change occurred. D20 describes the current Supabase implementation; the user's subsequent Neon question calls for an objective comparison before committing to paid hosting. AWS is an optional supporting service, not an approved replacement.
 
 | Stage | Recommended setup | Planning budget, USD/month |
 |---|---|---|
@@ -65,3 +65,24 @@ The AWS-only estimate assumes 20 members, 2 GB files, 20 GB monthly downloads, 1
 6. Other poster features need native work: keyboard-style Bluetooth pedal page commands with real accessory/typing/debounce tests; optional on-device camera/Vision gesture calibration and false-trigger/thermal/old-iPad qualification; reusable service templates/history/tempo and complete shared search metadata. Existing local clone/setlists/search already cover part of this. Camera frames need no cloud upload, and none of these should synchronize pages. Audio playback and broader AI/OCR remain separate excluded scope.
 
 No new runtime code or app qualification occurred for this planning update. Actual hosted costs, provider account allowances, chat implementation, deployments and managed end-to-end behavior remain unverified.
+
+### Supabase versus Neon · Current comparison requested by the user
+
+Neon is now a complete managed backend, not only a Postgres database. Managed Auth, Object Storage and Functions are generally available. Its October 2, 2026 Free update includes 1 GB database storage, 5 GB object storage and 100 CU-hours/project; Auth supports email OTP. Paid Launch has no monthly minimum, with database compute $0.106/CU-hour, database storage $0.35/GB-month, object storage $0.023/GB-month and separately metered function compute/requests. Neon's 5 GB Free egress is shared across services; idle database scale-to-zero helps intermittent workloads, while frequent foreground polling can keep compute active. Free limits can suspend compute or block writes when exhausted. [Current pricing](https://neon.com/pricing), [Free update](https://neon.com/blog/neon-free-plan-1-gb-per-project), [GA announcement](https://neon.com/blog/neon-backend-is-ga).
+
+| WorshipCue concern | Current Supabase path | Neon alternative |
+|---|---|---|
+| Existing app | Auth refresh/OTP/guests, RPCs, private Storage, Realtime adapter and controlled integration tests already written | Reuse domain/local/PDF/PencilKit work; adapt and requalify managed identity, API/file authorization and event transport |
+| Files | Native member tokens are authorized by Storage RLS | S3-compatible store; team-authorized server can issue short-lived signed URLs; no branch storage credentials in iPad |
+| Live cues/chat | Managed Postgres Changes hints plus durable RPC fetch | WebSockets on Functions plus durable Postgres state; authorization/reconnect/fan-out require an app handler |
+| Native auth/guests | Current managed email OTP and durable anonymous identity contract | Email OTP/JWT are available; qualify Swift HTTP/session refresh and durable invite-bound anonymous guest equivalence |
+| PDF validation | Current Edge runtime must be profiled; two-second CPU limit can constrain large files | Longer-running Node Functions are attractive; qualify bounded PDF parsing, memory, timeouts and malformed inputs |
+| Price | One Pro project gives a predictable $25 base, plus ancillary usage | Free is more generous for files; usage billing may be cheaper for an intermittent pilot but long-lived sockets/compute are metered |
+
+Supabase's main advantage here is implementation already aligned with its managed interfaces, not exclusive technical capability. Neon is a credible candidate for a cheaper initial deployment and merits a bounded compatibility/usage proof before choosing paid hosting. A PostgREST-compatible Data API can reduce RPC changes, but is not a drop-in replacement for `auth.users`/anonymous semantics, Storage policies or Supabase Realtime. Do not treat an unauthenticated Data API token as a durable invite-bound guest account. Neither provider solves D44 automatically: exact team ownership, policy enforcement and native partitions need the same amendment.
+
+Current code remains Supabase-compatible. No Neon project, dependency, credentials, deployment, migration or benchmark was created for this comparison. Both providers need real iPad/Auth/file/chat/reconnect/privacy qualification; the Supabase budget above is an option estimate, not a required infrastructure minimum.
+
+Neon planning examples are resource models, not measured client bills: 20 database CU-hours, 200 waiting/2 active function Capacity-Hours, 20,000 invocations, 1 GB database and 2 GB files with <5 GB outbound traffic fit current Free allowances. On Launch those resources are approximately $7.73 before history/snapshots/email/backups. An always-active 0.25 CU database alone costs about $19.35 over 730 hours; socket function usage is additional. Do not infer function Capacity-Hours from user count or assume many WebSockets are charged once: measure concurrent socket/fan-out accounting in an approved test. Idle scale-to-zero requires removing unnecessary polling/listeners; `LISTEN/NOTIFY` requires always-on compute. [Function billing](https://neon.com/pricing.md), [WebSockets/SSE](https://neon.com/docs/compute/functions/websockets), [pricing](https://neon.com/pricing).
+
+A bounded provider proof should exercise native OTP/session renewal, the required durable scoped guest identity, exact-team signed upload/download, representative PDF validation, and 20-client chat/cue reconnection plus metering. Keep immutable snapshot/sequence/CAS rules unchanged. This is proposed validation, not permission to create a project, new production dependencies or a parallel replacement backend.

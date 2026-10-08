@@ -22,6 +22,8 @@ Use small modules with explicit interfaces. Pure domain rules must not import Sw
 
 Start with native framework behavior; do not add private Apple APIs or a generic drawing/collaboration engine. No CRDT, AI/OCR, custom authentication, multi-platform UI, subscriptions, scheduling, or MIDI in the pilot. The user explicitly added team chat on 2026-10-08; implement it through the existing managed identity and exact team membership boundaries, preserving music-stand/live-call invariants. Do not adopt a dependency just for one trivial helper. Lock dependencies and document license/security review.
 
+The user also requires separate PDF libraries, chat and setlists for each team, even within one church (D44). Church-wide membership/admin checks alone do not authorize team content. Build 5's prior church library is not proof of this new boundary; qualify schema, file access, Realtime and local cache/outbox isolation before a hosted pilot.
+
 Use Korean String Catalog localization, explicit accessibility labels, calm error language, large action targets, and no critical color-only state. Do not put a full-screen loader over a chart that is already readable.
 
 ## Tests and evidence

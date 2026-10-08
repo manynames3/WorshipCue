@@ -18,6 +18,14 @@ Create local Supabase schema, migrations, indexes, constraints, RLS, managed aut
 
 Deliver: two authorized devices share library metadata/files without leaking private notes. SQL/RLS/RPC/storage integration tests; fresh schema reset/migration test in isolated development only. Gate: T24,T31–36,T40,T48. Do not let an `authenticated` guest inherit member permissions.
 
+### M2 amendment · Separate team workspaces (D44, 2026-10-08)
+
+First pilot: one church/10–20 members, but adding another church/team should be authorized onboarding rows in the same deployment, not another paid backend project. A church is an organization; each team owns its separate library, setlists, sessions, shared notes and chat. Users explicitly invited into multiple teams can switch named workspaces. Organizational administration and target-team content membership are distinct.
+
+Build 5 currently scopes libraries by church, permits an admin bypass across team setlists, and partitions native catalog/preferences/cache/outboxes by server/account/church. This does not meet the new requirement. Add a versioned team-ownership migration for songs/assets/chart versions and compound cross-resource guards; exact-team RLS/RPC/Storage/Realtime access; idempotent `create_team`, scoped invitations/roles; and server/account/church/team native partitions for files, preferences, outboxes, drafts, commands and chat. Capture immutable team context across every async request, flush before switching, and detach prior subscriptions/live context. Existing standalone local material remains preserved and is published only into an explicitly chosen workspace.
+
+Backfill default-team ownership only when provable. Classify any existing church-wide chart referenced by multiple teams rather than automatically duplicating/merging its notes. Test two teams inside Church A and a team inside Church B: members/leaders/admins without explicit target membership, guests, outsiders, guessed IDs, mixed-team setlist/chart/asset references, same-title/byte charts, multi-team users, late callbacks, offline jobs after switching, revocation, duplicate team creation and full metadata/object restoration. A church-admin content bypass is not accepted as isolation. Existing one-team-per-church tests do not qualify this amendment. No current cloud data or schema was changed by this plan.
+
 ## M3 · Team handwriting, safely synchronized
 Implement per-performance-item/version/page shared layers; one editor lease/epoch; immutable snapshots and heads; native archive + preview assets; same-version rendering and other-version preview. Use durable head fetches after notifications; add reconnect reconciliation. Preserve offline/team-conflict drafts without automatic publishing.
 
