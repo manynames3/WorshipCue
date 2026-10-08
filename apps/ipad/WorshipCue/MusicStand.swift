@@ -60,8 +60,8 @@ enum InkColor: String, CaseIterable, Identifiable {
     var selectedInkColor: InkColor { selectedToolKind == 1 ? markerColor : penColor }
     var currentLibraryVersion: LibraryVersion? { library.versions.first { $0.id == current?.id } }
     var currentSongTitle: String? { library.songs.first { $0.id == currentLibraryVersion?.songID }?.title }
-    private let church = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
-    private let owner = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+    let church: UUID
+    let owner: UUID
     private let occurrence = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
     private var vault: DocumentVault?
     private var store: LocalInkStore?
@@ -77,12 +77,20 @@ enum InkColor: String, CaseIterable, Identifiable {
     private var saveWrites: [InkAddress: Int] = [:]
     private var requestedPaste: (version: UUID, page: Int)?
     private let applicationSupport: URL?
-    private var bookmarkPrefix: String { applicationSupport == nil ? "m0" : "m0.test.\(applicationSupport!.lastPathComponent)" }
+    private let seedFixtures: Bool
+    private let preferenceNamespace: String?
+    private var sharedDrawing: (identity: LayerIdentity, geometry: PageGeometry, drawing: PKDrawing)?
+    private(set) var performanceItemID: UUID?
+    private var bookmarkPrefix: String { preferenceNamespace ?? (applicationSupport == nil ? "m0" : "m0.test.\(applicationSupport!.lastPathComponent)") }
 
     override convenience init() { self.init(applicationSupport: nil) }
 
-    init(applicationSupport: URL?) {
+    init(applicationSupport: URL?, churchID: UUID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+         ownerID: UUID = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!, seedFixtures: Bool = true,
+         preferenceNamespace: String? = nil) {
         self.applicationSupport = applicationSupport
+        self.preferenceNamespace = preferenceNamespace
+        church = churchID; owner = ownerID; self.seedFixtures = seedFixtures
         super.init()
         penColor = UserDefaults.standard.string(forKey: "\(bookmarkPrefix).penColor").flatMap(InkColor.init(rawValue:)) ?? .black
         markerColor = UserDefaults.standard.string(forKey: "\(bookmarkPrefix).markerColor").flatMap(InkColor.init(rawValue:)) ?? .yellow
@@ -112,7 +120,7 @@ enum InkColor: String, CaseIterable, Identifiable {
             let vault = try DocumentVault(root: root.appendingPathComponent("pdfs"))
             self.vault = vault
             let fixtures = ["song_A_v1_G", "song_A_v2_G", "song_A_v3_A", "geometry_rotations", "weekly_packet"]
-            for (index, filename) in fixtures.enumerated() {
+            for (index, filename) in (seedFixtures ? fixtures : []).enumerated() {
                 guard let source = Bundle.main.url(forResource: filename, withExtension: "pdf", subdirectory: "pdfs"),
                       let id = UUID(uuidString: String(format: "10000000-0000-0000-0000-%012d", index + 1)) else {
                     throw VaultError.missingFixture
@@ -152,14 +160,16 @@ enum InkColor: String, CaseIterable, Identifiable {
         } catch { fail(String(localized: "PDF를 가져오지 못했어요. 현재 악보는 유지됩니다.")) }
     }
 
-    private func open(_ chart: LocalChart, page: Int) async throws {
+    private func open(_ chart: LocalChart, page: Int, validateIntent: () -> Bool = { true }) async throws {
         guard let vault else { throw VaultError.invalidPDF }
         try beginTransition()
         defer { endTransition() }
         try await flush()
         let document = try vault.open(chart)
         let verifiedLibrary = try vault.library.snapshot()
+        guard validateIntent() else { throw DomainError.staleIntent }
         cancelTransfer()
+        performanceItemID = nil; sharedDrawing = nil
         overlays.removeAll(); latest.removeAll(); restoreFailures.removeAll()
         current = chart; pageCount = document.pageCount
         pageIndex = min(max(0, page), document.pageCount - 1)
@@ -202,12 +212,12 @@ enum InkColor: String, CaseIterable, Identifiable {
         preparationReport = nil
     }
 
-    func openVersion(_ id: UUID, page: Int? = nil) async -> Bool {
+    func openVersion(_ id: UUID, page: Int? = nil, validateIntent: () -> Bool = { true }) async -> Bool {
         guard !busy, let vault, let chart = charts.first(where: { $0.id == id }) else { return false }
         busy = true; defer { busy = false }
         do {
             let destination = try page ?? vault.library.bookmark(versionID: id)
-            try await open(chart, page: destination)
+            try await open(chart, page: destination, validateIntent: validateIntent)
             try refreshLibrary()
             return true
         } catch { fail(String(localized: "악보를 열지 못했어요. 현재 악보와 메모는 유지됩니다.")); return false }
@@ -251,6 +261,51 @@ enum InkColor: String, CaseIterable, Identifiable {
         guard !busy, let vault, let chart = charts.first(where: { $0.id == id }) else { return nil }
         do { let count = try vault.open(chart).pageCount; try refreshLibrary(); return count }
         catch { self.error = String(localized: "이 PDF를 확인하지 못했어요. 원본을 다시 가져와 주세요."); return nil }
+    }
+
+    func cachePublished(_ data: Data, song: LibrarySong, version: LibraryVersion,
+                        sha256: String, bytes: Int, pages: [PageGeometry]) throws {
+        guard let vault else { throw LibraryError.missingRecord }
+        try vault.cachePublished(data, song: song, version: version, sha256: sha256, bytes: bytes, pages: pages)
+        try refreshLibrary()
+    }
+    func sourceBytes(_ id: UUID) throws -> Data {
+        guard let vault else { throw LibraryError.missingRecord }; return try vault.sourceBytes(id)
+    }
+    var personalStore: LocalInkStore? { store }
+    /// A remote head must never advance the store beneath a live or debounced local stroke.
+    func installRemotePersonal(_ incoming: InkSnapshot, revision: Int64, validateIntent: () -> Bool) async throws -> Bool {
+        guard validateIntent(), !busy, activeTools.isEmpty, pending[incoming.address] == nil,
+              saveWrites[incoming.address] == nil, restoreReads[incoming.address] == nil, let store else { return false }
+        busy = true
+        defer { endTransition(); busy = false }
+        try beginTransition()
+        guard pending[incoming.address] == nil, validateIntent() else { return false }
+        let saved: InkSnapshot
+        do { saved = try await store.installRemote(incoming, revision: revision) }
+        catch InkStoreError.generationConflict {
+            if try await store.hasPending(incoming.address) { return false }
+            throw InkStoreError.generationConflict
+        }
+        guard validateIntent() else { return false }
+        try refreshPersonal(saved)
+        return true
+    }
+    func refreshPersonal(_ snapshot: InkSnapshot) throws {
+        guard snapshot.address.ownerID == owner, snapshot.address.churchID == church,
+              activeTools.isEmpty, pending[snapshot.address] == nil else { throw InkStoreError.generationConflict }
+        latest[snapshot.address] = snapshot
+        if let overlay = overlays.values.first(where: { $0.address == snapshot.address }), overlay.ready {
+            overlay.restore(try PKDrawing(data: snapshot.archive), generation: snapshot.generation)
+        }
+    }
+    func setPerformanceItem(_ id: UUID?) {
+        performanceItemID = id; sharedDrawing = nil
+        for overlay in overlays.values { applyTeam(to: overlay) }
+    }
+    func applyShared(_ identity: LayerIdentity, geometry: PageGeometry, drawing: PKDrawing) {
+        sharedDrawing = (identity, geometry, drawing)
+        for overlay in overlays.values { applyTeam(to: overlay) }
     }
 
     /// Read-only previews never replace the reader or capture/change a note layer.
@@ -542,6 +597,17 @@ enum InkColor: String, CaseIterable, Identifiable {
         for overlay in overlays.values { applyTeam(to: overlay) }
     }
     private func applyTeam(to overlay: PageInkView) {
+        if !seedFixtures {
+            guard let sharedDrawing, let item = performanceItemID,
+                  sharedDrawing.geometry == overlay.geometry,
+                  sharedDrawing.identity.mayOverlayTeam(on: overlay.address.versionID, performanceItem: item,
+                    church: overlay.address.churchID, page: overlay.address.pageIndex) else {
+                overlay.team.image = nil; overlay.team.isHidden = true; return
+            }
+            overlay.team.image = sharedDrawing.drawing.image(from: overlay.team.bounds, scale: 2)
+            overlay.team.isHidden = false
+            return
+        }
         guard teamVisible, let teamIdentity,
               teamIdentity.mayOverlayTeam(on: overlay.address.versionID, performanceItem: occurrence,
                                           church: overlay.address.churchID, page: overlay.address.pageIndex) else {

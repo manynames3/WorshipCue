@@ -22,8 +22,8 @@ for value in objects.values():
         assert (app/value['relativePath']/'Package.swift').is_file()
     if value.get('isa') == 'PBXFileReference' and value.get('sourceTree') != 'BUILT_PRODUCTS_DIR':
         path = value['path']
-        parent = app/'WorshipCueTests' if path=='NativeInkTests.swift' else app/'WorshipCueUITests' if path=='MusicStandUITests.swift' else app/'WorshipCue'
-        if path.startswith('../../'): parent=app
+        parent = app/'WorshipCueTests' if path in ['NativeInkTests.swift','TeamWorkspaceTests.swift'] else app/'WorshipCueUITests' if path=='MusicStandUITests.swift' else app/'WorshipCue'
+        if path.startswith('../../') or path.startswith('Configuration/'): parent=app
         assert (parent/path).exists(), path
 for name, expected_tests in [('WorshipCue',1),('WorshipCueUI',2)]:
     scheme=ET.parse(project/f'xcshareddata/xcschemes/{name}.xcscheme')

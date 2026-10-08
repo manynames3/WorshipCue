@@ -35,9 +35,10 @@ obj('product:app', 'isa = PBXFileReference; explicitFileType = wrapper.applicati
 obj('product:tests', 'isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = WorshipCueTests.xctest; sourceTree = BUILT_PRODUCTS_DIR;')
 obj('package:local', 'isa = XCLocalSwiftPackageReference; relativePath = ../../packages/WorshipCueLocal;')
 obj('package:ink', 'isa = XCLocalSwiftPackageReference; relativePath = ../../packages/WorshipCueInk;')
+obj('package:remote', 'isa = XCLocalSwiftPackageReference; relativePath = ../../packages/WorshipCueRemote;')
 obj('package:core', 'isa = XCLocalSwiftPackageReference; relativePath = ../../reference/WorshipCueCore;')
 for target in ['app','tests']:
-    for product, package in [('WorshipCueLocal','local'),('WorshipCueCore','core'),('WorshipCueInk','ink')]:
+    for product, package in [('WorshipCueLocal','local'),('WorshipCueCore','core'),('WorshipCueInk','ink'),('WorshipCueRemote','remote')]:
         key = target+':'+product
         obj(key, f'isa = XCSwiftPackageProductDependency; package = {ident("package:"+package)}; productName = {product};')
         obj('build:'+key, f'isa = PBXBuildFile; productRef = {ident(key)};')
@@ -47,7 +48,7 @@ obj('group:products', f'isa = PBXGroup; name = Products; sourceTree = "<group>";
 obj('group:root', f'isa = PBXGroup; sourceTree = "<group>"; children = {refs(["group:app","group:tests","ref:pdfs","group:products"])};')
 for target in ['app','tests']:
     obj('sources:'+target, f'isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = {refs(["build:"+s for s in sources] if target=="app" else ["build:tests"])}; runOnlyForDeploymentPostprocessing = 0;')
-    obj('frameworks:'+target, f'isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = {refs(["build:"+target+":WorshipCueLocal","build:"+target+":WorshipCueCore","build:"+target+":WorshipCueInk"])}; runOnlyForDeploymentPostprocessing = 0;')
+    obj('frameworks:'+target, f'isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = {refs(["build:"+target+":WorshipCueLocal","build:"+target+":WorshipCueCore","build:"+target+":WorshipCueInk","build:"+target+":WorshipCueRemote"])}; runOnlyForDeploymentPostprocessing = 0;')
     resource_refs = refs(['build:pdfs','build:strings','build:notices']) if target == 'app' else '()'
     obj('resources:'+target, f'isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = {resource_refs}; runOnlyForDeploymentPostprocessing = 0;')
 
@@ -57,8 +58,10 @@ app = {'TARGETED_DEVICE_FAMILY':'2','PRODUCT_NAME':'$(TARGET_NAME)','PRODUCT_BUN
        'INFOPLIST_KEY_UIApplicationSceneManifest_Generation':'YES','INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents':'YES',
        'INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad':'UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight',
        'SUPPORTED_PLATFORMS':'iphoneos iphonesimulator','SUPPORTS_MACCATALYST':'NO','CODE_SIGN_STYLE':'Automatic',
-       'MARKETING_VERSION':'0.0.1','CURRENT_PROJECT_VERSION':'4','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','SWIFT_EMIT_LOC_STRINGS':'YES',
-       'LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks'}
+       'MARKETING_VERSION':'0.0.1','CURRENT_PROJECT_VERSION':'5','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','SWIFT_EMIT_LOC_STRINGS':'YES',
+       'LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks',
+       'INFOPLIST_KEY_WorshipCueSupabaseURL':'$(SUPABASE_URL)',
+       'INFOPLIST_KEY_WorshipCueSupabaseKey':'$(SUPABASE_PUBLISHABLE_KEY)'}
 tests = {'TARGETED_DEVICE_FAMILY':'2','PRODUCT_NAME':'$(TARGET_NAME)','PRODUCT_BUNDLE_IDENTIFIER':'com.worshipcue.spike.tests',
          'GENERATE_INFOPLIST_FILE':'YES','TEST_HOST':'$(BUILT_PRODUCTS_DIR)/WorshipCue.app/WorshipCue',
          'BUNDLE_LOADER':'$(TEST_HOST)','CODE_SIGN_STYLE':'Automatic',
@@ -77,8 +80,8 @@ obj('dependency', f'isa = PBXTargetDependency; target = {ident("target:app")}; t
 for target, name in [('app','WorshipCue'),('tests','WorshipCueTests')]:
     deps = refs(['dependency']) if target == 'tests' else '()'
     product_type = 'com.apple.product-type.application' if target=='app' else 'com.apple.product-type.bundle.unit-test'
-    obj('target:'+target, f'isa = PBXNativeTarget; buildConfigurationList = {ident("config:"+target)}; buildPhases = {refs(["sources:"+target,"frameworks:"+target,"resources:"+target])}; buildRules = (); dependencies = {deps}; name = {name}; packageProductDependencies = {refs([target+":WorshipCueLocal",target+":WorshipCueCore",target+":WorshipCueInk"])}; productName = {name}; productReference = {ident("product:"+target)}; productType = {quote(product_type)};')
-obj('project', f'isa = PBXProject; attributes = {{ LastUpgradeCheck = 1630; }}; buildConfigurationList = {ident("config:project")}; compatibilityVersion = "Xcode 14.0"; developmentRegion = ko; hasScannedForEncodings = 0; knownRegions = (ko, Base,); mainGroup = {ident("group:root")}; packageReferences = {refs(["package:local","package:core","package:ink"])}; productRefGroup = {ident("group:products")}; projectDirPath = ""; projectRoot = ""; targets = {refs(["target:app","target:tests"])};')
+    obj('target:'+target, f'isa = PBXNativeTarget; buildConfigurationList = {ident("config:"+target)}; buildPhases = {refs(["sources:"+target,"frameworks:"+target,"resources:"+target])}; buildRules = (); dependencies = {deps}; name = {name}; packageProductDependencies = {refs([target+":WorshipCueLocal",target+":WorshipCueCore",target+":WorshipCueInk",target+":WorshipCueRemote"])}; productName = {name}; productReference = {ident("product:"+target)}; productType = {quote(product_type)};')
+obj('project', f'isa = PBXProject; attributes = {{ LastUpgradeCheck = 1630; }}; buildConfigurationList = {ident("config:project")}; compatibilityVersion = "Xcode 14.0"; developmentRegion = ko; hasScannedForEncodings = 0; knownRegions = (ko, Base,); mainGroup = {ident("group:root")}; packageReferences = {refs(["package:local","package:core","package:ink","package:remote"])}; productRefGroup = {ident("group:products")}; projectDirPath = ""; projectRoot = ""; targets = {refs(["target:app","target:tests"])};')
 
 # Append UI-test objects so existing app/hosted-test object identities stay stable.
 obj('ref:uitests', 'isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicStandUITests.swift; sourceTree = "<group>";')
@@ -105,6 +108,14 @@ obj('ref:assets', 'isa = PBXFileReference; lastKnownFileType = folder.assetcatal
 obj('build:assets', f'isa = PBXBuildFile; fileRef = {ident("ref:assets")};')
 objects[ident('group:app')] = objects[ident('group:app')].replace(ident('ref:strings')+',', ident('ref:assets')+', '+ident('ref:strings')+',')
 objects[ident('resources:app')] = objects[ident('resources:app')].replace(ident('build:strings')+',', ident('build:assets')+', '+ident('build:strings')+',')
+obj('ref:teamtests', 'isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamWorkspaceTests.swift; sourceTree = "<group>";')
+obj('build:teamtests', f'isa = PBXBuildFile; fileRef = {ident("ref:teamtests")};')
+objects[ident('group:tests')] = objects[ident('group:tests')].replace(ident('ref:tests')+',', ident('ref:tests')+', '+ident('ref:teamtests')+',')
+objects[ident('sources:tests')] = objects[ident('sources:tests')].replace(ident('build:tests')+',', ident('build:tests')+', '+ident('build:teamtests')+',')
+obj('ref:teamconfig', 'isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configuration/Team.xcconfig; sourceTree = "<group>";')
+objects[ident('group:root')] = objects[ident('group:root')].replace(ident('group:app')+',', ident('group:app')+', '+ident('ref:teamconfig')+',')
+for config in ['Debug','Release']:
+    objects[ident('project:'+config)] = objects[ident('project:'+config)].replace('buildSettings =', f'baseConfigurationReference = {ident("ref:teamconfig")}; buildSettings =')
 project = APP/'WorshipCue.xcodeproj'
 project.mkdir(exist_ok=True)
 (project/'project.pbxproj').write_text('// !$*UTF8*$!\n{\narchiveVersion = 1; classes = {}; objectVersion = 56;\nobjects = {\n'+'\n'.join(f'{key} = {{ {value} }};' for key,value in objects.items())+f'\n}};\nrootObject = {ident("project")};\n}}\n')
@@ -123,4 +134,4 @@ folder.mkdir(parents=True,exist_ok=True)
 (folder/'WorshipCueUI.xcscheme').write_text(scheme)
 ui_testable = f'<TestableReference skipped="NO">{ref("uitests","WorshipCueUITests.xctest")}</TestableReference>'
 (folder/'WorshipCue.xcscheme').write_text(scheme.replace(ui_testable, ''))
-print(f'Generated {len(sources)} app sources, 1 hosted test source, 1 UI test source, schemes WorshipCue / WorshipCueUI')
+print(f'Generated {len(sources)} app sources, 2 hosted test sources, 1 UI test source, schemes WorshipCue / WorshipCueUI')

@@ -23,6 +23,8 @@ struct VersionInspector: View {
     let select: () -> Void
     let preview: () -> Void
     let destination: () -> Void
+    var prefer: ((LibraryVersion) -> Void)? = nil
+    var openVersion: ((UUID) -> Void)? = nil
     @State private var targetPage = 1
     private var version: LibraryVersion? { stand.library.versions.first { $0.id == stand.current?.id } }
     private var sourceVersion: LibraryVersion? { stand.library.versions.first { $0.id == stand.clipboard.selection?.source.versionID } }
@@ -78,7 +80,7 @@ struct VersionInspector: View {
     }
     private func versionRow(_ item: LibraryVersion) -> some View {
         HStack(spacing: 0) {
-            Button { Task { _ = await stand.openVersion(item.id) } } label: {
+            Button { if let openVersion { openVersion(item.id) } else { Task { _ = await stand.openVersion(item.id) } } } label: {
                 HStack(spacing: 12) {
                     ChartThumbnail(stand: stand, versionID: item.id)
                     VStack(alignment: .leading, spacing: 5) {
@@ -91,7 +93,7 @@ struct VersionInspector: View {
                     Spacer(minLength: 4)
                 }.padding(10).frame(maxWidth: .infinity, minHeight: 72, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityIdentifier("inspectorOpenVersion.\(item.number)")
-            Button { stand.prefer(item) } label: {
+            Button { if let prefer { prefer(item) } else { stand.prefer(item) } } label: {
                 Image(systemName: stand.library.preferences[item.songID] == item.id ? "star.fill" : "star")
                     .frame(width: 44, height: 44)
             }.buttonStyle(.plain).disabled(stand.library.preferences[item.songID] == item.id)

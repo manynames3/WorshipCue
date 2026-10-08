@@ -98,6 +98,31 @@ struct PacketSlice: Identifiable {
         return document
     }
 
+    /// A downloaded immutable receipt is committed only after bytes and native page geometry agree.
+    func cachePublished(_ data: Data, song: LibrarySong, version: LibraryVersion,
+                        sha256: String, bytes: Int, pages: [PageGeometry]) throws {
+        guard data.count == bytes, bytes <= 100 * 1024 * 1024,
+              SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == sha256,
+              try geometry(validate(data)) == pages else { throw VaultError.checksum }
+        let asset = LibraryAsset(id: version.id, filename: "\(version.id.uuidString).pdf", sha256: sha256, bytes: bytes, pages: pages)
+        let target = root.appendingPathComponent(asset.filename)
+        if FileManager.default.fileExists(atPath: target.path) {
+            guard try Data(contentsOf: target) == data else { throw VaultError.checksum }
+            try library.cachePublished(song: song, version: version, asset: asset)
+        } else {
+            try data.write(to: target, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            do { try verifyPromoted(asset); try library.cachePublished(song: song, version: version, asset: asset) }
+            catch { try? FileManager.default.removeItem(at: target); throw error }
+        }
+        try reload()
+    }
+
+    func sourceBytes(_ versionID: UUID) throws -> Data {
+        guard let chart = charts.first(where: { $0.id == versionID }) else { throw LibraryError.missingRecord }
+        _ = try open(chart)
+        return try Data(contentsOf: root.appendingPathComponent(chart.filename), options: .mappedIfSafe)
+    }
+
     func slicePacket(_ chart: LocalChart, slices: [PacketSlice]) throws -> [LocalChart] {
         let source = try open(chart)
         guard !slices.isEmpty, slices.count <= 200 else { throw VaultError.invalidRange }

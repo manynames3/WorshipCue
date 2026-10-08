@@ -1,12 +1,17 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import WorshipCueCore
 
 @main struct WorshipCueApp: App {
     var body: some Scene { WindowGroup { MusicStandScreen() } }
 }
 
 struct MusicStandScreen: View {
-    @StateObject private var stand: MusicStand
+    @StateObject private var localStand: MusicStand
+    @StateObject private var team: TeamWorkspace
+    private var stand: MusicStand { team.reader ?? localStand }
+    @State private var teamPresented = false
+    @State private var teamPreview = false
     @State private var section: StandSection = .reader
     @State private var inspectorPresented = false
     @State private var inputPresented = false
@@ -30,7 +35,8 @@ struct MusicStandScreen: View {
             _inspectorPresented = State(initialValue: true)
         }
         #endif
-        _stand = StateObject(wrappedValue: MusicStand(applicationSupport: testRoot))
+        _localStand = StateObject(wrappedValue: MusicStand(applicationSupport: testRoot))
+        _team = StateObject(wrappedValue: TeamWorkspace(testRoot: testRoot))
     }
 
     var body: some View {
@@ -40,12 +46,13 @@ struct MusicStandScreen: View {
             VStack(spacing: 0) {
                 header(compact: geometry.size.width < 900)
                 Divider()
+                SongCueBanner(team: team, opened: { section = .reader })
                 HStack(spacing: 0) {
                     if sidebar { StandNavigation(section: $section).frame(width: 84); Divider() }
                     if section == .reader { reader(docked: docked) }
                     else {
-                        WorkspaceView(stand: stand, tab: Binding(get: { section == .library ? 1 : 0 }, set: { section = $0 == 1 ? .library : .today }),
-                                      embedded: true, onOpen: { section = .reader })
+                        WorkspaceView(stand: localStand, tab: Binding(get: { section == .library ? 1 : 0 }, set: { section = $0 == 1 ? .library : .today }),
+                                      embedded: true, onOpen: { Task { if await team.useLocalReader() { section = .reader } } })
                     }
                 }
                 if !sidebar { Divider(); StandNavigation(section: $section, horizontal: true) }
@@ -58,17 +65,24 @@ struct MusicStandScreen: View {
             }
         }
         .tint(StandStyle.blue)
-        .task { await stand.start() }
+        .task { await localStand.start(); await team.restore() }
+        .sheet(isPresented: $teamPresented) { TeamPanel(team: team, local: localStand, opened: { section = .reader }) }
+        .sheet(isPresented: $teamPreview) { if let call = team.displayedCall { TeamInkSheet(team: team, call: call, editable: false) } }
+        .onChange(of: stand.current?.id) { _ in team.navigationChanged(); Task { try? await team.refreshShared() } }
+        .onChange(of: stand.pageIndex) { _ in team.navigationChanged(); Task { try? await team.refreshShared() } }
         .sheet(isPresented: $exportPresented) { ExportSheet(stand: stand) }
-        .sheet(isPresented: $transferPresented) { TransferDestinationSheet(stand: stand) }
+        .sheet(isPresented: $transferPresented) { TransferDestinationSheet(stand: stand, openVersion: { id, page in
+            if team.reader != nil { return await team.openVersion(id, page: page) }
+            return await stand.openVersion(id, page: page)
+        }) }
         .onChange(of: stand.transferMode) { mode in
             if mode != .inactive { inputPresented = false }
         }
         .onChange(of: section) { _ in inputPresented = false; inspectorPresented = false; stand.cancelTransfer() }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.pdf]) { result in
             switch result {
-            case .success(let url): Task { await stand.importFile(url) }
-            case .failure: stand.error = String(localized: "파일 선택을 완료하지 못했어요.")
+            case .success(let url): Task { if await team.useLocalReader() { await localStand.importFile(url); section = .reader } }
+            case .failure: localStand.error = String(localized: "파일 선택을 완료하지 못했어요.")
             }
         }
         .alert("확인 필요", isPresented: Binding(get: { stand.error != nil }, set: { if !$0 { stand.error = nil } })) {
@@ -76,7 +90,8 @@ struct MusicStandScreen: View {
             Button("닫기", role: .cancel) { stand.error = nil }
         } message: { Text(stand.error ?? "") }
         .onChange(of: scenePhase) { phase in
-            guard phase != .active else { return }
+            if phase == .active { Task { await team.resume() }; return }
+            team.suspend()
             let task = UIApplication.shared.beginBackgroundTask(withName: "Save personal ink")
             Task {
                 await stand.retrySave()
@@ -100,6 +115,12 @@ struct MusicStandScreen: View {
                     .font(.subheadline).monospacedDigit().padding(.horizontal, 12).padding(.vertical, 7)
                     .background(StandStyle.surface, in: Capsule()).accessibilityIdentifier("currentVersionBadge")
             }
+            if section == .reader, team.reader != nil, let key = team.currentPerformanceKey {
+                Text("연주 키 \(key)").font(.subheadline).foregroundStyle(StandStyle.blue)
+                if let written = stand.currentLibraryVersion?.writtenKey, MusicalKey.compare(written: written, performance: key) == .different {
+                    Label("악보 키가 달라요", systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                }
+            }
             if !compact { saveStatus }
             Spacer(minLength: 0)
             if stand.busy { ProgressView().accessibilityLabel(Text("작업 중")) }
@@ -110,6 +131,7 @@ struct MusicStandScreen: View {
                 inputControl
             }
             Menu {
+                Button { teamPresented = true } label: { Label("팀 작업 공간", systemImage: "person.2") }.accessibilityIdentifier("openTeamWorkspace")
                 Button { section = .today } label: { Label("오늘 · 라이브러리", systemImage: "music.note.list") }
                     .accessibilityIdentifier("openWorkspace")
                 Button { exportPresented = true } label: { Label("PDF 내보내기", systemImage: "square.and.arrow.up") }
@@ -153,9 +175,11 @@ struct MusicStandScreen: View {
                     Text(stand.fingerTesting ? String(localized: "손가락으로 필기합니다. 악보를 이동·확대하려면 Apple Pencil 모드로 전환하세요.")
                          : String(localized: "Apple Pencil로 필기 · 손가락으로 악보 이동·확대"))
                         .font(.subheadline).foregroundStyle(.secondary)
-                    Divider()
-                    Toggle("팀 예시 읽기 전용", isOn: Binding(get: { stand.teamVisible }, set: stand.showTeam)).accessibilityIdentifier("teamSample")
-                    Text("팀 예시는 곡 A v2의 첫 페이지에만 표시됩니다.").font(.caption).foregroundStyle(.secondary)
+                    if team.reader == nil {
+                        Divider()
+                        Toggle("팀 예시 읽기 전용", isOn: Binding(get: { stand.teamVisible }, set: stand.showTeam)).accessibilityIdentifier("teamSample")
+                        Text("팀 예시는 곡 A v2의 첫 페이지에만 표시됩니다.").font(.caption).foregroundStyle(.secondary)
+                    }
                 }.padding(18).frame(width: 320).preferredColorScheme(.light)
             }
     }
@@ -163,7 +187,7 @@ struct MusicStandScreen: View {
     private func reader(docked: Bool) -> some View {
         HStack(spacing: 10) {
             VStack(spacing: 0) {
-                PDFStandView(stand: stand)
+                PDFStandView(stand: stand).id(ObjectIdentifier(stand))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(StandStyle.border))
                     .accessibilityIdentifier("readerSurface")
@@ -194,13 +218,21 @@ struct MusicStandScreen: View {
         }, destination: {
             inspectorPresented = false
             transferPresented = true
+        }, prefer: { version in
+            if team.reader != nil { Task { await team.prefer(version.id) } }
+            else { stand.prefer(version) }
+        }, openVersion: { id in
+            if team.reader != nil { Task { _ = await team.openVersion(id) } }
+            else { Task { _ = await stand.openVersion(id) } }
         })
     }
 
     private var pageControls: some View {
         HStack(spacing: 12) {
             Menu {
-                ForEach(stand.charts) { chart in Button(chart.name) { Task { await stand.choose(chart) } } }
+                ForEach(stand.charts) { chart in Button(chart.name) {
+                    Task { if team.reader != nil { _ = await team.openVersion(chart.id) } else { await stand.choose(chart) } }
+                } }
             } label: { Image(systemName: "doc.on.doc").frame(width: 44, height: 44) }
                 .accessibilityLabel(Text("악보 선택")).accessibilityIdentifier("chartChooser").disabled(stand.busy)
             Spacer(minLength: 0)
@@ -215,6 +247,9 @@ struct MusicStandScreen: View {
                 .buttonStyle(.plain).background(StandStyle.surface, in: RoundedRectangle(cornerRadius: 12))
                 .accessibilityLabel(Text("다음")).disabled(stand.pageIndex + 1 >= stand.pageCount || stand.busy).accessibilityIdentifier("nextPage")
             Spacer(minLength: 0)
+            if team.reader != nil, team.teamMismatch {
+                Button("팀 악보 미리보기") { teamPreview = true }.frame(minHeight: 44).foregroundStyle(.orange)
+            }
             Image(systemName: "lock").font(.subheadline).frame(width: 44, height: 44)
                 .foregroundStyle(.secondary).accessibilityLabel(Text("개인 메모"))
         }.padding(.vertical, 8)

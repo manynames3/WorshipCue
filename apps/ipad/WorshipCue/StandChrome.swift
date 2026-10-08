@@ -129,34 +129,9 @@ struct StandTools: View {
         .accessibilityValue(Text(stand.selectedInkColor.name)).accessibilityHint(Text("색상 선택 열기"))
         .accessibilityIdentifier("inkColorPicker")
         .popover(isPresented: $colorsPresented, arrowEdge: .trailing) {
-            VStack(spacing: 12) {
-                HStack {
-                    Text(stand.selectedToolKind == 1 ? String(localized: "형광펜 색상") : String(localized: "펜 색상")).font(.headline)
-                    Spacer()
-                    Button { colorsPresented = false } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
-                        .accessibilityLabel(Text("닫기")).accessibilityIdentifier("closeInkColors")
-                }
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 12) {
-                    ForEach(InkColor.allCases) { color in
-                        Button { stand.setInkColor(color); colorsPresented = false } label: {
-                            VStack(spacing: 4) {
-                                Circle().fill(Color(uiColor: color.uiColor)).frame(width: 36, height: 36)
-                                    .overlay(Circle().strokeBorder(.secondary.opacity(0.5), lineWidth: 1))
-                                    .overlay {
-                                        if stand.selectedInkColor == color {
-                                            Image(systemName: "checkmark").font(.headline)
-                                                .foregroundStyle(color == .yellow || color == .orange ? .black : .white)
-                                        }
-                                    }
-                                Text(color.name).font(.caption).foregroundStyle(.primary)
-                            }.frame(maxWidth: .infinity, minHeight: 60)
-                        }.buttonStyle(.plain).accessibilityLabel(Text(color.name))
-                            .accessibilityAddTraits(stand.selectedInkColor == color ? .isSelected : [])
-                            .accessibilityIdentifier("inkColor.\(color.rawValue)")
-                    }
-                }
-                Text("색상을 선택하면 닫힙니다.").font(.caption).foregroundStyle(.secondary)
-            }.padding(16).frame(width: 288).preferredColorScheme(.light)
+            InkColorPalette(selected: stand.selectedInkColor,
+                title: stand.selectedToolKind == 1 ? String(localized: "형광펜 색상") : String(localized: "펜 색상"),
+                choose: { stand.setInkColor($0); colorsPresented = false }, close: { colorsPresented = false })
         }
     }
 }
@@ -197,5 +172,42 @@ struct TransferActions: View {
         Button { stand.commitPaste() } label: { Text("붙여넣기 확정").fontWeight(.semibold).frame(minHeight: 44).padding(.horizontal, 12) }
             .buttonStyle(.borderedProminent).tint(stacked ? StandStyle.gold : StandStyle.blue)
             .foregroundStyle(stacked ? Color.black : Color.white).accessibilityIdentifier("commitPaste")
+    }
+}
+
+struct InkColorPalette: View {
+    let selected: InkColor
+    let title: String
+    let choose: (InkColor) -> Void
+    let close: () -> Void
+    var body: some View {
+            VStack(spacing: 12) {
+                HStack {
+                    Text(title).font(.headline)
+                    Spacer()
+                    Button { close() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
+                        .accessibilityLabel(Text("닫기")).accessibilityIdentifier("closeInkColors")
+                }
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 12) {
+                    ForEach(InkColor.allCases) { color in
+                        Button { choose(color) } label: {
+                            VStack(spacing: 4) {
+                                Circle().fill(Color(uiColor: color.uiColor)).frame(width: 36, height: 36)
+                                    .overlay(Circle().strokeBorder(.secondary.opacity(0.5), lineWidth: 1))
+                                    .overlay {
+                                        if selected == color {
+                                            Image(systemName: "checkmark").font(.headline)
+                                                .foregroundStyle(color == .yellow || color == .orange ? .black : .white)
+                                        }
+                                    }
+                                Text(color.name).font(.caption).foregroundStyle(.primary)
+                            }.frame(maxWidth: .infinity, minHeight: 60)
+                        }.buttonStyle(.plain).accessibilityLabel(Text(color.name))
+                            .accessibilityAddTraits(selected == color ? .isSelected : [])
+                            .accessibilityIdentifier("inkColor.\(color.rawValue)")
+                    }
+                }
+                Text("색상을 선택하면 닫힙니다.").font(.caption).foregroundStyle(.secondary)
+            }.padding(16).frame(width: 288).preferredColorScheme(.light)
     }
 }

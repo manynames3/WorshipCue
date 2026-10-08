@@ -35,6 +35,7 @@ private struct SharePDF: UIViewControllerRepresentable {
 
 struct TransferDestinationSheet: View {
     @ObservedObject var stand: MusicStand
+    var openVersion: ((UUID, Int) async -> Bool)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var versionID: UUID?
     @State private var page = 1
@@ -75,9 +76,11 @@ struct TransferDestinationSheet: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
                     ToolbarItem(placement: .confirmationAction) { Button("붙여넣기 미리보기") { Task {
-                        if let versionID, await stand.openVersion(versionID, page: page - 1) {
-                            stand.requestPastePreview()
-                            dismiss()
+                        if let versionID {
+                            let opened: Bool
+                            if let openVersion { opened = await openVersion(versionID, page - 1) }
+                            else { opened = await stand.openVersion(versionID, page: page - 1) }
+                            if opened { stand.requestPastePreview(); dismiss() }
                         }
                     } }.disabled(versionID == nil || stand.busy).accessibilityIdentifier("openTransferDestination") }
                 }.workspaceError(stand)

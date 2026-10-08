@@ -128,6 +128,27 @@ final class MusicStandUITests: XCTestCase {
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count) + text)
     }
 
+    func testTeamSetupKeepsLocalChartPageAndInkAvailable() throws {
+        tool("tool.pen"); stroke(at: 0.4); assertCount(1); saved()
+        app.buttons["nextPage"].tap(); assertCount(0)
+        let chart = app.staticTexts["currentChart"].label
+        let page = app.staticTexts["pagePosition"].label
+        app.buttons["standActions"].tap(); app.buttons["openTeamWorkspace"].tap()
+        XCTAssertTrue(app.staticTexts["팀 연결 준비 중"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.textFields["teamEmail"].exists, "An unconfigured service must not pretend to accept account credentials")
+        capture("Team setup preserves local rehearsal availability")
+        app.buttons["닫기"].tap()
+        XCTAssertTrue(canvas.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["currentChart"].label, chart)
+        XCTAssertEqual(app.staticTexts["pagePosition"].label, page)
+        app.buttons["previousPage"].tap(); assertCount(1)
+        try assertVisibleBlackStroke(at: 0.4, on: canvas)
+        app.terminate(); app.launch()
+        XCTAssertTrue(canvas.waitForExistence(timeout: 15)); assertCount(1)
+        XCTAssertEqual(app.staticTexts["currentChart"].label, chart)
+        capture("Local chart and personal ink after team setup and relaunch")
+    }
+
     func testV2ConceptLayoutNavigationAndManualVersionInspector() throws {
         tool("tool.pen"); stroke(at: 0.4); assertCount(1); saved()
         capture("V2 reader in initial device orientation")

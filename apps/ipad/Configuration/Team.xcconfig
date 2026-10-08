@@ -1,0 +1,4 @@
+// Unconfigured builds keep the complete local rehearsal workflow available.
+SUPABASE_URL =
+SUPABASE_PUBLISHABLE_KEY =
+#include? "Secrets.xcconfig"

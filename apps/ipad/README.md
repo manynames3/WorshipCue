@@ -1,6 +1,8 @@
 # WorshipCue native iPad app
 
-Native SwiftUI workspace and PDFKit/PencilKit reader. Build **4** on branch **v2** implements the concept-based light reader, persistent Today/Library/Stand navigation, vertical tools, compact input/color popovers and charcoal docked version/manual-transfer inspector. Build 3 is preserved as branch/tag **v1**. Existing local library, immutable chart versions, weekly packet extraction, planned/standby setlists, preflight and PDF export continue with the same bundle/storage format. Minimum **iPadOS 16.0** under D39. On iPad (6th generation), iPadOS **17.7.11**, the V2 hosted suite passes **19 cases / 0 failures / 1 opt-in private-input skip** and a full V2 navigation/manual-transfer UI workflow passes. Final UI adjustments and additional checks are tracked in [V2 evidence](../../verification/V2.md); prior tests remain in [v1/M1 evidence](../../verification/M1.md). Xcode 27 Debug/device targets and Release compile. No backend/live publishing is implemented.
+Native SwiftUI/PDFKit/PencilKit workspace. **v2 / Build 5** adds an optional managed private-team workspace to the concept-based reader and existing local preparation flow. Local PDFs, personal ink, setlists, search, manual transfer and export continue without a server. Team login, scoped invitations, immutable shared charts, protected personal sync/conflicts, exact team handwriting and visual tap-to-open cues are implemented behind an explicit Supabase configuration. No hosted service is configured or deployed. The production server PDF finalizer still needs parser-dependency approval.
+
+Build 3 is preserved as branch/tag **v1**, and `main` stays there. Minimum **iPadOS 16.0**. Current native/device and controlled-HTTP evidence is in [Build 5 evidence](../../verification/M2-M4-native.md); independent SQL/Edge evidence is in [backend evidence](../../verification/M2-M4-backend.md). [V2 design](../../verification/V2.md) and [v1/M1](../../verification/M1.md) reports retain prior results.
 
 Physical Apple Pencil and original iPadOS 16.7.16 runtime qualification remain **NOT VERIFIED**. Earlier M0, color/icon and private-PDF evidence remains in [M0 history](../../verification/M0.md), [Build 2 history](../../verification/M0-colors-icon.md) and [private-pair evidence](../../verification/M0-private-pdf-pair.md). Separate passing sessions do not imply pilot readiness.
 
@@ -10,7 +12,7 @@ Open `WorshipCue.xcodeproj`, scheme `WorshipCue`. GRDB 7.11.1 requires Swift 6.1
 
 The app seeds synthetic v1/v2/v3, a rotated/nonzero-CropBox PDF, and a weekly packet into protected Application Support storage. Files imports create new version IDs and app-owned immutable source assets after size, parse, geometry, and SHA-256 checks. Cached PDFs are verified again before opening. Cold startup restores the last local version/page; a broken remembered chart requires explicit alternate choice. No existing readable chart is replaced by an import/open failure.
 
-The personal layer uses a development-only local church/owner identity. The store actor commits drawing bytes, exact owner/version/page geometry, generation, and an unsent personal outbox snapshot together. Unsent full snapshots coalesce per exact layer/base to bound growth. There is no synchronization worker; outbox reconciliation, CAS, managed identity, and backend authorization belong to later milestones. No team-write outbox or live-call outbox exists.
+The personal layer uses a development-only local church/owner identity. The store actor commits drawing bytes, exact owner/version/page geometry, generation, and an unsent personal outbox snapshot together. Unsent full snapshots coalesce per exact layer/base to bound growth. The optional managed workspace has a separate durable personal-sync worker with numeric revision CAS, frozen retry payloads and explicit two-copy conflict choices. The original local development reader is not silently uploaded or converted into an account. No team-write outbox or live-call outbox exists.
 
 The visible input selector defaults to **Apple Pencil**; fingers pan/zoom in this mode. Choose **손가락 필기** to write using a finger, and return to Apple Pencil mode to move/zoom the chart with fingers. PDFKit markup mode enables hit testing of its actual page overlays. The pen defaults to black ink and the annotation layer overrides its appearance to Light, as required to retain visible ink on white PDF paper in Dark Mode. Pen, marker, vector stroke eraser, undo, and redo target only personal ink; the selected tool exposes a selected state and accessibility value. Each canvas owns its undo manager. Draw a selection rectangle, inspect highlighted candidate strokes, copy, explicitly choose a destination version/page, paste, drag/scale preview, then commit or cancel. Clipboard data survives source view release and stays inside the app. One undo group removes the pasted strokes. The separate red team sample is read-only and scoped to v2/page 1 of this local performance occurrence.
 
@@ -79,3 +81,25 @@ python3 scripts/test_m1_device.py --group all --full-native \
 `--only workspace export-ui packet clone` selects existing local preparation
 paths. `--command-timeout` bounds commands and records a timeout as unverified.
 Raw results stay outside Git. See [V2 verification](../../verification/V2.md).
+
+
+## Private team configuration (Build 5)
+
+The project references `Configuration/Team.xcconfig`, whose defaults leave the service unconfigured. Copy `Configuration/Secrets.xcconfig.example` to **`Configuration/Secrets.xcconfig`** locally. That file is ignored. Use only the approved development project's HTTPS URL and publishable client key; never a service-role/secret key. The example preserves `https://` through Xcode's comment parser. Both Debug and Release use the configuration; credentials/Apple team IDs are not part of the checked-in project.
+
+Before enabling it, complete the pending server PDF parser/finalizer gate and review [supabase/README.md](../../supabase/README.md). The additive migration and Edge handlers do not deploy themselves. Managed email OTP and anonymous guest support, invitation policy, private Storage bucket and Realtime authorization require real service setup and verification. No project creation, billing, cloud schema/function changes or paid Apple enrollment occurred.
+
+Open **악보 작업 → 팀 작업 공간**. Unconfigured builds show an honest preparation message. A configured build can sign in, create a private church/default team, redeem an invitation, publish an authorized local source PDF as a new immutable version, edit team setlists, prepare downloads and explicitly open a shared chart. Guests see only their invited setlist; their personal ink stays local. The controller chooses a setlist, explicitly acquires its lease, starts a session, prepares a song/key, then sends a cue. Shared ink has a separate draft canvas and explicit publish action. Musicians retain page/chart control and can preview the exact team version without replacing their reader.
+
+Server/account/church caches use protected Application Support directories distinct from the existing `WorshipCueM0` vault. Device-only Keychain credentials, captured identity/generation fences, immutable PDF verification, frozen personal retries and explicit conflicts protect the boundary. Logout clears visible account state before a bounded, current-session-only Auth logout. Realtime events only trigger an authenticated durable fetch; a 15-second reconciliation loop supports recovery. Production Realtime delivery and physical multi-iPad behavior remain unverified.
+
+Additional checks:
+
+```sh
+sh scripts/with_external_xcode.sh swift test --package-path packages/WorshipCueRemote
+python3 scripts/test_backend.py
+deno test --config supabase/deno.json supabase/tests/edge_test.ts
+python3 scripts/test_m1_device.py --group ui --only team-setup --command-timeout 240
+```
+
+Use external scratch/result paths as in the evidence reports and privately supplied device/signing environment values for device scripts. `TeamWorkspaceTests` use the real native vault, store and client with controlled URLSession HTTP responses; they do not substitute for a managed service, email delivery or two iPads.
