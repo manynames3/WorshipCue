@@ -1,0 +1,14 @@
+{
+  "exit": 0,
+  "command": [
+    "xcodebuild",
+    "-project",
+    "apps/ipad/WorshipCue.xcodeproj",
+    "-scheme",
+    "WorshipCueUI",
+    "-sdk",
+    "iphoneos26.5",
+    "-showdestinations"
+  ],
+  "device_identifiers_redacted": true
+}

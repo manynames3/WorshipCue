@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "call_id": "3a01c63a-2843-5f43-b348-856d3baf7ccd",
+  "session_id": "9b5556c3-9551-5b30-97f0-50992e4eb7b9",
+  "sequence": 1,
+  "command_id": "82c18644-a0f5-519e-9bfe-3d84e099d4f2",
+  "performance_item_id": "e9cd4fca-2399-5dd5-b705-a72562f41e51",
+  "song_id": "7fd76e36-7050-5526-9ed5-f49ba5dcf951",
+  "team_chart_version_id": "188323aa-95d3-5123-a471-8c8987c3cab2",
+  "performance_key": "G",
+  "controller_epoch": 1,
+  "created_at": "2026-10-07T09:00:00Z"
+}

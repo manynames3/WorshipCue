@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "errors": [
+    {
+      "code": "STALE_CALL",
+      "retryable": false,
+      "message_key": "live.staleTap"
+    },
+    {
+      "code": "STALE_CONTROLLER",
+      "retryable": false,
+      "message_key": "notes.leaseLost"
+    },
+    {
+      "code": "REVISION_CONFLICT",
+      "retryable": false,
+      "message_key": "notes.conflict"
+    },
+    {
+      "code": "FILE_NOT_READY",
+      "retryable": true,
+      "message_key": "download.missing"
+    },
+    {
+      "code": "HASH_MISMATCH",
+      "retryable": true,
+      "message_key": "download.failure"
+    },
+    {
+      "code": "ASSET_NOT_AUTHORIZED",
+      "retryable": false,
+      "message_key": "permission.denied"
+    },
+    {
+      "code": "SESSION_ENDED",
+      "retryable": false,
+      "message_key": "live.ended"
+    },
+    {
+      "code": "ACCESS_REVOKED",
+      "retryable": false,
+      "message_key": "permission.denied"
+    },
+    {
+      "code": "AUTH_REQUIRED",
+      "retryable": true,
+      "message_key": "permission.denied"
+    },
+    {
+      "code": "RATE_LIMITED",
+      "retryable": true,
+      "message_key": "download.retry"
+    },
+    {
+      "code": "INVALID_PAGE",
+      "retryable": false,
+      "message_key": "download.failure"
+    },
+    {
+      "code": "INVALID_KEY",
+      "retryable": false,
+      "message_key": "key.unknown"
+    },
+    {
+      "code": "IDEMPOTENCY_CONFLICT",
+      "retryable": false,
+      "message_key": "live.staleTap"
+    }
+  ],
+  "note": "retryable is a capability, not permission to blindly retry; use Retry-After/backoff and never queue unsent live calls."
+}

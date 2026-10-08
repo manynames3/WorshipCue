@@ -1,0 +1,22 @@
+{
+  "debug": {
+    "target": "WorshipCueUITests",
+    "exit": 0,
+    "configuration": "Debug",
+    "sdk": "iphoneos26.5",
+    "signing": false,
+    "device_tests_executed": 0,
+    "minimum_os": "16.0"
+  },
+  "release": {
+    "target": "WorshipCue",
+    "exit": 0,
+    "configuration": "Release",
+    "sdk": "iphoneos26.5",
+    "signing": false,
+    "device_tests_executed": 0,
+    "minimum_os": "16.0",
+    "strings_exit": 0,
+    "debug_test_launch_flag_present": false
+  }
+}

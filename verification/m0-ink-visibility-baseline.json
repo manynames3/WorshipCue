@@ -1,0 +1,30 @@
+{
+  "image_dimensions": [
+    1536,
+    2048
+  ],
+  "samples": {
+    "pen": {
+      "black_pixels": 0,
+      "yellow_pixels": 0,
+      "samples": 5400,
+      "pixel_region": [
+        590,
+        1065,
+        950,
+        1080
+      ]
+    },
+    "marker": {
+      "black_pixels": 0,
+      "yellow_pixels": 7172,
+      "samples": 7200,
+      "pixel_region": [
+        590,
+        1375,
+        950,
+        1395
+      ]
+    }
+  }
+}

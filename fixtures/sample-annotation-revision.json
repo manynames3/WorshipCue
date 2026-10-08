@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "revision_id": "1d6c65be-e73b-5814-9510-20cf83107c6e",
+  "layer_id": "5f169399-58ce-50c5-9465-45b4a32e93c8",
+  "church_id": "ed7bff9f-7e6e-5bbd-94f6-7b5805442a34",
+  "chart_version_id": "188323aa-95d3-5123-a471-8c8987c3cab2",
+  "page_index": 1,
+  "scope": "team",
+  "owner_user_id": null,
+  "performance_item_id": "e9cd4fca-2399-5dd5-b705-a72562f41e51",
+  "revision_number": 1,
+  "parent_revision": 0,
+  "command_id": "684d5d89-a3bf-5ddd-b32d-43919dc4a5fe",
+  "native_format": "pencilkit",
+  "native_asset_id": "b366524c-6f54-551c-a473-2b0ea2ff151d",
+  "native_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "native_bytes": 1024,
+  "preview_asset_id": "9abb548f-e117-54ef-8288-e2023730d0c5",
+  "preview_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "geometry": {
+    "schema_version": 1,
+    "crop_x": 0,
+    "crop_y": 0,
+    "crop_width": 612,
+    "crop_height": 792,
+    "rotation": 0
+  }
+}

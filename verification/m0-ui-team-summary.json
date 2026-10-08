@@ -1,0 +1,17 @@
+{
+  "result": "Failed",
+  "totalTestCount": 1,
+  "passedTests": 0,
+  "failedTests": 1,
+  "skippedTests": 0,
+  "startTime": 1791418285.973,
+  "finishTime": 1791418316.382,
+  "command_exit": 65,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-ui-team-20261007-201124.xcresult",
+  "failures": [
+    {
+      "testName": "testReadOnlyTeamLayerUsesExactVersionAndPage()",
+      "failureText": "XCTAssertTrue failed"
+    }
+  ]
+}

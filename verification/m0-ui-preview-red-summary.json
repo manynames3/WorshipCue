@@ -1,0 +1,15 @@
+{
+  "result": "Failed",
+  "totalTestCount": 1,
+  "passedTests": 0,
+  "failedTests": 1,
+  "skippedTests": 0,
+  "startTime": 1791419689.575,
+  "finishTime": 1791419853.255,
+  "failures": [
+    {
+      "testName": "testSelectedTransferCancelCommitUndoAndVersionPageIsolation()",
+      "failureText": "XCTAssertGreaterThan failed: (\"0\") is not greater than (\"159\") - Pen must render visibly on white PDF paper"
+    }
+  ]
+}

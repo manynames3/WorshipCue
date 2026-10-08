@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorshipCue immutable live call, v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "call_id",
+    "session_id",
+    "sequence",
+    "command_id",
+    "performance_item_id",
+    "song_id",
+    "team_chart_version_id",
+    "performance_key",
+    "controller_epoch",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "call_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "command_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "performance_item_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "song_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "team_chart_version_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "performance_key": {
+      "type": "string",
+      "pattern": "^[A-G](#|b)?m?$"
+    },
+    "controller_epoch": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "description": "No page or navigation fields. Receipt of this payload never changes a musician screen."
+}

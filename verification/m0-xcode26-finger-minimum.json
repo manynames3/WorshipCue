@@ -1,0 +1,6 @@
+{
+  "minimum_os_version": "16.0",
+  "bundle_identifier": "com.worshipcue.spike",
+  "toolchain": "Xcode26.6 / SDK26.5",
+  "native_tests_executed_on_ipados16": 0
+}

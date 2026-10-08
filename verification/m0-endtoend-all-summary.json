@@ -1,0 +1,98 @@
+{
+  "result": "Failed",
+  "totalTestCount": 15,
+  "passedTests": 13,
+  "failedTests": 2,
+  "skippedTests": 0,
+  "expectedFailures": 0,
+  "startTime": 1791418128.942,
+  "finishTime": 1791418242.006,
+  "command_exit": 65,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-endtoend-all-20261007-200847.xcresult",
+  "failures": [
+    {
+      "testName": "testReadOnlyTeamLayerUsesExactVersionAndPage()",
+      "failureText": "Lost connection to testmanagerd"
+    },
+    {
+      "testName": "testSelectedTransferCancelCommitUndoAndVersionPageIsolation()",
+      "failureText": "XCTAssertEqual failed: (\"\ud604\uc7ac \ud398\uc774\uc9c0 2, \uc804\uccb4 3\") is not equal to (\"\ud604\uc7ac \ud398\uc774\uc9c0 2, \uc804\uccb4 2\")"
+    }
+  ],
+  "cases": [
+    {
+      "nodeIdentifier": "NativeInkTests/testActiveStrokeBlocksPageAndVersionUntilPenUp()",
+      "result": "Passed",
+      "durationInSeconds": 0.18603301048278809
+    },
+    {
+      "nodeIdentifier": "NativeInkTests/testColdReaderRestoresSavedVersionPageAndExactInk()",
+      "result": "Passed",
+      "durationInSeconds": 0.2038949728012085
+    },
+    {
+      "nodeIdentifier": "NativeInkTests/testCorruptInkDisablesWritingUntilDurableRestoreIsRepaired()",
+      "result": "Passed",
+      "durationInSeconds": 0.1691509485244751
+    },
+    {
+      "nodeIdentifier": "NativeInkTests/testFailedImportPreservesReadableChartAndCommittedInk()",
+      "result": "Passed",
+      "durationInSeconds": 0.1535799503326416
+    },
+    {
+      "nodeIdentifier": "NativeInkTests/testFingerDrawingHitTestsTheDisplayedPDFKitOverlay()",
+      "result": "Passed",
+      "durationInSeconds": 0.11737394332885742
+    },
+    {
+      "nodeIdentifier": "NativeInkTests/testFixturePDFKitConversionsAndCanonicalCanvasAlignment()",
+      "result": "Passed",
+      "durationInSeconds": 0.08197402954101562
+    },
+    {
+      "nodeIdentifier": "NativeInkTests/testNativeSaveBoundaryAcrossVersionSwitchAndOverlayRecreation()",
+      "result": "Passed",
+      "durationInSeconds": 0.15979409217834473
+    },
+    {
+      "nodeIdentifier": "NativeInkTests/testPasteUndoLeavesTeamAndEarlierPersonalInkUnchanged()",
+      "result": "Passed",
+      "durationInSeconds": 0.016104936599731445
+    },
+    {
+      "nodeIdentifier": "NativeInkTests/testRealPencilKitArchiveSurvivesStoreReopen()",
+      "result": "Passed",
+      "durationInSeconds": 0.05508100986480713
+    },
+    {
+      "nodeIdentifier": "NativeInkTests/testSelectedClipboardSurvivesSourceClosureAndPreservesAspectRatio()",
+      "result": "Passed",
+      "durationInSeconds": 0.00861203670501709
+    },
+    {
+      "nodeIdentifier": "NativeInkTests/testStorageFailureBlocksNavigationRetainsInkAndRetries()",
+      "result": "Passed",
+      "durationInSeconds": 0.11948299407958984
+    },
+    {
+      "nodeIdentifier": "NativeInkTests/testVaultImportsImmutableVersionsAndRejectsInvalidAssets()",
+      "result": "Passed",
+      "durationInSeconds": 0.05086100101470947
+    },
+    {
+      "nodeIdentifier": "MusicStandUITests/testDrawingToolsSaveAndColdRelaunch()",
+      "result": "Passed",
+      "durationInSeconds": 27.346206068992615
+    },
+    {
+      "nodeIdentifier": "MusicStandUITests/testReadOnlyTeamLayerUsesExactVersionAndPage()",
+      "result": "Failed"
+    },
+    {
+      "nodeIdentifier": "MusicStandUITests/testSelectedTransferCancelCommitUndoAndVersionPageIsolation()",
+      "result": "Failed",
+      "durationInSeconds": 53.229775071144104
+    }
+  ]
+}

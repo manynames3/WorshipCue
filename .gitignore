@@ -1,0 +1,32 @@
+.DS_Store
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.env
+.env.*
+!.env.example
+Secrets.xcconfig
+node_modules/
+__pycache__/
+*.pyc
+
+# Local environments, device output and signing material
+.venv/
+venv/
+*.xcresult/
+*.xcarchive/
+*.ipa
+*.app/
+*.mobileprovision
+*.p12
+*.p8
+*.cer
+*.key
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Keep detailed host logs local; commit curated summaries and synthetic screenshots.
+verification/*.log

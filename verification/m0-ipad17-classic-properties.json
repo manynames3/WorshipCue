@@ -1,0 +1,12 @@
+{
+  "native_exit": 1,
+  "returned_properties": {
+    "isPaired": true,
+    "humanReadableProductVersion": "17.7.11",
+    "bootedState": "Booted",
+    "isSupervised": false,
+    "pairingAllowed": true,
+    "passcodeProtected": false
+  },
+  "all_properties_succeeded": false
+}

@@ -1,0 +1,5 @@
+{
+  "exitCode": 0,
+  "command": "Scoped Xcode 27 devicectl launch com.worshipcue.spike on the connected iPad; terminate-existing",
+  "privateOutputLocation": "External DeveloperTools/Temporary"
+}

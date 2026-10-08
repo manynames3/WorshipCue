@@ -1,0 +1,17 @@
+{
+  "result": "Failed",
+  "totalTestCount": 1,
+  "passedTests": 0,
+  "failedTests": 1,
+  "skippedTests": 0,
+  "startTime": 1791419182.962,
+  "finishTime": 1791419207.067,
+  "command_exit": 65,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-ui-ink-visibility-red-20261007-202620.xcresult",
+  "failures": [
+    {
+      "testName": "testDrawingToolsSaveAndColdRelaunch()",
+      "failureText": "XCTAssertGreaterThan failed: (\"0\") is not greater than (\"169\") - Pen must render visibly on white PDF paper"
+    }
+  ]
+}

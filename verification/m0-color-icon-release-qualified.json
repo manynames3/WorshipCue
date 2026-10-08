@@ -1,0 +1,29 @@
+{
+  "command": [
+    "sh",
+    "scripts/with_external_xcode.sh",
+    "xcodebuild",
+    "-project",
+    "apps/ipad/WorshipCue.xcodeproj",
+    "-scheme",
+    "WorshipCue",
+    "-configuration",
+    "Release",
+    "-sdk",
+    "iphoneos",
+    "-destination",
+    "generic/platform=iOS",
+    "-derivedDataPath",
+    "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/DerivedData-Xcode27-iPad17",
+    "-clonedSourcePackagesDirPath",
+    "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/SourcePackages",
+    "CODE_SIGNING_ALLOWED=NO",
+    "build"
+  ],
+  "xcode": "27.0",
+  "sdk": "iphoneos27.0",
+  "exit": 0,
+  "minimum_iPadOS": "16.0",
+  "signing": false,
+  "tests_executed": 0
+}

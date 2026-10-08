@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "path": "fixtures/pdfs/corrupt_negative.pdf",
+      "bytes": 50,
+      "sha256": "01a4f4e08a9e6bcf60bb6a029a4d7d1d1569d8a957c1d41ce32602776df36604",
+      "should_parse": false
+    },
+    {
+      "path": "fixtures/pdfs/geometry_rotations.pdf",
+      "bytes": 184850,
+      "sha256": "dda2f79fec45742833a85ce1bc171be58c8631046dba3ef8b5391921e12801f7",
+      "should_parse": true,
+      "page_count": 4,
+      "pages": [
+        {
+          "schema_version": 1,
+          "crop_x": 20.0,
+          "crop_y": 28.0,
+          "crop_width": 572.0,
+          "crop_height": 740.0,
+          "rotation": 0
+        },
+        {
+          "schema_version": 1,
+          "crop_x": 20.0,
+          "crop_y": 28.0,
+          "crop_width": 572.0,
+          "crop_height": 740.0,
+          "rotation": 90
+        },
+        {
+          "schema_version": 1,
+          "crop_x": 20.0,
+          "crop_y": 28.0,
+          "crop_width": 572.0,
+          "crop_height": 740.0,
+          "rotation": 180
+        },
+        {
+          "schema_version": 1,
+          "crop_x": 20.0,
+          "crop_y": 28.0,
+          "crop_width": 572.0,
+          "crop_height": 740.0,
+          "rotation": 270
+        }
+      ]
+    },
+    {
+      "path": "fixtures/pdfs/song_A_v1_G.pdf",
+      "bytes": 48481,
+      "sha256": "4022219a58a2fa79f09fe8bf3b44fff3eee36e513db1450d0cc6b0964016b759",
+      "should_parse": true,
+      "page_count": 2,
+      "pages": [
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        },
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        }
+      ]
+    },
+    {
+      "path": "fixtures/pdfs/song_A_v2_G.pdf",
+      "bytes": 49658,
+      "sha256": "adef2f95498a7c33fa6d610c11a136b45d752c7350b12fddbd5d458e86ab428c",
+      "should_parse": true,
+      "page_count": 3,
+      "pages": [
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        },
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        },
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        }
+      ]
+    },
+    {
+      "path": "fixtures/pdfs/song_A_v3_A.pdf",
+      "bytes": 49290,
+      "sha256": "5be42d897e325e65d47ac95d8165efc88b0e9cdcc77192a4223f94bd2445de36",
+      "should_parse": true,
+      "page_count": 2,
+      "pages": [
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        },
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        }
+      ]
+    },
+    {
+      "path": "fixtures/pdfs/song_B_v1_D.pdf",
+      "bytes": 48472,
+      "sha256": "710b1da81f1c2e1206b498011201dfe408b43e74de52631f92e32133a8a014e3",
+      "should_parse": true,
+      "page_count": 2,
+      "pages": [
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        },
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        }
+      ]
+    },
+    {
+      "path": "fixtures/pdfs/weekly_packet.pdf",
+      "bytes": 133389,
+      "sha256": "84806224aa8be7765f3e08f247feaceb892435d9eb5f25df0bfaadbc2c14e924",
+      "should_parse": true,
+      "page_count": 5,
+      "pages": [
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        },
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        },
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        },
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        },
+        {
+          "schema_version": 1,
+          "crop_x": 0.0,
+          "crop_y": 0.0,
+          "crop_width": 612.0,
+          "crop_height": 792.0,
+          "rotation": 0
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "exit": 0,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-color-black-pen-qualified-20261007-220645.xcresult",
+  "scheme": "WorshipCueUI",
+  "test_filters": [
+    "-only-testing:WorshipCueUITests/MusicStandUITests/testDrawingToolsSaveAndColdRelaunch",
+    "-collect-test-diagnostics",
+    "never",
+    "-test-timeouts-enabled",
+    "YES",
+    "-maximum-test-execution-time-allowance",
+    "90"
+  ]
+}

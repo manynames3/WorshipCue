@@ -1,0 +1,9 @@
+{
+  "exit": 75,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-ui-drawing-transfer-final-20261007-212224.xcresult",
+  "scheme": "WorshipCueUI",
+  "test_filters": [
+    "-only-testing:WorshipCueUITests/MusicStandUITests/testDrawingToolsSaveAndColdRelaunch",
+    "-only-testing:WorshipCueUITests/MusicStandUITests/testSelectedTransferCancelCommitUndoAndVersionPageIsolation"
+  ]
+}

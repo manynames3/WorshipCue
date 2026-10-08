@@ -1,0 +1,9 @@
+{
+  "exit": 0,
+  "bundle_id": "com.worshipcue.spike",
+  "launch_arguments": [],
+  "normal_workspace": true,
+  "build": "2",
+  "visual_inspection": "PASS: normal app reader visible with Build 2 color control; unrecorded USB preview only",
+  "private_handwriting_copied": false
+}

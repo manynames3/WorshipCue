@@ -1,0 +1,8 @@
+{
+  "profile_decode_exit": 0,
+  "signature_exit": 0,
+  "connected_ipad_in_profile": true,
+  "expiration_utc": "2026-10-14T22:45:20Z",
+  "bundle_identifier": "com.worshipcue.spike",
+  "minimum_os": "16.0"
+}

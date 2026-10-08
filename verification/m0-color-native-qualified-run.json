@@ -1,0 +1,10 @@
+{
+  "exit": -15,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-color-native-qualified-20261007-215639.xcresult",
+  "scheme": "WorshipCue",
+  "test_filters": [
+    "-only-testing:WorshipCueTests",
+    "-collect-test-diagnostics",
+    "never"
+  ]
+}

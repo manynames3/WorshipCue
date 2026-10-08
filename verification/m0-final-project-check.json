@@ -1,0 +1,9 @@
+{
+  "private_signing_configs_removed": 6,
+  "project_matches_pre_signing_backup": true,
+  "initial_generator_compare": "GUI-edited scheme bytes differed; first check failed; regenerated task-owned schemes now reproducible",
+  "project_and_both_schemes_generator_byte_match": true,
+  "structure_check_exit": 0,
+  "shell_syntax_exit": 0,
+  "tested_swift_sources_unchanged": true
+}

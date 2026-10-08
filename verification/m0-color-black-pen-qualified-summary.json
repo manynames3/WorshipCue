@@ -1,0 +1,27 @@
+{
+  "result": "Passed",
+  "totalTestCount": 1,
+  "passedTests": 1,
+  "failedTests": 0,
+  "skippedTests": 0,
+  "startTime": 1791425206.697,
+  "finishTime": 1791425371.438,
+  "xcodebuild_exit": 0,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-color-black-pen-qualified-20261007-220645.xcresult",
+  "test_filters": [
+    "-only-testing:WorshipCueUITests/MusicStandUITests/testDrawingToolsSaveAndColdRelaunch",
+    "-collect-test-diagnostics",
+    "never",
+    "-test-timeouts-enabled",
+    "YES",
+    "-maximum-test-execution-time-allowance",
+    "90"
+  ],
+  "cases": [
+    {
+      "nodeIdentifier": "MusicStandUITests/testDrawingToolsSaveAndColdRelaunch()",
+      "result": "Passed",
+      "durationInSeconds": 32.200263023376465
+    }
+  ]
+}

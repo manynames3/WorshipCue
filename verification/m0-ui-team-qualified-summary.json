@@ -1,0 +1,21 @@
+{
+  "result": "Passed",
+  "totalTestCount": 1,
+  "passedTests": 1,
+  "failedTests": 0,
+  "skippedTests": 0,
+  "startTime": 1791421535.632,
+  "finishTime": 1791421705.768,
+  "xcodebuild_exit": 0,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-ui-team-qualified-20261007-210533.xcresult",
+  "test_filters": [
+    "-only-testing:WorshipCueUITests/MusicStandUITests/testReadOnlyTeamLayerUsesExactVersionAndPage"
+  ],
+  "cases": [
+    {
+      "nodeIdentifier": "MusicStandUITests/testReadOnlyTeamLayerUsesExactVersionAndPage()",
+      "result": "Passed",
+      "durationInSeconds": 38.89580500125885
+    }
+  ]
+}

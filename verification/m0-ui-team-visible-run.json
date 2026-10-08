@@ -1,0 +1,8 @@
+{
+  "exit": 65,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-ui-team-visible-20261007-201254.xcresult",
+  "scheme": "WorshipCueUI",
+  "test_filters": [
+    "-only-testing:WorshipCueUITests/MusicStandUITests/testReadOnlyTeamLayerUsesExactVersionAndPage"
+  ]
+}

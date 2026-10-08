@@ -1,0 +1,13 @@
+resource_action,anonymous_no_grant,scoped_guest,member,leader,admin,condition
+read_assigned_setlist,DENY,ALLOW,ALLOW,ALLOW,ALLOW,active scope within same tenant/team
+read_whole_church_library,DENY,DENY,ALLOW,ALLOW,ALLOW,active membership in permitted church library
+read_personal_ink_other_user,DENY,DENY,DENY,DENY,DENY,all application roles denied
+read_own_personal_ink_cloud,DENY,DENY,ALLOW,ALLOW,ALLOW,owner only; guest notes local-only in pilot
+write_own_personal_ink,DENY,LOCAL_ONLY,ALLOW,ALLOW,ALLOW,exact owner/version; CAS for cloud
+write_team_ink,DENY,DENY,DENY,CONDITIONAL,CONDITIONAL,active editor lease + device + epoch
+publish_live_call,DENY,DENY,DENY,CONDITIONAL,CONDITIONAL,active controller lease and atomic sequence
+change_other_musician_page,DENY,DENY,DENY,DENY,DENY,no such protocol/action
+read_other_tenant_file,DENY,DENY,DENY,DENY,DENY,explicit independent membership required
+manage_membership,DENY,DENY,DENY,DENY,ALLOW,no user-controlled role elevation
+publish_chart_version,DENY,DENY,DENY,ALLOW,ALLOW,verified asset and matching tenant/song
+read_expired_guest_scope,DENY,DENY,DENY,DENY,DENY,online authorization revoked; offline copy caveat disclosed

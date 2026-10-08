@@ -1,0 +1,15 @@
+{
+  "xcode": "26.6",
+  "sdk": "iphoneos26.5",
+  "minimum": "16.0",
+  "targets": {
+    "WorshipCueTests": {
+      "exit": 0,
+      "native_tests_executed_on_ipados16": 0
+    },
+    "WorshipCueUITests": {
+      "exit": 0,
+      "native_tests_executed_on_ipados16": 0
+    }
+  }
+}

@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorshipCue immutable annotation revision, v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "revision_id",
+    "layer_id",
+    "church_id",
+    "chart_version_id",
+    "page_index",
+    "scope",
+    "owner_user_id",
+    "performance_item_id",
+    "revision_number",
+    "parent_revision",
+    "command_id",
+    "native_format",
+    "native_asset_id",
+    "native_sha256",
+    "native_bytes",
+    "preview_asset_id",
+    "preview_sha256",
+    "geometry"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "revision_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "layer_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "church_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "chart_version_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "page_index": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "scope": {
+      "enum": [
+        "personal",
+        "team"
+      ]
+    },
+    "owner_user_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid"
+    },
+    "performance_item_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid"
+    },
+    "revision_number": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "parent_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "command_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "native_format": {
+      "const": "pencilkit"
+    },
+    "native_asset_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "native_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "native_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2097152
+    },
+    "preview_asset_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "preview_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "crop_x",
+        "crop_y",
+        "crop_width",
+        "crop_height",
+        "rotation"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "crop_x": {
+          "type": "number"
+        },
+        "crop_y": {
+          "type": "number"
+        },
+        "crop_width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "crop_height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "rotation": {
+          "enum": [
+            0,
+            90,
+            180,
+            270
+          ]
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "scope": {
+          "const": "personal"
+        },
+        "owner_user_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "performance_item_id": {
+          "type": "null"
+        }
+      }
+    },
+    {
+      "properties": {
+        "scope": {
+          "const": "team"
+        },
+        "owner_user_id": {
+          "type": "null"
+        },
+        "performance_item_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    }
+  ]
+}

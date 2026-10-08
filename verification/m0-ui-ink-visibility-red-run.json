@@ -1,0 +1,8 @@
+{
+  "exit": 65,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-ui-ink-visibility-red-20261007-202620.xcresult",
+  "scheme": "WorshipCueUI",
+  "test_filters": [
+    "-only-testing:WorshipCueUITests/MusicStandUITests/testDrawingToolsSaveAndColdRelaunch"
+  ]
+}

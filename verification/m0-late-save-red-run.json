@@ -1,0 +1,8 @@
+{
+  "exit": 0,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-late-save-red-20261007-202938.xcresult",
+  "scheme": "WorshipCue",
+  "test_filters": [
+    "-only-testing:WorshipCueTests/NativeInkTests/testLateDrawingCallbackAfterPenUpIsAutomaticallyCommitted"
+  ]
+}

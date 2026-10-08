@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "status": "Implementation contract; Supabase functions are NOT implemented in this handoff.",
+  "transport": "Supabase RPC for transactions; bounded Edge Functions for invitation/asset/account workflows; authenticated SDK+RLS for reads.",
+  "operations": [
+    {
+      "name": "create_church_and_default_team",
+      "inputs": [
+        "display_name",
+        "timezone"
+      ],
+      "authorization": "non-guest authenticated user",
+      "result": "church/team/admin membership receipt"
+    },
+    {
+      "name": "redeem_invitation",
+      "inputs": [
+        "token",
+        "display_name"
+      ],
+      "authorization": "authenticated identity or managed guest",
+      "result": "scoped membership/grant receipt"
+    },
+    {
+      "name": "finalize_asset",
+      "inputs": [
+        "asset_id",
+        "sha256",
+        "expected_bytes"
+      ],
+      "authorization": "asset uploader",
+      "result": "verified asset receipt after bounded server validation"
+    },
+    {
+      "name": "publish_chart_version",
+      "inputs": [
+        "command_id",
+        "song_id",
+        "verified_pdf_asset_id",
+        "written_key",
+        "label",
+        "page_manifest"
+      ],
+      "authorization": "leader/admin",
+      "result": "immutable chart version"
+    },
+    {
+      "name": "save_setlist",
+      "inputs": [
+        "setlist_id",
+        "base_revision",
+        "command_id",
+        "items"
+      ],
+      "authorization": "leader/admin",
+      "result": "new revision"
+    },
+    {
+      "name": "acquire_editor",
+      "inputs": [
+        "setlist_id",
+        "device_id",
+        "expected_epoch",
+        "explicit_takeover"
+      ],
+      "authorization": "leader/admin",
+      "result": "controller epoch + expiry"
+    },
+    {
+      "name": "renew_editor",
+      "inputs": [
+        "setlist_id",
+        "device_id",
+        "epoch"
+      ],
+      "authorization": "current controller",
+      "result": "expiry"
+    },
+    {
+      "name": "release_editor",
+      "inputs": [
+        "setlist_id",
+        "device_id",
+        "epoch"
+      ],
+      "authorization": "current controller",
+      "result": "released state"
+    },
+    {
+      "name": "start_session",
+      "inputs": [
+        "setlist_id",
+        "command_id",
+        "device_id",
+        "epoch"
+      ],
+      "authorization": "current controller",
+      "result": "session snapshot"
+    },
+    {
+      "name": "publish_call",
+      "inputs": [
+        "session_id",
+        "command_id",
+        "device_id",
+        "expected_controller_epoch",
+        "expected_latest_sequence",
+        "performance_item_id",
+        "song_id",
+        "team_chart_version_id",
+        "performance_key",
+        "ad_hoc_draft_optional"
+      ],
+      "authorization": "current controller",
+      "result": "deduped immutable call receipt + current latest head"
+    },
+    {
+      "name": "get_session_snapshot",
+      "inputs": [
+        "session_id"
+      ],
+      "authorization": "authorized member or scoped guest",
+      "result": "session status, latest call, controller epoch, relevant annotation heads"
+    },
+    {
+      "name": "acknowledge_open",
+      "inputs": [
+        "session_id",
+        "call_id",
+        "device_id",
+        "selected_chart_version_id"
+      ],
+      "authorization": "participant itself",
+      "result": "historical/current opened receipt; never moves latest pointer"
+    },
+    {
+      "name": "save_annotation_revision",
+      "inputs": [
+        "layer_identity",
+        "command_id",
+        "parent_revision",
+        "native_asset_id",
+        "preview_asset_id",
+        "geometry",
+        "device_id",
+        "controller_epoch_if_team"
+      ],
+      "authorization": "personal owner OR active shared editor",
+      "result": "revision/head or explicit conflict"
+    },
+    {
+      "name": "get_annotation_head",
+      "inputs": [
+        "layer_id"
+      ],
+      "authorization": "personal owner or authorized team reader",
+      "result": "current authorized revision metadata"
+    },
+    {
+      "name": "end_session",
+      "inputs": [
+        "session_id",
+        "command_id",
+        "device_id",
+        "epoch"
+      ],
+      "authorization": "active controller/admin",
+      "result": "ended state"
+    },
+    {
+      "name": "export_account",
+      "inputs": [],
+      "authorization": "account owner",
+      "result": "authorized export job"
+    },
+    {
+      "name": "delete_account",
+      "inputs": [
+        "confirmation_nonce"
+      ],
+      "authorization": "account owner",
+      "result": "deletion/retention workflow receipt"
+    }
+  ]
+}

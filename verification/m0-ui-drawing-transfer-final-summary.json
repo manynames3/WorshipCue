@@ -1,0 +1,41 @@
+{
+  "result": "Failed",
+  "totalTestCount": 3,
+  "passedTests": 1,
+  "failedTests": 2,
+  "skippedTests": 0,
+  "startTime": 1791422546.384,
+  "finishTime": 1791423203.624,
+  "xcodebuild_exit": 75,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-ui-drawing-transfer-final-20261007-212224.xcresult",
+  "test_filters": [
+    "-only-testing:WorshipCueUITests/MusicStandUITests/testDrawingToolsSaveAndColdRelaunch",
+    "-only-testing:WorshipCueUITests/MusicStandUITests/testSelectedTransferCancelCommitUndoAndVersionPageIsolation"
+  ],
+  "cases": [
+    {
+      "nodeIdentifier": "MusicStandUITests/testDrawingToolsSaveAndColdRelaunch()",
+      "result": "Passed",
+      "durationInSeconds": 31.587443947792053
+    },
+    {
+      "nodeIdentifier": "MusicStandUITests/testSelectedTransferCancelCommitUndoAndVersionPageIsolation()",
+      "result": "Failed"
+    },
+    {
+      "nodeIdentifier": "WorshipCueUITests-Runner (658) encountered an error",
+      "result": "Failed"
+    }
+  ],
+  "interrupted_by_agent_after_stalled_transfer_setup": true,
+  "failures": [
+    {
+      "failureText": "Lost connection to testmanagerd",
+      "testName": "testSelectedTransferCancelCommitUndoAndVersionPageIsolation()"
+    },
+    {
+      "failureText": "Testing was canceled",
+      "testName": "WorshipCueUITests-Runner (658) encountered an error"
+    }
+  ]
+}

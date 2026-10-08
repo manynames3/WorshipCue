@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "chart_version_id": "188323aa-95d3-5123-a471-8c8987c3cab2",
+  "church_id": "ed7bff9f-7e6e-5bbd-94f6-7b5805442a34",
+  "song_id": "7fd76e36-7050-5526-9ed5-f49ba5dcf951",
+  "version_number": 2,
+  "label": "테스트 재배치 버전",
+  "written_key": "G",
+  "pdf_asset_id": "623eae4c-2d7f-5b63-9b3d-4b08c2d19273",
+  "pdf_sha256": "adef2f95498a7c33fa6d610c11a136b45d752c7350b12fddbd5d458e86ab428c",
+  "pdf_bytes": 49658,
+  "page_count": 3,
+  "pages": [
+    {
+      "schema_version": 1,
+      "crop_x": 0.0,
+      "crop_y": 0.0,
+      "crop_width": 612.0,
+      "crop_height": 792.0,
+      "rotation": 0
+    },
+    {
+      "schema_version": 1,
+      "crop_x": 0.0,
+      "crop_y": 0.0,
+      "crop_width": 612.0,
+      "crop_height": 792.0,
+      "rotation": 0
+    },
+    {
+      "schema_version": 1,
+      "crop_x": 0.0,
+      "crop_y": 0.0,
+      "crop_width": 612.0,
+      "crop_height": 792.0,
+      "rotation": 0
+    }
+  ]
+}

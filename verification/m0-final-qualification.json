@@ -1,0 +1,120 @@
+{
+  "date": "2026-10-07",
+  "scope": "M0 implemented; partial device qualification; not pilot-ready",
+  "device": {
+    "model": "iPad (6th generation)",
+    "product": "iPad7,5",
+    "ipados": "17.7.11"
+  },
+  "hosted": {
+    "result": "Passed",
+    "totalTestCount": 13,
+    "passedTests": 13,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "startTime": 1791419527.43,
+    "finishTime": 1791419534.638,
+    "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-device-20261007-203203/native.xcresult",
+    "xcodebuild_exit": 0
+  },
+  "ui": {
+    "drawing": {
+      "result": "Passed",
+      "totalTestCount": 1,
+      "passedTests": 1,
+      "failedTests": 0,
+      "skippedTests": 0,
+      "startTime": 1791419536.017,
+      "finishTime": 1791419687.869,
+      "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-device-20261007-203203/drawing.xcresult",
+      "xcodebuild_exit": 0
+    },
+    "team": {
+      "result": "Passed",
+      "totalTestCount": 1,
+      "passedTests": 1,
+      "failedTests": 0,
+      "skippedTests": 0,
+      "startTime": 1791421535.632,
+      "finishTime": 1791421705.768,
+      "xcodebuild_exit": 0,
+      "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-ui-team-qualified-20261007-210533.xcresult",
+      "test_filters": [
+        "-only-testing:WorshipCueUITests/MusicStandUITests/testReadOnlyTeamLayerUsesExactVersionAndPage"
+      ],
+      "cases": [
+        {
+          "nodeIdentifier": "MusicStandUITests/testReadOnlyTeamLayerUsesExactVersionAndPage()",
+          "result": "Passed",
+          "durationInSeconds": 38.89580500125885
+        }
+      ]
+    },
+    "transfer": "Earlier functional UI workflow passed; final corrected visibility recheck not qualified because runner connection failed; current black preview visually inspected"
+  },
+  "latest_distinct_passed_cases": 15,
+  "latest_hosted_passed": 13,
+  "latest_independently_qualified_ui_workflows": 2,
+  "all_current_ui_cases_passed": false,
+  "single_invocation_all_tests_passed": false,
+  "failed_transfer_rechecks": [
+    "m0-ui-transfer-qualified-summary.json",
+    "m0-ui-transfer-retry-summary.json"
+  ],
+  "interrupted_grouped_run": "m0-ui-drawing-transfer-final-summary.json",
+  "reference": {
+    "swift_tests_passed": 55,
+    "specification_tests_passed": 32,
+    "storage_groups_passed": 9,
+    "macos_framework_groups_passed": 4,
+    "command_exits": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "xcode26_compile": {
+    "app_hosted_ui_release_exit": 0,
+    "latest_ui_source_exit": 0,
+    "minimum_os": "16.0",
+    "device_tests_executed_on_16": 0
+  },
+  "normal_workspace_launch": {
+    "exit": 0,
+    "bundle": "com.worshipcue.spike",
+    "test_launch_arguments": false,
+    "previous_owned_process_inventory_exit": 0,
+    "owned_test_runner_active_before_launch": false,
+    "final_visual_verification": false,
+    "visual_verification_blocker": "Computer-use tool reports Mac locked; user must unlock Mac directly",
+    "normal_workspace_data_reset": false
+  },
+  "project_check": {
+    "private_signing_configs_removed": 6,
+    "project_matches_pre_signing_backup": true,
+    "initial_generator_compare": "GUI-edited scheme bytes differed; first check failed; regenerated task-owned schemes now reproducible",
+    "project_and_both_schemes_generator_byte_match": true,
+    "structure_check_exit": 0,
+    "shell_syntax_exit": 0,
+    "tested_swift_sources_unchanged": true
+  },
+  "paid_enrollment": false,
+  "physical_not_verified": [
+    "original iPad6,7 /16.7.16 installation/runtime",
+    "Apple Pencil/palm/pressure and physical selection",
+    "airplane-mode force-kill and interrupted-save recovery",
+    "whole-device full disk",
+    "live Files provider UI",
+    "rotation while writing",
+    "two-hour thermal/memory soak and latency",
+    "multi-iPad behavior"
+  ],
+  "mac_gui_blocker": "Mac locked; manual unlock requested",
+  "system_tool_selection": {
+    "current": "/Library/Developer/CommandLineTools",
+    "scoped_xcode": "External Xcode27",
+    "administrator_authentication_required_for_switch": true,
+    "switch_performed": false
+  }
+}

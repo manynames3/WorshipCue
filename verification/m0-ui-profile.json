@@ -1,0 +1,17 @@
+{
+  "bundle": "com.worshipcue.spike.uitests.xctrunner",
+  "connected_ipad_in_profile": true,
+  "expiration_utc": "2026-10-14T23:44:11Z",
+  "profile_decode_exit": 0,
+  "paid_enrollment": false,
+  "runner_installed_and_launched": true,
+  "ui_test_cases_executed": 3,
+  "ui_test_blocker": "Intermittent testmanagerd connection failure; administrator-only command-line selection correction pending",
+  "ui_automation_user_approved": true,
+  "ui_test_cases_passed": 2,
+  "current_case_results": "Current drawing and team workflows pass independently; transfer recheck lost automation connection during setup; earlier functional transfer workflow passed",
+  "combined_ui_runner_issue": "Lost connection to testmanagerd between cases; unresolved, cases qualified in independent sessions",
+  "team_test_result_bundle": "DeveloperTools/WorshipCue/Results/M0-ui-team-qualified-20261007-210533.xcresult",
+  "ui_test_cases_failed": 1,
+  "current_ui_gate_complete": false
+}

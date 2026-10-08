@@ -1,0 +1,11 @@
+{
+  "result": "Failed",
+  "totalTestCount": 13,
+  "passedTests": 12,
+  "failedTests": 1,
+  "skippedTests": 0,
+  "expectedFailures": 0,
+  "startTime": 1791416649.664,
+  "finishTime": 1791416755.531,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/Xcode/DerivedData/WorshipCue-apoaestjuammghgfjfdhjustbvkb/Logs/Test/Test-WorshipCueUI-2026.10.07_19-44-09--0400.xcresult"
+}

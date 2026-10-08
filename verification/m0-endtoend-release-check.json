@@ -1,0 +1,9 @@
+{
+  "build_exit": 0,
+  "configuration": "Release",
+  "sdk": "iphoneos26.5",
+  "signing": false,
+  "minimum_os": "16.0",
+  "strings_command_exit": 0,
+  "debug_ui_test_launch_flag_present": false
+}

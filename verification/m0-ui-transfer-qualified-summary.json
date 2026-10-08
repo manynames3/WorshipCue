@@ -1,0 +1,23 @@
+{
+  "result": "Failed",
+  "totalTestCount": 1,
+  "passedTests": 0,
+  "failedTests": 1,
+  "skippedTests": 0,
+  "startTime": 1791420820.962,
+  "finishTime": 1791421529.268,
+  "xcodebuild_exit": 65,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-ui-transfer-qualified-20261007-205335.xcresult",
+  "test_filters": [
+    "-only-testing:WorshipCueUITests/MusicStandUITests/testSelectedTransferCancelCommitUndoAndVersionPageIsolation"
+  ],
+  "cases": [
+    {
+      "nodeIdentifier": "WorshipCueUITests-Runner (621) encountered an error",
+      "result": "Failed"
+    }
+  ],
+  "workflow_assertions_executed": false,
+  "runner_failure": "The test runner hung before establishing connection",
+  "secondary_diagnostic_failure": "Device diagnostic collection exited72 because its xcrun could not find devicectl"
+}

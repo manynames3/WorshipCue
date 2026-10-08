@@ -1,0 +1,25 @@
+{
+  "result": "Failed",
+  "totalTestCount": 15,
+  "passedTests": 12,
+  "failedTests": 3,
+  "skippedTests": 0,
+  "expectedFailures": 0,
+  "startTime": 1791417716.269,
+  "finishTime": 1791417966.538,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/Xcode/DerivedData/WorshipCue-apoaestjuammghgfjfdhjustbvkb/Logs/Test/Test-WorshipCueUI-2026.10.07_20-01-56--0400.xcresult",
+  "failures": [
+    {
+      "testName": "testDrawingToolsSaveAndColdRelaunch()",
+      "failureText": "XCTAssertTrue failed"
+    },
+    {
+      "testName": "testReadOnlyTeamLayerUsesExactVersionAndPage()",
+      "failureText": "Lost connection to testmanagerd"
+    },
+    {
+      "testName": "testSelectedTransferCancelCommitUndoAndVersionPageIsolation()",
+      "failureText": "XCTAssertTrue failed"
+    }
+  ]
+}

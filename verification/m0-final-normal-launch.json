@@ -1,0 +1,10 @@
+{
+  "exit": 0,
+  "bundle": "com.worshipcue.spike",
+  "test_launch_arguments": false,
+  "previous_owned_process_inventory_exit": 0,
+  "owned_test_runner_active_before_launch": false,
+  "final_visual_verification": false,
+  "visual_verification_blocker": "Computer-use tool reports Mac locked; user must unlock Mac directly",
+  "normal_workspace_data_reset": false
+}

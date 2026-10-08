@@ -1,0 +1,17 @@
+{
+  "result": "Failed",
+  "totalTestCount": 1,
+  "passedTests": 0,
+  "failedTests": 1,
+  "skippedTests": 0,
+  "startTime": 1791418376.135,
+  "finishTime": 1791418400.058,
+  "command_exit": 65,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-ui-team-visible-20261007-201254.xcresult",
+  "failures": [
+    {
+      "testName": "testReadOnlyTeamLayerUsesExactVersionAndPage()",
+      "failureText": "Failed to determine hittability of \"tool.pen\" Button: Activation point invalid and no suggested hit points based on element frame"
+    }
+  ]
+}

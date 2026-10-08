@@ -1,0 +1,29 @@
+{
+  "command": [
+    "sh",
+    "scripts/with_external_xcode.sh",
+    "xcodebuild",
+    "-project",
+    "apps/ipad/WorshipCue.xcodeproj",
+    "-scheme",
+    "WorshipCueUI",
+    "-sdk",
+    "iphoneos",
+    "-destination",
+    "generic/platform=iOS",
+    "-derivedDataPath",
+    "../DeveloperTools/WorshipCue/DerivedData-Xcode26",
+    "-clonedSourcePackagesDirPath",
+    "../DeveloperTools/WorshipCue/SourcePackages",
+    "CODE_SIGNING_ALLOWED=NO",
+    "build-for-testing"
+  ],
+  "xcode": "26.6",
+  "sdk": "iphoneos26.5",
+  "exit": 70,
+  "minimum_iPadOS": "16.0",
+  "native_test_cases_compiled": 0,
+  "ui_test_cases_compiled": 0,
+  "tests_executed": 0,
+  "blocker": "Generic iOS destination rejected: 26.5 platform not installed; SDK-only retry required."
+}

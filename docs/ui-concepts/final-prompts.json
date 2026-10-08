@@ -1,0 +1,13 @@
+{
+  "mode": "built-in image_gen",
+  "finalEditingPrompts": [
+    {
+      "path": "/Users/aiden/.codex/generated_images/01a11705-06ca-78e1-adc4-fbbf7ba87e31/exec-7c47b128-25cd-41c1-895a-96a33ddea000.png",
+      "prompt": "Edit only one small status icon in this high-end WorshipCue native iPad concept. In the top header, immediately before the exact Korean label '기기에 저장됨', replace the cloud outline icon with a small native device/tablet outline containing a checkmark, in the same dark blue stroke style and size. It must clearly mean saved locally on this iPad, with no cloud-sync implication. Preserve all other typography, labels, screen layout, sheet notation, handwritten ink, colors, tablet framing, current v1 chart and pending tap-to-open song announcement exactly. Keep the bottom concept caption. No other changes."
+    },
+    {
+      "path": "/Users/aiden/.codex/generated_images/01a11705-06ca-78e1-adc4-fbbf7ba87e31/exec-3674078e-b8fc-4745-bcf2-094c0c0d6c3c.png",
+      "prompt": "Make two precise corrections to this high-end WorshipCue native iPad version/note-transfer concept, preserving the rest of the image exactly. First, in the lower right panel remove the checkbox preceding '원본 메모 유지'. Replace it with a simple small fixed lock icon or plain static info icon, and keep the Korean label and explanatory text. Source-version personal notes are ALWAYS preserved; this is a permanent informational rule and must not look like an optional toggle. Second, in the versions list change only the v3 written-key label from 'v3 · G' to 'v3 · A'. Do not change the currently displayed v2 · G sheet, current chart, note preview, manual drag handles, undo, Cancel or Confirm buttons, framing or colors. No automatic note migration/merging, no claim of transposed sheet music. Preserve the outside caption marking this as a concept."
+    }
+  ]
+}

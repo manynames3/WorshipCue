@@ -1,0 +1,720 @@
+{
+  "sourceLanguage": "ko",
+  "strings": {
+    "": {},
+    "%lld / %lld": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "Apple Pencil": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Pencil"
+          }
+        }
+      }
+    },
+    "Apple Pencil로 필기 · 손가락으로 악보 이동·확대": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Pencil로 필기 · 손가락으로 악보 이동·확대"
+          }
+        }
+      }
+    },
+    "PDF를 가져오지 못했어요. 현재 악보는 유지됩니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF를 가져오지 못했어요. 현재 악보는 유지됩니다."
+          }
+        }
+      }
+    },
+    "WorshipCue · M0": {},
+    "개인 메모 · Apple Pencil": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인 메모 · Apple Pencil"
+          }
+        }
+      }
+    },
+    "개인 메모 %lld획": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인 메모 %lld획"
+          }
+        }
+      }
+    },
+    "개인 메모 캔버스": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인 메모 캔버스"
+          }
+        }
+      }
+    },
+    "기기에 저장됨": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기에 저장됨"
+          }
+        }
+      }
+    },
+    "기기에 저장하지 못했어요. 남은 저장 공간을 확인해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기에 저장하지 못했어요. 남은 저장 공간을 확인해 주세요."
+          }
+        }
+      }
+    },
+    "기기에 저장하지 못했어요. 메모를 유지하고 다시 시도합니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기에 저장하지 못했어요. 메모를 유지하고 다시 시도합니다."
+          }
+        }
+      }
+    },
+    "다시 실행": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다시 실행"
+          }
+        }
+      }
+    },
+    "다음": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다음"
+          }
+        }
+      }
+    },
+    "닫기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "닫기"
+          }
+        }
+      }
+    },
+    "메모 복원 확인 필요": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메모 복원 확인 필요"
+          }
+        }
+      }
+    },
+    "메모 붙여넣기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메모 붙여넣기"
+          }
+        }
+      }
+    },
+    "메모 선택": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메모 선택"
+          }
+        }
+      }
+    },
+    "메모 선택 또는 붙여넣기 위치 이동": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메모 선택 또는 붙여넣기 위치 이동"
+          }
+        }
+      }
+    },
+    "메모를 복원하지 못했어요. 이 페이지의 필기는 잠시 멈춥니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메모를 복원하지 못했어요. 이 페이지의 필기는 잠시 멈춥니다."
+          }
+        }
+      }
+    },
+    "메모를 저장하지 못했어요. 저장 후 페이지를 이동해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메모를 저장하지 못했어요. 저장 후 페이지를 이동해 주세요."
+          }
+        }
+      }
+    },
+    "미리보기를 드래그해 위치를 정해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미리보기를 드래그해 위치를 정해 주세요."
+          }
+        }
+      }
+    },
+    "붙여넣기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "붙여넣기"
+          }
+        }
+      }
+    },
+    "붙여넣기 확정": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "붙여넣기 확정"
+          }
+        }
+      }
+    },
+    "사각형으로 개인 메모를 선택해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사각형으로 개인 메모를 선택해 주세요."
+          }
+        }
+      }
+    },
+    "선택 복사 (%lld)": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택 복사 (%lld)"
+          }
+        }
+      }
+    },
+    "선택됨": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택됨"
+          }
+        }
+      }
+    },
+    "손가락 필기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "손가락 필기"
+          }
+        }
+      }
+    },
+    "손가락 필기 테스트": {
+      "extractionState": "stale",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "손가락 필기 테스트"
+          }
+        }
+      }
+    },
+    "손가락으로 필기합니다. 악보를 이동·확대하려면 Apple Pencil 모드로 전환하세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "손가락으로 필기합니다. 악보를 이동·확대하려면 Apple Pencil 모드로 전환하세요."
+          }
+        }
+      }
+    },
+    "실행 취소": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실행 취소"
+          }
+        }
+      }
+    },
+    "악보 · 페이지는 이 기기에서만 이동": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "악보 · 페이지는 이 기기에서만 이동"
+          }
+        }
+      }
+    },
+    "악보 선택": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "악보 선택"
+          }
+        }
+      }
+    },
+    "악보 준비 중…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "악보 준비 중…"
+          }
+        }
+      }
+    },
+    "악보를 열지 못했어요. 현재 악보와 메모는 유지됩니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "악보를 열지 못했어요. 현재 악보와 메모는 유지됩니다."
+          }
+        }
+      }
+    },
+    "악보를 준비하지 못했어요. 저장된 파일은 유지됩니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "악보를 준비하지 못했어요. 저장된 파일은 유지됩니다."
+          }
+        }
+      }
+    },
+    "이전": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이전"
+          }
+        }
+      }
+    },
+    "일부 예시 파일을 열지 못했어요. 다른 저장된 악보를 선택할 수 있습니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "일부 예시 파일을 열지 못했어요. 다른 저장된 악보를 선택할 수 있습니다."
+          }
+        }
+      }
+    },
+    "저장 다시 시도": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장 다시 시도"
+          }
+        }
+      }
+    },
+    "저장 또는 복원 확인 필요": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장 또는 복원 확인 필요"
+          }
+        }
+      }
+    },
+    "저장 중…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장 중…"
+          }
+        }
+      }
+    },
+    "저장 확인": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장 확인"
+          }
+        }
+      }
+    },
+    "저장된 악보를 열지 못했어요. 악보 선택에서 다른 파일을 직접 선택해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장된 악보를 열지 못했어요. 악보 선택에서 다른 파일을 직접 선택해 주세요."
+          }
+        }
+      }
+    },
+    "축소": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "축소"
+          }
+        }
+      }
+    },
+    "취소": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "취소"
+          }
+        }
+      }
+    },
+    "테스트": {
+      "extractionState": "stale",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "테스트"
+          }
+        }
+      }
+    },
+    "팀 메모 읽기 전용 예시": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팀 메모 읽기 전용 예시"
+          }
+        }
+      }
+    },
+    "팀 예시 읽기 전용": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팀 예시 읽기 전용"
+          }
+        }
+      }
+    },
+    "팀 예시는 곡 A v2의 첫 페이지에만 표시됩니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팀 예시는 곡 A v2의 첫 페이지에만 표시됩니다."
+          }
+        }
+      }
+    },
+    "파일 선택을 완료하지 못했어요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일 선택을 완료하지 못했어요."
+          }
+        }
+      }
+    },
+    "파일에서 PDF 가져오기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일에서 PDF 가져오기"
+          }
+        }
+      }
+    },
+    "페이지 좌표를 확인하지 못했어요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페이지 좌표를 확인하지 못했어요."
+          }
+        }
+      }
+    },
+    "펜": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "펜"
+          }
+        }
+      }
+    },
+    "필기 입력": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "필기 입력"
+          }
+        }
+      }
+    },
+    "필기 중…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "필기 중…"
+          }
+        }
+      }
+    },
+    "필기를 마친 후 다시 이동해 주세요.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "필기를 마친 후 다시 이동해 주세요."
+          }
+        }
+      }
+    },
+    "현재 페이지 %lld, 전체 %lld": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재 페이지 %lld, 전체 %lld"
+          }
+        }
+      }
+    },
+    "형광펜": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "형광펜"
+          }
+        }
+      }
+    },
+    "확대": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확대"
+          }
+        }
+      }
+    },
+    "확인 필요": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인 필요"
+          }
+        }
+      }
+    },
+    "획 지우개": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "획 지우개"
+          }
+        }
+      }
+    },
+    "검정": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "검정"
+          }
+        }
+      }
+    },
+    "파랑": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파랑"
+          }
+        }
+      }
+    },
+    "빨강": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "빨강"
+          }
+        }
+      }
+    },
+    "초록": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초록"
+          }
+        }
+      }
+    },
+    "보라": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "보라"
+          }
+        }
+      }
+    },
+    "주황": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "주황"
+          }
+        }
+      }
+    },
+    "노랑": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "노랑"
+          }
+        }
+      }
+    },
+    "분홍": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "분홍"
+          }
+        }
+      }
+    },
+    "펜 색상": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "펜 색상"
+          }
+        }
+      }
+    },
+    "형광펜 색상": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "형광펜 색상"
+          }
+        }
+      }
+    },
+    "색상 선택 열기": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "색상 선택 열기"
+          }
+        }
+      }
+    },
+    "색상을 선택하면 닫힙니다.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "색상을 선택하면 닫힙니다."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

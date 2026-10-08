@@ -1,0 +1,31 @@
+{
+  "command": [
+    "sh",
+    "scripts/with_external_xcode.sh",
+    "xcodebuild",
+    "-project",
+    "apps/ipad/WorshipCue.xcodeproj",
+    "-target",
+    "WorshipCueUITests",
+    "-configuration",
+    "Debug",
+    "-sdk",
+    "iphoneos26.5",
+    "-parallelizeTargets",
+    "-clonedSourcePackagesDirPath",
+    "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/SourcePackages",
+    "SYMROOT=/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/DerivedData-Xcode26/Build/Products",
+    "OBJROOT=/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/DerivedData-Xcode26/Build/Intermediates.noindex",
+    "SDK_STAT_CACHE_DIR=/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/DerivedData-Xcode26",
+    "CODE_SIGNING_ALLOWED=NO",
+    "build"
+  ],
+  "xcode": "26.6",
+  "sdk": "iphoneos26.5",
+  "exit": 65,
+  "minimum_iPadOS": "16.0",
+  "test_sources_compiled": false,
+  "native_cases": 14,
+  "ui_cases": 4,
+  "tests_executed": 0
+}

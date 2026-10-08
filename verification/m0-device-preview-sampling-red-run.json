@@ -1,0 +1,9 @@
+{
+  "command": "sh scripts/test_ipad_device.sh",
+  "exit": 65,
+  "result_root": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-device-20261007-203203",
+  "xcode": "27.0",
+  "device_model": "iPad7,5",
+  "ipados": "17.7.11",
+  "ui_cases_in_independent_sessions": true
+}

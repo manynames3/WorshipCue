@@ -1,0 +1,12 @@
+{
+  "exit": 65,
+  "result_bundle": "/Volumes/CRUCIAL 525GB - Data/Projects/general dump/DeveloperTools/WorshipCue/Results/M0-final-all-20261007-201601.xcresult",
+  "scheme": "WorshipCueUI",
+  "test_filters": [
+    "-retry-tests-on-failure",
+    "-test-iterations",
+    "2",
+    "-test-repetition-relaunch-enabled",
+    "YES"
+  ]
+}

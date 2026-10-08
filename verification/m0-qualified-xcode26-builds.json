@@ -1,0 +1,30 @@
+{
+  "xcode": "26.6",
+  "sdk": "iphoneos26.5",
+  "device_tests_executed": 0,
+  "targets": {
+    "hosted": {
+      "target": "WorshipCueTests",
+      "configuration": "Debug",
+      "exit": 0,
+      "signing": false,
+      "minimum_os": "16.0"
+    },
+    "ui": {
+      "target": "WorshipCueUITests",
+      "configuration": "Debug",
+      "exit": 0,
+      "signing": false,
+      "minimum_os": "16.0"
+    },
+    "release": {
+      "target": "WorshipCue",
+      "configuration": "Release",
+      "exit": 0,
+      "signing": false,
+      "minimum_os": "16.0",
+      "strings_exit": 0,
+      "debug_test_launch_flag_present": false
+    }
+  }
+}

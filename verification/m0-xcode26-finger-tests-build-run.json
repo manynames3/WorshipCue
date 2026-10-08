@@ -1,0 +1,10 @@
+{
+  "exit": 0,
+  "started_utc": "2026-10-07T23:16:23.752103+00:00",
+  "finished_utc": "2026-10-07T23:16:34.873912+00:00",
+  "xcode": "26.6",
+  "sdk": "iphoneos26.5",
+  "target": "WorshipCueTests",
+  "signing": false,
+  "native_tests_executed": 0
+}

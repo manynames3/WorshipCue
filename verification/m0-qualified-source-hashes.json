@@ -1,0 +1,9 @@
+{
+  "apps/ipad/WorshipCue/DocumentVault.swift": "a6dde313cdbdcecd798bb313dc3b1fdf454b87722bfe937ef8fb97faccc407f1",
+  "apps/ipad/WorshipCue/InkClipboard.swift": "21022533487a9d2a9a021c113b3b63549ab0cbd6c31ad2b63d304e42129aa652",
+  "apps/ipad/WorshipCue/MusicStand.swift": "59ea1d90f1a541929920181a1f2254b55e2a10ec9a675f36eca343048cfc0034",
+  "apps/ipad/WorshipCue/PageInkView.swift": "88b710e39ed4bceed457aa590a04d24e13059380a879c0f2711dc908c7f997f9",
+  "apps/ipad/WorshipCue/WorshipCueApp.swift": "33da55e731b17c359dfdb71fdac7e61ac1d971dab2a15a4feea8ce0e5bb60aa3",
+  "apps/ipad/WorshipCueTests/NativeInkTests.swift": "60d819d2cfe3be4570b38b8f78e73e80224af6bc5397f23f7b27c9f40ac3baf5",
+  "apps/ipad/WorshipCueUITests/MusicStandUITests.swift": "43db906e28f150fdfa3c6956b66c1043b1afb60e18e82a062d7fd896d8837c38"
+}
