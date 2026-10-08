@@ -28,7 +28,7 @@ No automatic song changes, page synchronization, automatic note merging or trans
 | Simulator feedback/recovery | **2 feedback scenarios+2 repeat-code denials pass**. Malformed asynchronously accepted event retries into private recovery; only its exact owned marker removed. Exact AWS setup probe replay: 1 processed/0 suppressions, precisely removed. SNS transport-failure injection not performed; simulator results do not prove recipient inbox delivery. |
 | Operator alerts | Human subscription independently verified confirmed. Direct SNS test accepted; owned mail-backlog CloudWatch transition has successful exact-topic action history and naturally returns OK. Inbox receipt unverified. All six policies/configurations validate. An owned BackupErrors transition also proves exact-topic SNS action and natural OK, exit 0, without manual reset. BackupStaleCompletion naturally reaches OK after real completion metrics; its notification delivery remains unexercised. All six alarms end OK. |
 | SES production request | One authorized submission initially PENDING; final **DENIED**, production false. Ordinary unverified recipients cannot receive codes. No resubmission/appeal. |
-| Helper self-tests | **12 mail-operations, 4 mail-qualification, 13 restore, 5 load** pass, exit 0. SES draft checks pass without AWS submission. |
+| Helper self-tests | **12 mail-operations, 4 mail-qualification, 18 restore, 5 load and 5 smoke-scope checks** pass, exit 0. SES draft checks pass without AWS submission. |
 | Portable core/reference/local | **55 core, 32 Python reference, 14 local persistence** pass; 9 InkChecks groups pass, exit 0. |
 | Swift remote | **28 passed/0 failed**, exit 0: bounded paging above 4 MiB aggregate, empty advancing pages, cursor/scope/loop checks, later-page 403/409/503 without partial return. |
 | Actual iPad hosted suite | **86 executed: 85 passed+1 optional private-input skip+0 failure**, exit 0, iPadOS 17.7.11: 46 workspace/10 administration/10 account-export/20 ink. Actual administration/export screens rendered and inspected. |
@@ -57,13 +57,13 @@ python3 aws/package_backend.py --output '../DeveloperTools/WorshipCue/AWS'
 python3 aws/scripts/deploy.py --config /absolute/external/AWS/private-config.json
 python3 aws/scripts/smoke.py --config /absolute/external/AWS/private-config.json --state-directory /absolute/external/AWS/HostedSmoke
 python3 aws/scripts/load_check.py --config /absolute/external/AWS/private-config.json --state-file /absolute/external/AWS/HostedSmoke/qualification-state.json --clients 20
-python3 aws/scripts/restore_check.py --config /absolute/external/AWS/private-config.json --state-dir /absolute/external/AWS/RestoreCheck-Build 7 --source-snapshot /absolute/external/AWS/RestoreCheck-Build 7/quiescent-source.json
+python3 aws/scripts/restore_check.py --config /absolute/external/AWS/private-config.json --state-dir /absolute/external/AWS/RestoreCheck-Build7 --source-snapshot /absolute/external/AWS/RestoreCheck-Build7/quiescent-source.json
 python3 scripts/test_m1_device.py --group native --full-native --command-timeout 300
 ```
 
 Portable checks use `scripts/with_external_xcode.sh swift test` for reference/WorshipCueCore, packages/WorshipCueLocal and packages/WorshipCueRemote; `swift run` for InkChecks; the existing reference environment runs `scripts/verify_package.py`. Scratch directories remain under external DeveloperTools/WorshipCue.
 
-Final hosted device bundle: external Results/Chat7-All-Final-20261008.xcresult. Private PDF run explicitly supplies user files; destinations are observed, never invented. Operational receipts: external AWS/MailQualification, MailOperations, RestoreCheck-Build 7. [SES operations](../docs/SES_PRODUCTION_READINESS.md), [account/retention facts](../docs/ACCOUNT_DATA_AND_RETENTION.md).
+Final hosted device bundle: external Results/Chat7-All-Final-20261008.xcresult. Private PDF run explicitly supplies user files; destinations are observed, never invented. Operational receipts: external AWS/MailQualification, MailOperations, RestoreCheck-Build7. [SES operations](../docs/SES_PRODUCTION_READINESS.md), [account/retention facts](../docs/ACCOUNT_DATA_AND_RETENTION.md).
 
 ## Open release gates
 
