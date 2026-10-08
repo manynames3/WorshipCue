@@ -89,3 +89,10 @@ extension InkSnapshot {
 public enum InkStoreError: Error, Equatable {
     case invalidRecord, geometryMismatch, staleGeneration, generationConflict, archiveTooLarge
 }
+
+public struct PersonalInkUpload: Sendable {
+    public let commandID: UUID
+    public let snapshot: InkSnapshot
+    public let parentRevision: Int64?
+    public let payload: Data?
+}

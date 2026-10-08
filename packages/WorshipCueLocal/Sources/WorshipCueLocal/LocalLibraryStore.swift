@@ -75,6 +75,29 @@ public final class LocalLibraryStore: Sendable {
     public func register(_ imports: [LibraryImport]) throws -> [LibraryVersion] {
         try database.write { db in try imports.map { try Self.insert($0, db: db, allowUnknownGeometry: false) } }
     }
+
+    /// Remote version numbers are server receipts, never renumbered by download order.
+    public func cachePublished(song: LibrarySong, version: LibraryVersion, asset: LibraryAsset) throws {
+        try song.validate(); try asset.validate()
+        guard version.songID == song.id, version.assetID == asset.id, version.id == asset.id,
+              version.number > 0, version.number <= 9_007_199_254_740_991,
+              !version.label.isEmpty, version.label.count <= 300, asset.pages != nil,
+              version.writtenKey.map(MusicalKey.isValid) ?? true,
+              version.sourceAssetID == nil, version.sourceFirstPage == nil, version.sourceLastPage == nil
+        else { throw LibraryError.invalidMetadata }
+        try database.write { db in
+            if let old: LibraryVersion = try Self.record(db, table: "versions", id: version.id) {
+                let previous: LibraryAsset? = try Self.record(db, table: "assets", id: old.assetID)
+                guard old == version, previous == asset else { throw LibraryError.immutableAsset }; return
+            }
+            if try !Self.exists(db, table: "songs", id: song.id) {
+                try db.execute(sql: "INSERT INTO songs(id,record) VALUES(?,?)", arguments: [song.id.uuidString, try JSONEncoder().encode(song)])
+            }
+            try db.execute(sql: "INSERT INTO assets(id,record) VALUES(?,?)", arguments: [asset.id.uuidString, try JSONEncoder().encode(asset)])
+            try db.execute(sql: "INSERT INTO versions(id,song_id,asset_id,number,record) VALUES(?,?,?,?,?)", arguments:
+                [version.id.uuidString, song.id.uuidString, asset.id.uuidString, version.number, try JSONEncoder().encode(version)])
+        }
+    }
     private static func insert(_ item: LibraryImport, db: Database, allowUnknownGeometry: Bool) throws -> LibraryVersion {
         try item.song.validate(); try item.asset.validate()
         guard allowUnknownGeometry || item.asset.pages != nil, !item.label.isEmpty, item.label.count <= 300,

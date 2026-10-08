@@ -61,6 +61,13 @@ public struct LibraryVersion: Codable, Identifiable, Equatable, Sendable {
     /// One-based inclusive range in an immutable weekly packet. Derived pages start at zero for ink.
     public let sourceFirstPage: Int?
     public let sourceLastPage: Int?
+
+    public init(id: UUID, songID: UUID, number: Int, assetID: UUID, label: String, writtenKey: String?,
+                sourceAssetID: UUID? = nil, sourceFirstPage: Int? = nil, sourceLastPage: Int? = nil) {
+        self.id = id; self.songID = songID; self.number = number; self.assetID = assetID
+        self.label = label; self.writtenKey = writtenKey; self.sourceAssetID = sourceAssetID
+        self.sourceFirstPage = sourceFirstPage; self.sourceLastPage = sourceLastPage
+    }
 }
 
 public struct LibraryImport: Sendable {
