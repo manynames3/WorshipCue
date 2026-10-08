@@ -20,7 +20,7 @@ Read `docs/02_DECISIONS.md` first. These decisions supersede earlier pitch docum
 ## Implementation
 Use small modules with explicit interfaces. Pure domain rules must not import SwiftUI, PDFKit, PencilKit, or Supabase. Keep mutable PDF/ink view lifecycles on their required actor and use immutable IDs captured with each save operation. Local storage uses transactional migrations and a durable outbox for personal-note synchronization, NOT for live publication.
 
-Start with native framework behavior; do not add private Apple APIs or a generic drawing/collaboration engine. No CRDT, AI/OCR, custom authentication, multi-platform UI, subscriptions, chat, scheduling, or MIDI in the pilot. Do not adopt a dependency just for one trivial helper. Lock dependencies and document license/security review.
+Start with native framework behavior; do not add private Apple APIs or a generic drawing/collaboration engine. No CRDT, AI/OCR, custom authentication, multi-platform UI, subscriptions, scheduling, or MIDI in the pilot. The user explicitly added team chat on 2026-10-08; implement it through the existing managed identity and exact team membership boundaries, preserving music-stand/live-call invariants. Do not adopt a dependency just for one trivial helper. Lock dependencies and document license/security review.
 
 Use Korean String Catalog localization, explicit accessibility labels, calm error language, large action targets, and no critical color-only state. Do not put a full-screen loader over a chart that is already readable.
 

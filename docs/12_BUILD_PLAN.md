@@ -33,6 +33,16 @@ Implement full preflight downloads for team/preferred/standby material; connecti
 
 Deliver: two-hour soak evidence and fault-injection report. Gate: no P0 failures, measurable performance, versioned native build, verified backup restore (metadata AND assets), safe release configuration, no service keys in bundle/logs.
 
+## User-requested extension · Team chat (2026-10-08)
+
+Implement after the managed workspace is activated and qualified; this is newly required under D43, not present in Build 5. Reuse Supabase Auth/Postgres/Realtime and existing app account partitions. Initial scope: signed-in team members, one team room plus service/setlist discussion, bounded text, replies, authorized links to existing charts, unread state, mute and pinned preparation instructions. No separate chat provider or arbitrary media upload is required for this slice.
+
+Add minimal member profiles/roster, exact-team channel membership, immutable message IDs with server ordering, stable client command UUIDs, transactional send/edit/delete, revision/tombstone reconciliation, per-user read cursors, rate limits and report/block/moderation. `private.member_of(church_id)` permits a member of any team in the church; it is insufficient for private team chat. Anonymous rehearsal guests receive no whole-team chat history. Chart links do not grant new asset rights, select a chart or acknowledge a cue.
+
+Persist before showing server acceptance; reconcile ambiguous sends by the same UUID. Keep account/channel-scoped offline drafts visibly pending and require an explicit send/retry in the initial slice. Chat must not share the forbidden offline live-call publication queue or shared-ink editor lease. Realtime invalidation plus durable fetch-on-open/resume/reconnect handles duplicate/missed hints and older message edits. New chat never switches the reader or page; keep the music stand quiet.
+
+Gate: real managed member/outsider/other-team/guest RLS and Realtime isolation, concurrent authors, timeout-after-commit, duplicate send, delayed edit/delete, membership expiry/revocation, account switch, disconnected drafts and two real iPads. Before App Store distribution, qualify relevant user-generated-content controls and support. Foreground chat requires no paid Apple enrollment; background APNs is a later phase needing supported paid signing capability. Push is only a hint and cannot replace message storage/reconciliation. See [infrastructure and budget](13_PILOT_AND_PRICING.md).
+
 ## M6 · Rehearsal pilot / TestFlight
 Build signed TestFlight pilot only with authorized Apple setup. Provide tester instructions, demo data, known limitations, support contact, permission/rights review, and issue intake. Two full rehearsals, then four services with fallback. Billing remains disabled. Capture whether note-taking is genuinely good enough to stay in the app.
 

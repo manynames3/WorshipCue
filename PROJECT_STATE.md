@@ -17,9 +17,13 @@ A new pre-update normal-store backup contains 7 PDFs and 3 existing personal ink
 
 Earlier Build 4/v1/M0 reports below are historical. Physical Apple Pencil, original iPadOS **16.7.16** runtime, managed cloud/multi-iPad behavior, memory/thermal/resume and a two-hour rehearsal remain **NOT VERIFIED**. The app is **not end-user-ready or pilot-qualified**.
 
+New requirement 2026-10-08: **team chat** is authorized under D43 and planned after cloud activation; no chat implementation is present in Build 5. [Infrastructure and budget research](docs/13_PILOT_AND_PRICING.md) recommends existing Supabase plus optional AWS email/backups, with free development and an estimated $25–35/month one-project rehearsal setup. Accounts, spending, deployments and paid Apple enrollment are not authorized by this planning request.
+
 ## Next milestone
 
 Finish the production PDF finalizer after dependency approval, connect an explicitly approved Supabase development configuration and qualify managed Auth/Storage/Realtime with two actual iPads. Continue original-device/Pencil and rehearsal qualification; the available automated/software evidence does not waive those gates. Read `docs/12_BUILD_PLAN.md`.
+
+Add the user-requested team chat slice against exact team membership after the workspace gate; qualify durable messages/retries/reconnect and keep chat separate from live navigation. Foreground chat can be tested with free development signing. Background APNs needs later supported paid Apple enrollment.
 
 ## External prerequisites
 
@@ -233,3 +237,9 @@ On iPad (6th generation), iPadOS 17.7.11, external Xcode 27.0 (27A266a): final h
 Final portable checks pass **55 core, 32 reference, 14 local storage, 11 remote transport and 9 ink groups**; local backend passes **13 PostgreSQL groups and 7 Deno cases**. Final generic-device Release build exits **0** with minimum iPadOS 16.0. The installed signed Build 5 bundle validates. Fresh pre/post normal-store backups compare exactly for **7 PDF files and 3 private ink rows**, and both SQLite integrity checks pass.
 
 Exact commands, raw result identifiers, retained failures, private-input scope and physical/service gates are in [native evidence](verification/M2-M4-native.md), [backend evidence](verification/M2-M4-backend.md) and [independent local evidence](verification/M1-v2-local.md). English/Korean READMEs and About distinguish local functionality from the unconfigured team service; published captures use synthetic material only. The deployable PDF finalizer awaits approval for its pinned production parser. No cloud project/schema/function/billing change or paid Apple enrollment occurred. Actual managed Auth/Storage/Realtime, multi-iPad, physical Pencil, original iPadOS 16 and rehearsal acceptance remain unverified; this is not an end-user release.
+
+## 2026-10-08 · Cloud infrastructure research and team-chat requirement
+
+The user requested reliable, inexpensive cloud infrastructure, offered their existing AWS account if useful, and explicitly required team chat. Recorded D43 and amended only D40's chat exclusion; all existing reader/page/ink invariants remain. Updated engineering rules, build plan and pilot-budget document with an exact-team chat slice, hosted activation/backup/large-file gates and current official provider pricing. Primary recommendation retains the existing Supabase implementation, with optional AWS SES email/private backup rather than an AWS-only rewrite. Sizing assumes one church/10–20 members and foreground chat until the user supplies different requirements.
+
+This is a planning/documentation change only; Build 5 source and previous test evidence are unchanged. No cloud account/resource/credential/billing setting, dependency, runtime feature, provisioning profile or original musician file was changed. No new app/backend test or hosting-cost benchmark is claimed. Current documented pitfalls include Free inactivity pausing/50 MB uploads/SMTP restrictions, Edge's 256 MB/two-second CPU budget, database backups excluding file objects, existing-account AWS credit eligibility, exact-team versus church-only chat authorization and free Personal Team's APNs limitation. Check current provider prices again when activating.

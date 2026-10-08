@@ -42,9 +42,10 @@ Date: 2026-10-07. `USER` means explicitly chosen in the conversation. `DEFAULT` 
 | D37 | DEFAULT | Keep billing disabled for the free pilot. Resolve App Store payment treatment before charging; organization sales are not automatically exempt. |
 | D38 | DEFAULT | TestFlight pilot needs native/device evidence; no claim of zero bugs or production readiness from reference tests. |
 | D39 | USER, amended 2026-10-07 | Support older iPads like the connected iPad6,7 on iPadOS 16.7.16. Minimum target is iPadOS 16.0; qualify actual oldest pilot hardware before release. No beta frameworks or automatic forced OS upgrades. |
-| D40 | DEFAULT | No AI/OCR, chord transposition, chat, scheduling, lyric projection, multitracks, MIDI, metronome, or LAN-only sync in pilot. |
+| D40 | DEFAULT, amended 2026-10-08 | No AI/OCR, chord transposition, scheduling, lyric projection, multitracks, MIDI, metronome, or LAN-only sync in pilot. Team chat is explicitly authorized under D43. |
 | D41 | DEFAULT | New-version and shared-note previews are read-only contextual views; opening one does not save a new preference or acknowledge a live call. |
 | D42 | DEFAULT | One member edits private ink on one device at a time in the expected pilot workflow. Concurrent edits still preserve both revisions and require manual resolution. |
+| D43 | USER | Team chat is required, added 2026-10-08. Reuse managed identities and exact team permissions; do not change song/page/ink behavior when a message arrives. Cloud accounts, spending and paid Apple enrollment still require authorization. Implementation and activation gates are recorded in the build plan. |
 
 ## Explicit supersessions
 - The original one-page PDF is historical context, not current specification. Do not bundle it as authoritative build instructions.
@@ -58,5 +59,7 @@ Date: 2026-10-07. `USER` means explicitly chosen in the conversation. `DEFAULT` 
 
 ## Decision amendments
 Record ID, old behavior, new behavior, evidence, affected tests, and whether user approval is required. Never change a USER decision because a framework makes a different behavior easier.
+
+2026-10-08 · **D40/D43**: the user explicitly requested team chat while asking for a reliable, inexpensive cloud plan. Remove only the prior chat exclusion; retain all other exclusions and live-reader invariants. This records a requirement and planning scope, not implemented chat or authorization to deploy/bill. Add exact-team RLS, member/guest isolation, idempotent message retries, edits/deletions, account-switch, reconnect and no-navigation tests before claiming the feature. Foreground chat can use free development signing; real APNs and wider distribution remain subject to the user's later Apple enrollment.
 
 2026-10-07 · **D39**: replaced provisional iPadOS 18.0 with **16.0** after the user explicitly required compatibility with their USB-connected iPad (iPad6,7 / ML0T2LL/A / iPadOS 16.7.16). The app, all local packages and reproducible project generator share the new minimum. Scene lifecycle handling uses the iOS 16 SwiftUI callback. Core PDF/PencilKit/storage/selected-transfer functionality remains required. Validate native app/test builds and actual recovery/geometry/gesture tests on 16.7.16; a deployment-target edit alone is not proof of runtime compatibility. User authorization is recorded by this explicit requirement. Xcode 27 supports building for iOS 16 but its connected-device support starts at 17; older-device tooling must be qualified separately. No other product decision changed.
