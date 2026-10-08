@@ -6,9 +6,9 @@
 <p align="center"><strong>Your charts. Your notes. Your cue.</strong></p>
 <p align="center">A Korean-first native iPad music stand for worship teams.</p>
 <p align="center">악보와 필기는 각자 편하게. 곡 안내와 팀 필기는 함께.</p>
-<p align="center"><a href="README.ko.md">한국어 소개</a> · <a href="#working-today">Working today</a> · <a href="#development">Development</a> · <a href="verification/V2.md">Test evidence</a></p>
+<p align="center"><a href="README.ko.md">한국어 소개</a> · <a href="#working-today">Working today</a> · <a href="#development">Development</a> · <a href="verification/M2-M4-native.md">Test evidence</a></p>
 
-**Development versions:** [v1](https://github.com/manynames3/WorshipCue/tree/v1) preserves the original working interface (Build 3). [v2](https://github.com/manynames3/WorshipCue/tree/v2) develops the native interface from the design concepts (Build 4). `main` stays at v1 while v2 is being qualified. These are development checkpoints, not App Store releases.
+**Development versions:** [v1](https://github.com/manynames3/WorshipCue/tree/v1) preserves the original working interface (Build 3). [v2](https://github.com/manynames3/WorshipCue/tree/v2) develops the native interface from the design concepts (Build 5). `main` stays at v1 while v2 is being qualified. These are development checkpoints, not App Store releases.
 
 ## Why WorshipCue exists
 
@@ -24,13 +24,13 @@ It is for musicians and singers who already rehearse from PDF charts on iPad, an
 |---|---|---|
 | “The updated arrangement arrived. Where are my notes?” | Keep the original PDF and its notes; select only the markings you want to carry into the new chart. | Immutable imports, version/page-specific ink and manual selected-note transfer implemented. Local library metadata, Korean search and explicit version/preference controls are implemented. |
 | “I need to mark this entrance quickly.” | Write or highlight directly on the chart, switch colors in a small popover, and undo without touching the team layer. | Implemented; finger drawing, color selection and recovery tested on a real iPad. Physical Apple Pencil qualification remains open. |
-| “We lost Wi-Fi during rehearsal.” | Continue reading local charts and saving personal notes on the device. | Local reading/save/restore implemented. Local preflight checks selected, preferred and standby PDFs. Network recovery belongs to later milestones. |
-| “The bandmaster circled the second chorus.” | See team handwriting on the exact matching chart, with your personal notes kept separate. | Read-only local team sample implemented. Actual shared handwriting and backend permissions are planned. |
-| “We're moving to an unplanned song.” | See a quiet song/key cue and tap when you are ready to open it; keep control of your page. | Live announcements are specified and planned; no live backend is running. |
+| “We lost Wi-Fi during rehearsal.” | Continue reading local charts and saving personal notes on the device. | Local reading/save/restore tested. Team preflight and account-scoped offline caches are implemented; real service recovery still needs qualification. |
+| “The bandmaster circled the second chorus.” | See team handwriting on the exact matching chart, with your personal notes kept separate. | Exact-context shared drawing, draft publication and private backend permissions implemented. Native adapter and database tests pass; real multi-iPad sync remains unverified. |
+| “We're moving to an unplanned song.” | See a quiet song/key cue and tap when you are ready to open it; keep control of your page. | Visual latest-cue, tap-to-open, history and controller fencing implemented and tested against controlled HTTP/database responses. No hosted service is configured. |
 
 ## Working today
 
-The v2 branch is an early **native music stand with M1 local preparation features**, developed and tested on a real iPad. It is not an App Store release or a qualified rehearsal pilot. [Current verification](verification/V2.md) separates native evidence, UI evidence and open device requirements; [v1/M1 evidence](verification/M1.md) retains the prior results.
+The v2 branch is a **native music stand with local preparation and a private-team implementation**, tested on a real iPad. Local use works without a server. Team accounts, sharing and song cues require an explicitly configured Supabase development service; no hosted service is running. It is not an App Store release or a qualified rehearsal pilot. [Current native verification](verification/M2-M4-native.md), [backend verification](verification/M2-M4-backend.md) and [v2 design history](verification/V2.md) distinguish implemented behavior from real service and hardware gates.
 
 - **Give the music room to breathe.** A light reader, compact song/version/key header, vertical annotation tools and local page controls keep the PDF central. Today, Library and Stand remain within reach.
 - **Read PDFs on iPad.** Import from Files into validated, app-owned immutable assets; an import failure preserves the chart already open.
@@ -43,18 +43,24 @@ The v2 branch is an early **native music stand with M1 local preparation feature
 - **Keep notes attached to the right chart.** Ink is stored against the exact version and page. Local save status follows a database commit, with recovery and save-failure handling.
 - **Move selected notes deliberately.** The charcoal version/notes panel shows real chart thumbnails and your selected source ink beside the page in landscape. Select strokes, copy, choose a destination, drag/scale the paste preview, then confirm or cancel. A pinned source-preservation lock explains that original notes stay intact; a committed paste can be undone. Narrow layouts use a dismissible sheet.
 - **Keep your own place.** Page turns are local. The reader remembers its chart/page and restores locally saved notes after reopening.
-- **Inspect separate team ink.** A read-only sample demonstrates exact-version/page isolation. It is a local development example, not a synchronization service.
+- **Connect a private team when the development service is ready.** Managed email sign-in, scoped guest invitations, a shared versioned library and setlists, verified downloads, account-separated personal sync with explicit whole-copy conflict choices, and owner-only server access are implemented.
+- **Share rehearsal markings deliberately.** One editor holds a fenced lease. Team drafts save locally and publish only on an explicit action. Matching item/version/page ink is read-only for musicians; another chart version opens a separate preview. Offline drafts never publish themselves.
+- **Receive a cue without losing your place.** A visual banner shows only the latest pending song/key; history is separate. Tapping opens a verified chart using your preferred version or an explicit alternative. Opening telemetry means rendered, not ready. Reconnecting and session end preserve the reader.
+
+These three team paths have native controlled-HTTP and local SQL tests. Managed Auth, Storage and Realtime end-to-end qualification remains open. The unconfigured app says **팀 연결 준비 중** and keeps local rehearsal available.
 
 ### Actual app screens
 
-The Build 2/v1 screenshots below come from device UI tests using synthetic charts and isolated test stores. They are retained as historical evidence; current v2 captures and qualifications belong in [V2 evidence](verification/V2.md).
+These Build 5 captures come from a passing physical iPad UI workflow using synthetic charts and an isolated store. The reader shows a recovered personal stroke; the team panel accurately reflects the currently unconfigured service. They are real app captures, not concepts or proof of hosted sharing.
 
 <p align="center">
-  <img src="verification/m0-color-popover.png" width="340" alt="Running WorshipCue iPad app with compact eight-color pen popover">
-  <img src="verification/m0-blue-pen-pink-highlighter.png" width="340" alt="Running WorshipCue iPad app showing a blue pen stroke and pink highlighter on a synthetic chart">
+  <img src="verification/m2-v2-reader.png" width="680" alt="Running WorshipCue v2 reader with a recovered black personal stroke on a synthetic PDF">
+  <img src="verification/m2-team-setup.png" width="340" alt="WorshipCue team setup panel keeps local rehearsal available while the service is unconfigured">
 </p>
 
-The [UI concepts](docs/ui-concepts/README.md) guide the v2 reader and manual-transfer panel. Their future live cue and shared-team states still require backing services and are not shown as available features.
+Historical color captures remain in [Build 2 evidence](verification/M0-colors-icon.md); current testing is in [Build 5 evidence](verification/M2-M4-native.md).
+
+The [UI concepts](docs/ui-concepts/README.md) guide the v2 reader, manual-transfer panel and quiet visual cue. Team UI uses actual managed-service operations when configured; concepts and historical captures are not proof of a running service.
 
 ## The musician stays in control
 
@@ -66,18 +72,13 @@ These are fixed product decisions, not optional follow modes:
 - **Personal and team notes have separate layers.** Shared ink must match the exact performance item, chart version and page. Other versions require a preview rather than an overlay.
 - **A key label is information.** Changing metadata does not transpose PDF chords or notation.
 
-The current build uses local development identities. Managed accounts, church membership, guest access and server-enforced privacy still require implementation and verification.
+The local reader retains its existing development identities and files. The managed workspace uses separate protected server/account/church stores and device-only Keychain credentials. SQL policies deny leaders and admins access to another owner’s personal ink; real managed-service privacy still requires qualification.
 
-## What comes next
+## Team activation and remaining qualification
 
-The [milestone plan](docs/12_BUILD_PLAN.md) builds outward from reliable reading and handwriting:
+The native client and additive backend are implemented in [supabase](supabase), with exact local test evidence. A production PDF finalizer still needs approval for a pinned parser dependency; no cloud project, schema or function has been deployed. Configure a reviewed development service through the ignored `Secrets.xcconfig` only after that gate is complete. The app accepts only a public/publishable client key, never a service-role key. See [native configuration](apps/ipad/README.md#private-team-configuration-build-5) and [backend setup](supabase/README.md).
 
-1. **A private team workspace:** managed accounts, scoped guests, verified downloads and personal-note synchronization with explicit conflict handling.
-2. **Shared rehearsal markings:** bandmaster circles, arrows and handwriting tied to the exact chart and performance context.
-3. **Live song/key cues:** a visual latest-cue banner, explicit tap-to-open and a separate recent-call history.
-4. **Rehearsal qualification:** oldest-device testing, offline/recovery work, long sessions and real musicians using the app before a release.
-
-These features are planned, not available services. No hosted backend, billing or public distribution is enabled.
+The next acceptance gates are actual managed sign-in/guest scope, authorized Storage downloads, Realtime recovery, two real iPads sharing marks/cues, original iPadOS 16 hardware, physical Apple Pencil, and a two-hour rehearsal. [The milestone plan](docs/12_BUILD_PLAN.md) remains authoritative. Billing, TestFlight and public distribution are disabled.
 
 ## Development
 
@@ -106,11 +107,14 @@ With Xcode's developer tools selected:
 swift test --package-path reference/WorshipCueCore
 swift test --package-path packages/WorshipCueLocal
 swift run --package-path packages/WorshipCueLocal InkChecks
+swift test --package-path packages/WorshipCueRemote
 
 python3 -m venv .venv
 .venv/bin/python3 -m pip install -r scripts/requirements.txt
 .venv/bin/python3 scripts/verify_package.py
 python3 scripts/verify_m0_project.py
+python3 scripts/test_backend.py
+deno test --config supabase/deno.json supabase/tests/edge_test.ts
 ```
 
 Scheme **WorshipCue** contains hosted native tests; **WorshipCueUI** also contains device UI workflows. Tests use isolated stores and synthetic PDFs. The real-device script accepts privately supplied signing/device environment variables; it does not hard-code credentials.
@@ -119,16 +123,15 @@ Scheme **WorshipCue** contains hosted native tests; **WorshipCueUI** also contai
 
 | Evidence | Recorded result |
 |---|---|
-| V2 native suite | **19 passed, 0 failed, 1 private-input skip**, total 20, on iPadOS 17.7.11. Includes M0/M1 regressions and read-only previews that preserve the reader, bookmarks, preferences, source bytes and exact ink. |
-| V2 reader/manual-inspector UI | **1 complete workflow passed**: navigation/page retention, landscape docking, separate preference/open actions, selected transfer/cancel/commit/undo/redo, source isolation and cold recovery. Later layout and color checks are recorded individually in the current report. |
-| V1 UI history | Weekly-preparation, rendered compact colors and export/share workflows passed in separate sessions. These historical results do not qualify every v2 UI path. |
-| Xcode 27 Release build | **Passed**, with iPadOS 16.0 deployment target. |
-| Earlier M0 baseline | 13 hosted native tests; separate drawing and team-isolation UI workflows passed. Earlier functional transfer passed; final transfer requalification remains blocked. |
-| Portable checks | **55 core and 32 Python tests passed** for v2. V1's **8 local library tests and 9 ink check groups** remain evidence for unchanged packages. |
-| Private real-arrangement history | The v1/M1 native case passed, including same-song chart v1/v2 preference, embedded annotations, different geometry, explicit transfer/cold recovery and rendered fallback comparison. V2 synthetic runs skip that opt-in case; charts/captures remain local. |
-| Remaining physical gates | Original iPadOS 16 device, Apple Pencil, memory/thermal/resume and multi-iPad behavior **not verified**. |
+| Build 5 physical native suite | **34 passed, 0 failed, 1 private-input skip**, total 35, iPadOS 17.7.11. Includes local regressions and 15 managed-workspace adapter cases using controlled HTTP responses. Includes reviewed regressions for active-stroke protection, exact shared context and offline previews. |
+| Actual private PDFs | **1 current native case passed** with both supplied four-page arrangements: preserved arranger annotations, manual transfer, recovery and fallback render comparison. PDFs and captures stay outside Git. |
+| Visible team setup | **2 current UI workflows passed individually**: local preparation and team-setup/chart/page/ink/cold recovery. Other selected checks remain unverified; a Screen Time limit on the test runner was diagnosed. |
+| Portable packages | **55 core, 32 Python reference, 14 local storage and 11 remote transport tests passed; 9 ink check groups passed.** |
+| Private backend | **13 PostgreSQL integration groups and 7 Deno handler tests passed.** Real non-owner SQL/RLS with test Auth/Storage schema shims; controlled Edge HTTP responses, not a managed deployment. |
+| Release build | Xcode 27 generic-device Release **passed**, minimum iPadOS 16.0. Final source reruns and all failures remain in the current report. |
+| Remaining gates | Managed Auth/Storage/Realtime, multi-iPad use, original iPadOS 16 device, physical Apple Pencil, memory/thermal/resume and rehearsal soak **not verified**. |
 
-See [V2 evidence](verification/V2.md), [v1/M1 evidence](verification/M1.md), [Build 2 history](verification/M0-colors-icon.md), [private-pair evidence](verification/M0-private-pdf-pair.md), [M0 history](verification/M0.md) and the [device checklist](verification/M0-device-checklist.md). Separate successful runs do not imply one clean combined run or pilot readiness.
+See [Build 5 native evidence](verification/M2-M4-native.md), [backend evidence](verification/M2-M4-backend.md), [independent local qualification](verification/M1-v2-local.md) and the [device checklist](verification/M0-device-checklist.md). Earlier v2/v1/M0 evidence is retained; separate successful runs do not imply one clean combined suite or pilot readiness.
 
 ## Repository map
 
@@ -136,6 +139,8 @@ See [V2 evidence](verification/V2.md), [v1/M1 evidence](verification/M1.md), [Bu
 |---|---|
 | [`apps/ipad`](apps/ipad) | Native reader, annotation tools, asset catalog and hosted/UI tests. |
 | [`packages/WorshipCueLocal`](packages/WorshipCueLocal) | Transactional library/setlist metadata, local ink storage and page geometry. |
+| [`packages/WorshipCueRemote`](packages/WorshipCueRemote) | Managed Auth/Storage/RPC transport and Realtime invalidation hints; no new SDK dependency. |
+| [`supabase`](supabase) | Private-workspace migration, RLS, transactional RPCs, bounded Edge handlers and local backend tests. |
 | [`packages/WorshipCueInk`](packages/WorshipCueInk) | Selected-stroke clipboard and placement logic. |
 | [`reference/WorshipCueCore`](reference/WorshipCueCore) | Pure domain rules and executable reference tests; also used by the app. |
 | [`contracts`](contracts), [`db`](db) | Contracts and local schema specifications; not a deployed backend. |

@@ -4,6 +4,17 @@ This is an additive Supabase pilot migration, with managed Auth identities, priv
 
 Ordinary clients authenticate through managed email OTP or managed anonymous sign-in. Signing up alone grants no church access. Anonymous identities can redeem a guest invitation for one setlist; their personal notes remain local. Members receive access through an active server-managed membership. An admin or leader cannot read another person's cloud ink, drawing assets, or previews.
 
+## Activation checklist
+
+The migration and client are reviewable; they do not create or deploy a project. Complete these only in an explicitly authorized development environment:
+
+1. Approve and finish the pinned production PDF parser/finalizer entry, then run actual server PDF parsing tests. The current injected validator tests do not satisfy this gate.
+2. Apply the additive migration to a fresh approved development database. Keep the private bucket and its RLS policies; ordinary users never receive service-role credentials.
+3. Enable managed email OTP and configure its email template to show the code (`{{ .Token }}`) used by the native verification form. Enable managed anonymous identities for scoped guests and review rate/CAPTCHA/provider settings. Signing in alone creates no membership.
+4. Configure only the project's HTTPS URL and publishable key in the ignored native `Secrets.xcconfig`. Server service credentials remain in the approved Edge environment. Use the reviewed function JWT settings together with the handler's managed-user authentication, never an unauthenticated finalizer.
+5. Deploy the completed handlers only with authorization. Verify real Auth, PostgREST, private Storage and Realtime policies with members, leaders/admins, a scoped guest and an outsider before putting private musician material on the service.
+6. Qualify two real iPads, failed downloads/publications, lease takeover, session end, guest revocation, private-note isolation and recovery; then rehearsal/oldest-device/Pencil gates. No billing or Apple distribution is enabled by this setup.
+
 ## Transport
 
 Every ordinary RPC takes **one `p jsonb` parameter**. PostgREST requests are `POST /rest/v1/rpc/<name>` with JSON `{ "p": <payload> }`, a publishable key in `apikey`, and the user's access token in `Authorization: Bearer …`. Table reads also require the user's token and RLS. Never put the service-role key in the iPad app.
