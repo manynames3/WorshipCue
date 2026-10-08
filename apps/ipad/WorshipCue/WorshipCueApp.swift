@@ -9,6 +9,9 @@ struct MusicStandScreen: View {
     @StateObject private var stand: MusicStand
     @State private var importing = false
     @State private var colorsPresented = false
+    @State private var workspacePresented = false
+    @State private var exportPresented = false
+    @State private var transferPresented = false
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -31,11 +34,16 @@ struct MusicStandScreen: View {
         VStack(spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("WorshipCue · M0").font(.headline)
+                    Text("WorshipCue").font(.headline)
                     Text(stand.current?.name ?? String(localized: "악보 준비 중…"))
-                        .font(.subheadline).lineLimit(1).accessibilityIdentifier("currentChart")
+                        .font(.subheadline).lineLimit(2).accessibilityIdentifier("currentChart")
                 }
                 Spacer()
+                Button { workspacePresented = true } label: { Label("오늘 · 라이브러리", systemImage: "music.note.list") }
+                    .frame(minHeight: 44).accessibilityIdentifier("openWorkspace")
+                Button { exportPresented = true } label: { Image(systemName: "square.and.arrow.up").frame(width: 44, height: 44) }
+                    .accessibilityLabel(Text("PDF 내보내기")).accessibilityIdentifier("openExport")
+                    .disabled(stand.current == nil || stand.busy)
                 Menu {
                     ForEach(stand.charts) { chart in
                         Button(chart.name) { Task { await stand.choose(chart) } }
@@ -72,6 +80,8 @@ struct MusicStandScreen: View {
                     control("메모 선택", "rectangle.dashed") { stand.beginSelection() }.accessibilityIdentifier("tool.select")
                     control("붙여넣기", "doc.on.clipboard") { stand.beginPaste() }.accessibilityIdentifier("tool.paste")
                         .disabled(stand.clipboard.selection == nil)
+                    control("다른 악보로 메모 복사", "arrow.up.doc.on.clipboard") { transferPresented = true }
+                        .disabled(stand.clipboard.selection == nil).accessibilityIdentifier("tool.transferDestination")
                     Toggle("팀 예시 읽기 전용", isOn: Binding(get: { stand.teamVisible }, set: stand.showTeam))
                         .fixedSize().frame(minHeight: 44).accessibilityIdentifier("teamSample")
                 }.padding(.horizontal)
@@ -104,19 +114,22 @@ struct MusicStandScreen: View {
             PDFStandView(stand: stand)
             Divider()
             HStack {
-                Button { Task { await stand.turnPage(-1) } } label: { Label("이전", systemImage: "chevron.left") }
+                Button { Task { await stand.turnPage(-1) } } label: { Label("이전", systemImage: "chevron.left").frame(minWidth: 56, minHeight: 56) }
                     .disabled(stand.pageIndex == 0 || stand.busy).accessibilityIdentifier("previousPage")
                 Text("\(stand.pageCount == 0 ? 0 : stand.pageIndex + 1) / \(stand.pageCount)")
                     .monospacedDigit().accessibilityLabel(Text("현재 페이지 \(stand.pageIndex + 1), 전체 \(stand.pageCount)"))
                     .accessibilityIdentifier("pagePosition")
-                Button { Task { await stand.turnPage(1) } } label: { Label("다음", systemImage: "chevron.right") }
+                Button { Task { await stand.turnPage(1) } } label: { Label("다음", systemImage: "chevron.right").frame(minWidth: 56, minHeight: 56) }
                     .disabled(stand.pageIndex + 1 >= stand.pageCount || stand.busy).accessibilityIdentifier("nextPage")
                 Spacer()
                 Text(stand.status).font(.subheadline).accessibilityIdentifier("saveStatus")
-                Button("저장 확인") { Task { await stand.retrySave() } }
-            }.frame(minHeight: 50).padding(.horizontal)
+                Button { Task { await stand.retrySave() } } label: { Text("저장 확인").frame(minHeight: 44) }
+            }.frame(minHeight: 56).padding(.horizontal)
         }
         .task { await stand.start() }
+        .sheet(isPresented: $workspacePresented) { WorkspaceView(stand: stand) }
+        .sheet(isPresented: $exportPresented) { ExportSheet(stand: stand) }
+        .sheet(isPresented: $transferPresented) { TransferDestinationSheet(stand: stand) }
         .onChange(of: stand.selectedToolKind) { _ in colorsPresented = false }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.pdf]) { result in
             switch result {
@@ -199,9 +212,9 @@ struct MusicStandScreen: View {
             HStack(spacing: 4) {
                 Label(title, systemImage: icon)
                 if selected { Image(systemName: "checkmark.circle.fill").accessibilityHidden(true) }
-            }
+            }.frame(minHeight: 44)
         }
-            .frame(minHeight: 44).fixedSize()
+            .fixedSize()
             .accessibilityValue(selected ? Text("선택됨") : Text(""))
             .accessibilityAddTraits(selected ? .isSelected : [])
     }

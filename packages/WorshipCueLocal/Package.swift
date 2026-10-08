@@ -14,6 +14,7 @@ let package = Package(
         .target(name: "WorshipCueLocal", dependencies: [
             .product(name: "WorshipCueCore", package: "WorshipCueCore"),
             .product(name: "GRDB", package: "GRDB.swift")]),
-        .executableTarget(name: "InkChecks", dependencies: ["WorshipCueLocal", "WorshipCueCore"])
+        .executableTarget(name: "InkChecks", dependencies: ["WorshipCueLocal", "WorshipCueCore"]),
+        .testTarget(name: "WorshipCueLocalTests", dependencies: ["WorshipCueLocal"])
     ]
 )

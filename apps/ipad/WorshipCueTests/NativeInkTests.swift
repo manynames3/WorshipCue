@@ -2,6 +2,7 @@ import XCTest
 import PencilKit
 import PDFKit
 import SQLite3
+import CryptoKit
 import WorshipCueCore
 import WorshipCueLocal
 @testable import WorshipCue
@@ -61,6 +62,293 @@ import WorshipCueLocal
         let overlay = try XCTUnwrap(stand.pdfView(stand.pdfView, overlayViewFor: page) as? PageInkView)
         try await waitUntilReady(overlay)
         return overlay
+    }
+
+    /// Opt-in local evidence. Real charts are staged in Documents, never bundled
+    /// or committed. The regular user's vault, ink and bookmarks stay untouched.
+    func testPrivatePDFPairPreservesAnnotationsAndManualTransferAcrossDifferentGeometry() async throws {
+        guard let value = ProcessInfo.processInfo.environment["WORSHIPCUE_PRIVATE_PDF_RUN"],
+              let run = UUID(uuidString: value) else {
+            throw XCTSkip("Private PDF pair not supplied; run scripts/test_private_pdf_pair.py locally")
+        }
+        let documents = try XCTUnwrap(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
+        let inputs = documents.appendingPathComponent("WorshipCuePrivateTests").appendingPathComponent(run.uuidString)
+        func assertArchivedInk(_ actual: PKDrawing, _ expected: PKDrawing) throws {
+            // Both a cached in-memory drawing and a cold archive are valid.
+            // Compare their native archive semantics at native float precision.
+            assertSameInk(try PKDrawing(data: actual.dataRepresentation()),
+                          try PKDrawing(data: expected.dataRepresentation()))
+        }
+        let (stand, root) = try await testStand()
+        let uiRoot = try XCTUnwrap(FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first)
+            .appendingPathComponent("WorshipCueUITests").appendingPathComponent(run.uuidString)
+        let uiVault = try DocumentVault(root: uiRoot.appendingPathComponent("pdfs"))
+        XCTAssertTrue(uiVault.charts.isEmpty, "Each private run requires a fresh isolated store")
+        var imported: [LocalChart] = []
+        var originals: [Data] = []
+        let song = LibrarySong(title: "Private arrangement pair")
+        let renders = inputs.appendingPathComponent("PDFKitRenders")
+        try FileManager.default.createDirectory(at: renders, withIntermediateDirectories: true)
+        for label in ["A", "B"] {
+            let source = inputs.appendingPathComponent("arrangement-\(label).pdf")
+            let original = try Data(contentsOf: source)
+            originals.append(original)
+            let sourceDocument = try XCTUnwrap(PDFDocument(data: original))
+            let didImport = await stand.importChart(source, song: song, label: "Private arrangement \(label)", writtenKey: nil)
+            XCTAssertTrue(didImport)
+            XCTAssertNil(stand.error)
+            let chart = try XCTUnwrap(stand.charts.first { $0.name == "Private arrangement \(label)" })
+            await stand.choose(chart)
+            imported.append(chart)
+            XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("pdfs").appendingPathComponent(chart.filename)), original)
+            let document = try XCTUnwrap(stand.pdfView.document)
+            XCTAssertEqual(document.pageCount, sourceDocument.pageCount)
+            XCTAssertGreaterThan(document.pageCount, 1)
+            XCTAssertGreaterThan(sourceDocument.page(at: 0)?.annotations.count ?? 0, 0,
+                                 "This optional pair must exercise embedded arranger annotations")
+            for index in 0..<document.pageCount {
+                let page = try XCTUnwrap(document.page(at: index))
+                let originalPage = try XCTUnwrap(sourceDocument.page(at: index))
+                XCTAssertEqual(page.annotations.count, originalPage.annotations.count)
+                XCTAssertEqual(try page.canonicalGeometry(), try originalPage.canonicalGeometry())
+                let image = page.thumbnail(of: CGSize(width: 850, height: 1100), for: .cropBox)
+                let png = try XCTUnwrap(image.pngData())
+                XCTAssertGreaterThan(png.count, 1_000)
+                try png.write(to: renders.appendingPathComponent("arrangement-\(label)-\(index + 1).png"))
+            }
+            // Seed the UI run using the actual native importer and pristine PDFs.
+            _ = try uiVault.importPDF(source, name: "Private arrangement \(label)", song: song)
+        }
+        XCTAssertNotEqual(imported[0].id, imported[1].id)
+        XCTAssertNotEqual(imported[0].sha256, imported[1].sha256)
+        XCTAssertEqual(stand.library.versions(for: song.id).map(\.number).sorted(), [1, 2])
+        let preferred = try XCTUnwrap(stand.library.versions.first { $0.id == imported[0].id })
+        stand.prefer(preferred)
+        await stand.choose(imported[0])
+        let sourceOverlay = try await readyOverlay(stand)
+        let first = MusicStand.sampleTeamDrawing()
+        let second = first.transformed(using: CGAffineTransform(translationX: 0, y: 140))
+        let sourceInk = PKDrawing(strokes: first.strokes + second.strokes)
+        sourceOverlay.replaceWithUndo(sourceInk)
+        try await stand.flush()
+        stand.beginSelection()
+        sourceOverlay.transfer.selection = first.bounds.insetBy(dx: -5, dy: -5)
+        sourceOverlay.transfer.onChange?()
+        XCTAssertEqual(stand.selectionCount, 1)
+        stand.copySelection()
+        await stand.choose(imported[1])
+        XCTAssertEqual(stand.library.preferences[song.id], imported[0].id, "Opening the other arrangement must not replace the preference")
+        let target = try await readyOverlay(stand)
+        XCTAssertNotEqual(sourceOverlay.geometry, target.geometry)
+        XCTAssertEqual(target.personal.drawing.strokes.count, 0)
+        stand.beginPaste()
+        target.transfer.centerPoint = CGPoint(x: target.geometry.width * 0.55, y: target.geometry.height * 0.82)
+        target.transfer.scale = 1.25
+        target.transfer.onChange?()
+        let expectedPaste = try XCTUnwrap(target.transfer.preview)
+        stand.cancelTransfer()
+        XCTAssertEqual(target.personal.drawing.strokes.count, 0)
+        stand.beginPaste()
+        target.transfer.centerPoint = CGPoint(x: target.geometry.width * 0.55, y: target.geometry.height * 0.82)
+        target.transfer.scale = 1.25
+        target.transfer.onChange?()
+        stand.commitPaste()
+        try assertArchivedInk(target.personal.drawing, expectedPaste)
+        stand.undo(); XCTAssertEqual(target.personal.drawing.strokes.count, 0)
+        stand.redo(); try assertArchivedInk(target.personal.drawing, expectedPaste)
+        try await stand.flush()
+        await stand.turnPage(1)
+        let nextPage = try await readyOverlay(stand)
+        XCTAssertEqual(nextPage.personal.drawing.strokes.count, 0)
+        await stand.turnPage(-1)
+        try assertArchivedInk(try await readyOverlay(stand).personal.drawing, expectedPaste)
+        await stand.choose(imported[0])
+        try assertArchivedInk(try await readyOverlay(stand).personal.drawing, sourceInk)
+        await stand.choose(imported[1])
+        let reopened = MusicStand(applicationSupport: root)
+        await reopened.start()
+        XCTAssertNil(reopened.error)
+        XCTAssertEqual(reopened.current?.id, imported[1].id)
+        try assertArchivedInk(try await readyOverlay(reopened).personal.drawing, expectedPaste)
+        let sourceOnlyResult = await reopened.exportPDF(includePersonal: false)
+        let sourceOnlyURL = try XCTUnwrap(sourceOnlyResult)
+        let sourceOnly = try XCTUnwrap(PDFDocument(url: sourceOnlyURL))
+        let targetOriginal = try XCTUnwrap(PDFDocument(data: originals[1]))
+        for index in 0..<targetOriginal.pageCount {
+            try assertPDFRenderMatches(try XCTUnwrap(targetOriginal.page(at: index)), try XCTUnwrap(sourceOnly.page(at: index)))
+        }
+        for (index, chart) in imported.enumerated() {
+            XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("pdfs").appendingPathComponent(chart.filename)), originals[index])
+        }
+    }
+
+    func testM1LegacyMigrationPreservesPDFAndExactExistingInk() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let pdfs = root.appendingPathComponent("pdfs")
+        try FileManager.default.createDirectory(at: pdfs, withIntermediateDirectories: true)
+        addTeardownBlock { try FileManager.default.removeItem(at: root) }
+        let source = try XCTUnwrap(Bundle.main.url(forResource: "song_A_v1_G", withExtension: "pdf", subdirectory: "pdfs"))
+        let bytes = try Data(contentsOf: source), id = UUID()
+        let chart = LocalChart(id: id, name: "Legacy chart", filename: "\(id.uuidString).pdf",
+            sha256: SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined(), bytes: bytes.count)
+        let index = try JSONEncoder().encode([chart])
+        try bytes.write(to: pdfs.appendingPathComponent(chart.filename)); try index.write(to: pdfs.appendingPathComponent("index.json"))
+        let page = try XCTUnwrap(PDFDocument(data: bytes)?.page(at: 0))
+        let address = try InkAddress(churchID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            ownerID: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!, versionID: id, pageIndex: 0)
+        let original = MusicStand.sampleTeamDrawing().dataRepresentation()
+        let store = try LocalInkStore(url: root.appendingPathComponent("personal.sqlite"))
+        try await store.save(InkSnapshot(address: address, geometry: page.canonicalGeometry(), generation: 1, archive: original))
+        let stand = MusicStand(applicationSupport: root); await stand.start()
+        XCTAssertNil(stand.error); XCTAssertEqual(stand.current?.id, id)
+        assertSameInk(try await readyOverlay(stand).personal.drawing, try PKDrawing(data: original))
+        XCTAssertEqual(try Data(contentsOf: pdfs.appendingPathComponent(chart.filename)), bytes)
+        XCTAssertEqual(try Data(contentsOf: pdfs.appendingPathComponent("index.json")), index)
+        XCTAssertEqual(try DocumentVault(root: pdfs).charts.count, 6)
+        XCTAssertEqual(stand.library.versions.first?.id, id)
+        XCTAssertEqual(stand.library.assets.first?.pages?.count, 2)
+    }
+
+    func testM1VersionPreferenceBookmarkAndImportDoNotAutomaticallyNavigateOrMerge() async throws {
+        let (stand, root) = try await testStand()
+        let first = try XCTUnwrap(stand.library.versions.first { $0.number == 1 && $0.writtenKey == "G" })
+        let second = try XCTUnwrap(stand.library.versions.first { $0.songID == first.songID && $0.number == 2 })
+        let third = try XCTUnwrap(stand.library.versions.first { $0.songID == first.songID && $0.number == 3 })
+        XCTAssertTrue(stand.prefer(second)); XCTAssertEqual(stand.current?.id, first.id)
+        let opened = await stand.openVersion(third.id); XCTAssertTrue(opened)
+        await stand.turnPage(1)
+        (try await readyOverlay(stand)).replaceWithUndo(MusicStand.sampleTeamDrawing()); try await stand.flush()
+        _ = await stand.openVersion(first.id); XCTAssertEqual(stand.pageIndex, 0)
+        let emptyOverlay = try await readyOverlay(stand); XCTAssertTrue(emptyOverlay.personal.drawing.strokes.isEmpty)
+        _ = await stand.openVersion(third.id); XCTAssertEqual(stand.pageIndex, 1)
+        let restoredOverlay = try await readyOverlay(stand); XCTAssertEqual(restoredOverlay.personal.drawing.strokes.count, 1)
+        XCTAssertEqual(stand.library.preferences[first.songID], second.id)
+        let source = try XCTUnwrap(Bundle.main.url(forResource: "song_A_v1_G", withExtension: "pdf", subdirectory: "pdfs"))
+        let song = try XCTUnwrap(stand.library.songs.first { $0.id == first.songID })
+        let imported = await stand.importChart(source, song: song, label: "Explicit fourth version", writtenKey: "G")
+        XCTAssertTrue(imported); XCTAssertEqual(stand.library.versions(for: song.id).first?.number, 4)
+        XCTAssertEqual(stand.current?.id, third.id); XCTAssertEqual(stand.pageIndex, 1)
+        XCTAssertEqual(stand.library.preferences[first.songID], second.id)
+        let set = try XCTUnwrap(stand.saveSetlist(LocalSetlist(title: "로컬 준비 검사", items: [
+            SetlistItem(songID: song.id, versionID: first.id, performanceKey: "G"),
+            SetlistItem(songID: song.id, versionID: third.id, performanceKey: "A", section: .standby)])))
+        await stand.prepare(set)
+        XCTAssertTrue(stand.preparationReport?.contains("3개 악보") == true)
+        let preferredChart = try XCTUnwrap(stand.charts.first { $0.id == second.id })
+        try Data([0]).write(to: root.appendingPathComponent("pdfs").appendingPathComponent(preferredChart.filename))
+        let readable = stand.pdfView.document
+        await stand.prepare(set)
+        XCTAssertTrue(stand.preparationReport?.contains("2 / 3") == true)
+        XCTAssertTrue(stand.pdfView.document === readable)
+        XCTAssertEqual(stand.current?.id, third.id); XCTAssertEqual(stand.pageIndex, 1)
+        XCTAssertEqual(restoredOverlay.personal.drawing.strokes.count, 1)
+    }
+
+    func testM1PacketSlicesKeepArrangerAnnotationsAndRollbackInvalidBatch() async throws {
+        let (stand, root) = try await testStand()
+        let originalCurrent = stand.current?.id
+        let source = try XCTUnwrap(Bundle.main.url(forResource: "weekly_packet", withExtension: "pdf", subdirectory: "pdfs"))
+        let document = try XCTUnwrap(PDFDocument(url: source))
+        let annotation = PDFAnnotation(bounds: CGRect(x: 40, y: 60, width: 150, height: 35), forType: .freeText, withProperties: nil)
+        annotation.contents = "M1 synthetic arranger mark"; annotation.font = .systemFont(ofSize: 14); annotation.fontColor = .red
+        try XCTUnwrap(document.page(at: 0)).addAnnotation(annotation)
+        let input = root.appendingPathComponent("packet-with-annotation.pdf")
+        let bytes = try XCTUnwrap(document.dataRepresentation()); try bytes.write(to: input)
+        let song = LibrarySong(title: "주간 원본")
+        let imported = await stand.importChart(input, song: song, label: "Weekly annotated packet", writtenKey: nil)
+        XCTAssertTrue(imported)
+        let chart = try XCTUnwrap(stand.charts.first { $0.name == "Weekly annotated packet" })
+        let before = stand.charts.count
+        let pdfs = root.appendingPathComponent("pdfs")
+        let filesBefore = try FileManager.default.contentsOfDirectory(atPath: pdfs.path).filter { $0.hasSuffix(".pdf") }.sorted()
+        let invalid = [PacketSlice(song: LibrarySong(title: "첫 곡"), firstPage: 1, lastPage: 1, writtenKey: "G", label: "first"),
+            PacketSlice(song: LibrarySong(title: "둘째 곡"), firstPage: 2, lastPage: 2, writtenKey: "H", label: "invalid")]
+        let failed = await stand.splitPacket(chart.id, slices: invalid)
+        XCTAssertFalse(failed); XCTAssertEqual(stand.charts.count, before); stand.error = nil
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: pdfs.path).filter { $0.hasSuffix(".pdf") }.sorted(), filesBefore)
+        let valid = [PacketSlice(song: LibrarySong(title: "첫 곡"), firstPage: 1, lastPage: 1, writtenKey: "G", label: "first"),
+            PacketSlice(song: LibrarySong(title: "둘째 곡"), firstPage: 2, lastPage: document.pageCount, writtenKey: "A", label: "second")]
+        let succeeded = await stand.splitPacket(chart.id, slices: valid)
+        XCTAssertTrue(succeeded); XCTAssertEqual(stand.current?.id, originalCurrent)
+        let vault = try DocumentVault(root: pdfs)
+        let first = try XCTUnwrap(vault.charts.first { $0.name == "first" })
+        let firstDocument = try vault.open(first)
+        XCTAssertEqual(firstDocument.pageCount, 1)
+        XCTAssertEqual(firstDocument.page(at: 0)?.annotations.count, document.page(at: 0)?.annotations.count)
+        XCTAssertGreaterThan(firstDocument.page(at: 0)?.annotations.count ?? 0, 0)
+        let second = try XCTUnwrap(vault.charts.first { $0.name == "second" })
+        XCTAssertEqual(try vault.open(second).pageCount, document.pageCount - 1)
+        XCTAssertEqual(try Data(contentsOf: pdfs.appendingPathComponent(chart.filename)), bytes)
+        XCTAssertEqual(stand.library.versions.first { $0.id == first.id }?.sourceFirstPage, 1)
+        let exported = root.appendingPathComponent("arranger-fallback.pdf")
+        try PDFExporter.write(firstDocument, drawings: [:], to: exported)
+        let fallback = try XCTUnwrap(PDFDocument(url: exported)?.page(at: 0))
+        try assertPDFRenderMatches(try XCTUnwrap(firstDocument.page(at: 0)), fallback)
+    }
+
+    private func assertPDFRenderMatches(_ source: PDFPage, _ exported: PDFPage,
+                                       file: StaticString = #filePath, line: UInt = #line) throws {
+        let original = source.thumbnail(of: CGSize(width: 320, height: 320), for: .cropBox)
+        let fallback = exported.thumbnail(of: CGSize(width: 320, height: 320), for: .cropBox)
+        XCTAssertEqual(original.size, fallback.size, file: file, line: line)
+        let a = try XCTUnwrap(original.cgImage), b = try XCTUnwrap(fallback.cgImage)
+        func pixels(_ image: CGImage) throws -> [UInt8] {
+            var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
+            try bytes.withUnsafeMutableBytes { buffer in
+                let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: image.width, height: image.height,
+                    bitsPerComponent: 8, bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+                context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            }
+            return bytes
+        }
+        let ap = try pixels(a), bp = try pixels(b)
+        guard ap.count == bp.count else { XCTFail("Export changed visible page size", file: file, line: line); return }
+        let meanError = Double(zip(ap, bp).reduce(0) { $0 + abs(Int($1.0) - Int($1.1)) }) / Double(ap.count)
+        XCTAssertLessThan(meanError, 5, "Export must preserve rotated/CropBox content and arranger annotations", file: file, line: line)
+        let attachment = XCTAttachment(image: fallback); attachment.name = "M1 export rotation \(source.rotation)"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+
+    func testM1FallbackExportMatchesRotationsAndExcludesUnselectedInk() async throws {
+        let (stand, root) = try await testStand()
+        let chart = try XCTUnwrap(stand.charts.first { $0.name == "geometry_rotations" }); await stand.choose(chart)
+        let overlay = try await readyOverlay(stand)
+        overlay.replaceWithUndo(MusicStand.sampleTeamDrawing()); try await stand.flush()
+        let source = try XCTUnwrap(stand.pdfView.document)
+        let original = try Data(contentsOf: root.appendingPathComponent("pdfs").appendingPathComponent(chart.filename))
+        let plainResult = await stand.exportPDF(includePersonal: false)
+        let plainURL = try XCTUnwrap(plainResult)
+        let plain = try XCTUnwrap(PDFDocument(url: plainURL)); XCTAssertEqual(plain.pageCount, source.pageCount)
+        for index in 0..<source.pageCount { try assertPDFRenderMatches(try XCTUnwrap(source.page(at: index)), try XCTUnwrap(plain.page(at: index))) }
+        let inkResult = await stand.exportPDF(includePersonal: true)
+        let inkURL = try XCTUnwrap(inkResult)
+        XCTAssertNotEqual(try Data(contentsOf: plainURL), try Data(contentsOf: inkURL))
+        let inkPage = try XCTUnwrap(PDFDocument(url: inkURL)?.page(at: 0))
+        let plainImage = try XCTUnwrap(plain.page(at: 0)?.thumbnail(of: CGSize(width: 600, height: 600), for: .cropBox).cgImage)
+        let inkImage = try XCTUnwrap(inkPage.thumbnail(of: CGSize(width: 600, height: 600), for: .cropBox).cgImage)
+        func pixels(_ image: CGImage) throws -> [UInt8] {
+            var data = [UInt8](repeating: 0, count: image.width * image.height * 4)
+            try data.withUnsafeMutableBytes { buffer in
+                let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: image.width, height: image.height,
+                    bitsPerComponent: 8, bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+                context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            }
+            return data
+        }
+        let a = try pixels(plainImage), b = try pixels(inkImage)
+        XCTAssertEqual(a.count, b.count)
+        if a.count == b.count {
+            let newRedPixels = stride(from: 0, to: a.count, by: 4).filter {
+                b[$0] > 150 && Int(b[$0]) > Int(b[$0 + 1]) + 40 && Int(b[$0]) > Int(b[$0 + 2]) + 40 &&
+                abs(Int(a[$0 + 1]) - Int(b[$0 + 1])) > 25
+            }.count
+            XCTAssertGreaterThan(newRedPixels, 20, "Personal ink must be visibly rendered; different PDF bytes alone are insufficient")
+        }
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("pdfs").appendingPathComponent(chart.filename)), original)
+        XCTAssertEqual(stand.current?.id, chart.id); XCTAssertEqual(stand.pageIndex, 0)
+        XCTAssertEqual(overlay.personal.drawing.strokes.count, 1)
+        XCTAssertThrowsError(try PDFExporter.write(source, drawings: [:], to: plainURL))
     }
 
     func testToolColorsStayFixedAndRememberIndependentChoicesAcrossPagesAndRelaunch() async throws {

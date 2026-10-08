@@ -1,17 +1,25 @@
 # Project state
-Updated: 2026-10-07
+Updated: 2026-10-08
 
 ## Current state
 
+Build **3** implements the **M1 local weekly music stand**: Korean search/metadata/favorites, immutable numbered versions and explicit personal preference, transactional legacy catalog migration, manual weekly-packet ranges, setlist/standby/repeat/clone editing, per-version bookmarks, local file preflight, selected-note destination UX and source/personal fallback PDF export. Existing PDFs and ink identities are preserved. No new production dependency, backend, paid Apple enrollment or live behavior was added.
+
+Verification: **8 local library tests +55 core tests +32 reference tests +9 ink check groups pass**. The full native run passed **18 synthetic cases/0 failures/1 private-input skip**, and a separate fresh **real-PDF native case passed**, qualifying all 19 native cases across runs. Three current device UI workflows passed separately: weekly preparation, rendered compact colors/cold recovery, and PDF export/native share sheet. The remaining six-workflow attempt stalled before any case began (**73**, 0 passes/1 runner failure), so packet/clone/reorder/new transfer-panel UI and Files-provider UI remain unverified. Debug/test targets and final-source Release compile.
+
+Signed **Build 3 is installed and normally launched** on iPad (6th generation), iPadOS 17.7.11. External backup/post-install comparison verifies **7 unchanged original PDFs and 2 exact existing ink records**, with database integrity checks passing. No normal store reset occurred. Physical Apple Pencil, original 16.7.16 runtime, long-session measurements and M2–M6 are still open; **do not claim end-user readiness**. Exact runs, failures and device requirements: `verification/M1.md`.
+
+The Build2/M0 reports below are historical and retain their original qualifications.
+
 Build2 adds an eight-color compact popover with independent remembered pen/highlighter preferences and the approved teal ribbon-W app icon. The color and black-pen UI workflows (2 cases) and2 focused native cases pass on17.7.11; Xcode27 Release builds pass. A full14-case native rerun was interrupted after a device-connection stall, and Xcode26.6 asset compilation is runtime-blocked. Earlier M0 baseline evidence below remains historical. See `verification/M0-colors-icon.md`.
-A native M0 reliability app is implemented and installed on the connected iPad (6th generation), iPadOS17.7.11. Free Personal Team signing and device provisioning are configured with user authorization; no paid enrollment, hosted backend, cloud deployment or repository push occurred.
+A native M0 reliability app is implemented and installed on the connected iPad (6th generation), iPadOS17.7.11. Free Personal Team signing and device provisioning are configured with user authorization; no paid enrollment, hosted backend or cloud deployment occurred. Source publication is recorded below; real musician PDFs remain local.
 
 Prior full M0 baseline: 13/13 hosted native tests and 2/2 independently qualified UI workflows (drawing/save/relaunch and read-only team isolation) pass on iPad (6th generation), iPadOS 17.7.11. The final corrected transfer UI recheck is blocked by test-runner connection failures; an earlier full functional transfer workflow passed and the current black preview was visually inspected. Physical Apple Pencil and original iPadOS 16.7.16 runtime qualification remain NOT VERIFIED. PDFKit markup routing is enabled; the annotation layer is pinned to Light appearance so PencilKit cannot render white pen ink on white PDF paper in Dark Mode. The visible Korean input selector and selected-tool checkmarks remain. Builds, package caches and device symbols are external; Apple profiles/system caches partly remain internal. Free Personal Team signing only. Historical failures below are preserved.
 
 Implemented: native PDFKit/PencilKit reader, immutable PDF import, transactional personal-ink save/restore, manual selected-note transfer and exact-context read-only team sample, plus the portable reference model, contracts, fixtures and tests. See `verification/M0.md` for the current native evidence and `verification/REPORT.md` for reference evidence.
 
 ## Next milestone
-M0: repository/toolchain inventory, local iPad PDF/PencilKit reliability spike, and physical-device ink testing. Read `docs/12_BUILD_PLAN.md`.
+Finish M1 device UI qualification and the remaining M0 physical Pencil/oldest-iPad gates. M2 starts with isolated local backend/schema/RLS tests; no hosted backend is configured. Read `docs/12_BUILD_PLAN.md`.
 
 ## External prerequisites (not reasons to stop all work)
 - macOS with a supported stable Xcode for native building.
@@ -209,3 +217,9 @@ Private signing settings removed; restored project matches pre-signing backup; g
 Created repository [manynames3/WorshipCue](https://github.com/manynames3/WorshipCue) and pushed `main`. After the user explicitly selected Public, changed visibility and verified `PUBLIC` through GitHub. Initial source commit `090e321f6a35e6cd5b6fe59d79cb384b5e5c965a` matched GitHub's remote branch. The English/Korean musician-focused READMEs explain chart revisions, personal markings, rehearsal changes and tap-to-open cues; implemented behavior is separated from planned team/live features. The initial app icon and actual synthetic device screenshots are included. GitHub About description and11 topics were applied and verified through the API and live repository page. The original handoff README is preserved under `docs/HANDOFF_README_v1.md`. No source implementation or product invariant changed during publication.
 
 Fresh publication checks:32 Python specification tests pass, native project/resource/scheme checks pass, all39 landing-page local links/images resolve, both READMEs render through GitHub Markdown, and staged text scans find no credentials, private signing/device identifiers or emails. Build caches, detailed host logs, certificates/profiles, local databases and device result bundles remain local/ignored. Repository author identity uses the GitHub noreply address. The published README continues to disclose incomplete native/device qualifications; no additional native test or App Store release was claimed by this documentation task.
+
+## 2026-10-07 · private real-arrangement pair
+
+Used the user's two supplied PDFs locally. Each has4 pages with different embedded arranger marks and different page geometry. Added opt-in private hosted/native and physical finger UI tests plus a standard-library staging/test helper; no production app source or dependency changed. On17.7.11 /Xcode27 build27A266a: Debug build-for-testing exits0, native1/1 and UI1/1 pass with0 failures/skips, complete helper exits0. All8 PDFKit renders were inspected, source bytes/annotations retained, explicit selected-note placement/enlargement/cancel/undo/redo/page-version isolation/cold recovery pass. Preliminary assertion failures and runner waits remain recorded in `verification/M0-private-pdf-pair.md`.
+
+The two native-validated PDF copies are available under `악보 선택` in the normal app, with the5 existing chart entries, personal database and bookmarks preserved. Normal app launch exits0 without test arguments. Private PDFs, screenshots, score text, hashes, logs and result bundles stay outside the public repository; tests skip without explicit private inputs. Files-picker interaction with these files, physical Pencil, original16.7.16 hardware and other M0 qualification gates remain NOT VERIFIED. No automatic song/page/note behavior or shared service was added.

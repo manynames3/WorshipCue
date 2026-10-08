@@ -1,8 +1,8 @@
-# WorshipCue M0 iPad spike
+# WorshipCue native iPad app
 
-Native SwiftUI shell with UIKit/PDFKit page overlays and a PencilKit personal canvas. Minimum **iPadOS 16.0** under D39. Latest Build2 verification: **2 focused native cases and2 UI workflows pass** on iPad (6th generation), iPadOS17.7.11, covering compact colors, rendered black/colored ink, save/restore and real PDFKit input routing. Xcode27 Debug/device targets and Release build succeed; sources contain14 hosted and4 UI cases. The latest full14-case native rerun stalled before case execution and was interrupted. No backend/live publishing is implemented.
+Native SwiftUI workspace and PDFKit/PencilKit reader. Build **3** adds local library search, immutable chart versions, weekly packet extraction, planned/standby setlists, file preflight and PDF fallback export. Minimum **iPadOS 16.0** under D39. Current full native run on iPad (6th generation), iPadOS **17.7.11**: **18 passed, 0 failed, 1 opt-in private-PDF skip**. A fresh real-PDF native case also passes. Weekly-preparation, compact-color and export/share UI workflows pass separately; remaining UI qualification is recorded in [M1 evidence](../../verification/M1.md). Xcode 27 Debug/device targets and Release compile. No backend/live publishing is implemented.
 
-Earlier M0 baseline:13 hosted native cases and separate drawing/team-isolation UI workflows passed. An earlier functional transfer workflow passed; its final corrected recheck remains connection-blocked. Xcode26.6 compiled the earlier pre-icon app/test targets, but its latest Build2 asset compilation fails because no simulator runtime is installed. Physical Apple Pencil and original iPadOS16.7.16 runtime qualification remain **NOT VERIFIED**. See `../../verification/M0-colors-icon.md` for current exact results and retained failures.
+Physical Apple Pencil and original iPadOS 16.7.16 runtime qualification remain **NOT VERIFIED**. Earlier M0, color/icon and private-PDF evidence remains in [M0 history](../../verification/M0.md), [Build 2 history](../../verification/M0-colors-icon.md) and [private-pair evidence](../../verification/M0-private-pdf-pair.md). Separate passing sessions do not imply pilot readiness.
 
 Open `WorshipCue.xcodeproj`, scheme `WorshipCue`. GRDB 7.11.1 requires Swift 6.1 / Xcode 16.3 or newer; use a supported stable Xcode. Signing uses the existing development identity through a private command-line team override; no team identifier or credential is checked into this project. Signed app compilation and signature verification pass. The current Xcode27 profile includes the17.7.11 test iPad and expires2026-10-14T22:45:20Z; the older profile excluded the original16.7.16 iPad. Original-device provisioning/installation remains pending. Development must stay on the free Personal Team until release, per user instruction. `../../packages/WorshipCueLocal` pins GRDB exactly; `../../reference/WorshipCueCore` is deliberately reused as the app's pure domain package, so identity/version rules retain one owner.
 
@@ -41,6 +41,8 @@ Scheme `WorshipCue` runs the hosted native gate. Scheme `WorshipCueUI` also cont
 
 DEBUG-only `--ui-test-store <UUID>` launches use a separate Application Support store. Tests never reset normal user notes or bookmarks. Release excludes this launch flag.
 
+Optional real-arrangement tests read private PDFs staged on the device and skip when those inputs are absent. See [private PDF testing](../../docs/PRIVATE_PDF_TESTING.md). PDFs and their device screenshots remain outside the public repository.
+
 ```sh
 # Supply discovered identifiers privately; do not commit them.
 WORSHIPCUE_TEST_DEVICE_ID='<discovered-device-id>' \
@@ -55,3 +57,9 @@ The device script requires normal Trust, Developer Mode, developer certificate t
 Select 펜 or 형광펜, then tap the small color swatch beside the tools. Eight labeled colors appear in a compact popover. Picking a color closes it; × and an outside tap also dismiss it. Pen and highlighter preferences are independent and persist locally. Preferences follow the UUID-scoped test namespace during UI testing; normal notes/bookmarks are not reset. Color values are fixed pigments and new choices affect subsequent strokes only.
 
 The approved teal folded-ribbon W is now the native `AppIcon` asset. Build 2 compiles 14 hosted native cases and 4 UI cases. See `verification/M0-colors-icon.md` for current results and toolchain limitations.
+
+## Local weekly preparation (Build 3)
+
+Use **오늘 · 라이브러리** to search, edit song metadata, favorite songs, select/prefer numbered versions, import a new song/version, and create an editable setlist with standby entries. The chart detail’s **악보 작업** menu opens manual weekly-packet page ranges. The reader’s note-copy destination panel previews only explicitly copied personal strokes; confirmation remains a separate action. **PDF 내보내기** offers source/arranger content with optional personal ink and a native share sheet.
+
+Existing M0 chart IDs, PDF bytes, ink SQLite and bookmarks are preserved. `pdfs/catalog.sqlite` replaces the JSON catalog after a transactional migration; the old `index.json` remains a receipt and must not be edited as a current catalog. New imports verify the promoted file before catalog publication. Setlist edits use revision checks and exact song/version foreign keys. See `verification/M1.md` and run `python3 scripts/test_m1_device.py` with privately supplied, already-authorized device/team environment values.

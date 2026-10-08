@@ -42,6 +42,8 @@ enum InkColor: String, CaseIterable, Identifiable {
     let pdfView = PDFView()
     let clipboard = InkClipboard()
     @Published private(set) var charts: [LocalChart] = []
+    @Published private(set) var library: LibrarySnapshot = .empty
+    @Published private(set) var preparationReport: String?
     @Published private(set) var current: LocalChart?
     @Published private(set) var pageIndex = 0
     @Published private(set) var pageCount = 0
@@ -71,6 +73,7 @@ enum InkColor: String, CaseIterable, Identifiable {
     private var restoreFailures: Set<InkAddress> = []
     private var restoreReads: [InkAddress: Int] = [:]
     private var saveWrites: [InkAddress: Int] = [:]
+    private var requestedPaste: (version: UUID, page: Int)?
     private let applicationSupport: URL?
     private var bookmarkPrefix: String { applicationSupport == nil ? "m0" : "m0.test.\(applicationSupport!.lastPathComponent)" }
 
@@ -116,6 +119,7 @@ enum InkColor: String, CaseIterable, Identifiable {
                 catch { self.error = String(localized: "일부 예시 파일을 열지 못했어요. 다른 저장된 악보를 선택할 수 있습니다.") }
             }
             charts = vault.charts
+            try refreshLibrary()
             let remembered = UserDefaults.standard.string(forKey: "\(bookmarkPrefix).currentVersion")
             let preferred = charts.first(where: { $0.id.uuidString == remembered })
             if let chart = preferred ?? charts.first {
@@ -141,6 +145,7 @@ enum InkColor: String, CaseIterable, Identifiable {
             try await flush()
             let chart = try vault.importPDF(url, name: url.deletingPathExtension().lastPathComponent)
             charts = vault.charts
+            try refreshLibrary()
             try await open(chart, page: 0)
         } catch { fail(String(localized: "PDF를 가져오지 못했어요. 현재 악보는 유지됩니다.")) }
     }
@@ -151,6 +156,7 @@ enum InkColor: String, CaseIterable, Identifiable {
         defer { endTransition() }
         try await flush()
         let document = try vault.open(chart)
+        let verifiedLibrary = try vault.library.snapshot()
         cancelTransfer()
         overlays.removeAll(); latest.removeAll(); restoreFailures.removeAll()
         current = chart; pageCount = document.pageCount
@@ -161,6 +167,7 @@ enum InkColor: String, CaseIterable, Identifiable {
         pdfView.document = document
         if let target = document.page(at: pageIndex) { pdfView.go(to: target) }
         pdfView.autoScales = true
+        library = verifiedLibrary
         remember()
     }
 
@@ -180,6 +187,129 @@ enum InkColor: String, CaseIterable, Identifiable {
     private func remember() {
         UserDefaults.standard.set(current?.id.uuidString, forKey: "\(bookmarkPrefix).currentVersion")
         UserDefaults.standard.set(pageIndex, forKey: "\(bookmarkPrefix).page")
+        if let current, let vault {
+            do { try vault.library.remember(versionID: current.id, pageIndex: pageIndex) }
+            catch { fail(String(localized: "악보는 열렸지만 마지막 페이지를 기록하지 못했어요.")) }
+        }
+    }
+
+    private func refreshLibrary() throws {
+        guard let vault else { throw LibraryError.missingRecord }
+        library = try vault.library.snapshot()
+        charts = vault.charts
+        preparationReport = nil
+    }
+
+    func openVersion(_ id: UUID, page: Int? = nil) async -> Bool {
+        guard !busy, let vault, let chart = charts.first(where: { $0.id == id }) else { return false }
+        busy = true; defer { busy = false }
+        do {
+            let destination = try page ?? vault.library.bookmark(versionID: id)
+            try await open(chart, page: destination)
+            try refreshLibrary()
+            return true
+        } catch { fail(String(localized: "악보를 열지 못했어요. 현재 악보와 메모는 유지됩니다.")); return false }
+    }
+
+    @discardableResult func updateSong(_ song: LibrarySong) -> Bool {
+        do { guard let vault else { throw LibraryError.missingRecord }
+            try vault.library.updateSong(song); try refreshLibrary(); return true
+        } catch { self.error = String(localized: "곡 정보를 저장하지 못했어요. 제목과 찬송가 번호·판본을 확인해 주세요."); return false }
+    }
+    @discardableResult func prefer(_ version: LibraryVersion) -> Bool {
+        do { guard let vault else { throw LibraryError.missingRecord }
+            try vault.library.setPreferred(songID: version.songID, versionID: version.id); try refreshLibrary(); return true
+        } catch { self.error = String(localized: "기본 악보를 저장하지 못했어요."); return false }
+    }
+    func saveSetlist(_ draft: LocalSetlist) -> LocalSetlist? {
+        do { guard let vault else { throw LibraryError.missingRecord }
+            let saved = try vault.library.saveSetlist(draft); try refreshLibrary(); return saved
+        } catch LibraryError.staleSetlist {
+            error = String(localized: "이 예배 목록이 변경되었어요. 닫은 뒤 다시 열어 확인해 주세요."); return nil
+        } catch { self.error = String(localized: "예배 목록을 저장하지 못했어요. 악보와 키를 확인해 주세요."); return nil }
+    }
+
+    func importChart(_ url: URL, song: LibrarySong, label: String, writtenKey: String?) async -> Bool {
+        guard !busy, let vault else { return false }
+        busy = true; defer { busy = false }
+        do {
+            _ = try vault.importPDF(url, name: label, song: song, writtenKey: writtenKey)
+            try refreshLibrary()
+            return true // Importing or preferring a chart never navigates the current reader.
+        } catch { self.error = String(localized: "PDF를 가져오지 못했어요. 파일·곡 제목·키와 저장 공간을 확인해 주세요."); return false }
+    }
+    func splitPacket(_ id: UUID, slices: [PacketSlice]) async -> Bool {
+        guard !busy, let vault, let chart = charts.first(where: { $0.id == id }) else { return false }
+        busy = true; defer { busy = false }
+        do { _ = try vault.slicePacket(chart, slices: slices); try refreshLibrary(); return true }
+        catch { self.error = String(localized: "주간 PDF를 나누지 못했어요. 페이지 범위·곡 제목·키와 저장 공간을 확인해 주세요."); return false }
+    }
+
+    func verifyVersion(_ id: UUID) -> Int? {
+        guard !busy, let vault, let chart = charts.first(where: { $0.id == id }) else { return nil }
+        do { let count = try vault.open(chart).pageCount; try refreshLibrary(); return count }
+        catch { self.error = String(localized: "이 PDF를 확인하지 못했어요. 원본을 다시 가져와 주세요."); return nil }
+    }
+
+    /// Called only by the musician's explicit destination action; it previews and never commits ink.
+    func requestPastePreview() {
+        guard let current, clipboard.selection != nil else { return }
+        if currentOverlay != nil { beginPaste() }
+        else { requestedPaste = (current.id, pageIndex) }
+    }
+
+    func prepare(_ setlist: LocalSetlist) async {
+        guard !busy, let vault else { return }
+        busy = true; defer { busy = false }
+        do {
+            try beginTransition(); defer { endTransition() }
+            try await flush()
+            var required = Set(setlist.items.map(\.versionID))
+            for item in setlist.items {
+                if let preferred = library.preferences[item.songID] { required.insert(preferred) }
+            }
+            guard !required.isEmpty else { preparationReport = String(localized: "예배 목록에 곡을 먼저 추가해 주세요."); return }
+            var verified = 0
+            for id in required {
+                guard let chart = charts.first(where: { $0.id == id }) else { continue }
+                do { _ = try vault.open(chart); verified += 1 }
+                catch { /* A failed checksum or missing file stays unready; readable chart is untouched. */ }
+            }
+            let report = verified == required.count
+                ? String(localized: "오프라인 파일 확인 완료 · \(verified)개 악보. 선택 악보·개인 기본 악보·대기곡을 이 iPad에서 열 수 있습니다.")
+                : String(localized: "오프라인 파일 \(verified) / \(required.count)개 확인 · 누락되거나 손상된 PDF를 다시 가져와 주세요.")
+            try refreshLibrary(); preparationReport = report
+        } catch { self.error = String(localized: "메모를 먼저 저장한 뒤 준비 상태를 다시 확인해 주세요.") }
+    }
+
+    func exportPDF(includePersonal: Bool) async -> URL? {
+        guard !busy, let current, let vault, let store else { return nil }
+        busy = true; defer { busy = false }
+        do {
+            try beginTransition(); defer { endTransition() }
+            try await flush()
+            guard restoreFailures.isEmpty else { throw InkStoreError.invalidRecord }
+            let document = try vault.open(current)
+            var drawings: [Int: PKDrawing] = [:]
+            if includePersonal {
+                for index in 0..<document.pageCount {
+                    let address = try InkAddress(churchID: church, ownerID: owner, versionID: current.id, pageIndex: index)
+                    if let saved = try await store.load(address) {
+                        guard let page = document.page(at: index), saved.geometry == (try page.canonicalGeometry()) else {
+                            throw InkStoreError.geometryMismatch
+                        }
+                        drawings[index] = try PKDrawing(data: saved.archive)
+                    }
+                }
+            }
+            let cache = try FileManager.default.url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+                .appendingPathComponent("WorshipCueExports").appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true,
+                attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
+            let output = cache.appendingPathComponent("WorshipCue.pdf")
+            try PDFExporter.write(document, drawings: drawings, to: output)
+            return output
+        } catch { self.error = String(localized: "PDF를 내보내지 못했어요. 메모 복원 상태와 저장 공간을 확인해 주세요."); return nil }
     }
 
     func pdfView(_ view: PDFView, overlayViewFor page: PDFPage) -> UIView? {
@@ -228,6 +358,10 @@ enum InkColor: String, CaseIterable, Identifiable {
             if let snapshot { latest[address] = snapshot }
             restoreFailures.remove(address)
             applyTeam(to: overlay)
+            if requestedPaste?.version == address.versionID, requestedPaste?.page == address.pageIndex {
+                requestedPaste = nil
+                beginPaste()
+            }
         } catch {
             guard overlays[key] === overlay else { return }
             restoreFailures.insert(address)
@@ -461,6 +595,7 @@ enum InkColor: String, CaseIterable, Identifiable {
         cancelTransfer()
     }
     func cancelTransfer() {
+        requestedPaste = nil
         transferMode = .inactive
         for overlay in overlays.values { overlay.transfer.mode = .inactive; overlay.transfer.preview = nil; overlay.transfer.onChange = nil }
     }
