@@ -46,7 +46,12 @@
       "elapsed_seconds": 5.921,
       "p95_seconds": 5.756
     },
-    "shared_lambda_quota": 10
+    "shared_lambda_quota": 10,
+    "provider_metric_window": {
+      "scope": "four minutes around the fifty-client run; may include other request activity",
+      "lambda_throttles": 93,
+      "dynamodb_transaction_conflicts": 5
+    }
   },
   "restore": {
     "restored_rows": 756,
