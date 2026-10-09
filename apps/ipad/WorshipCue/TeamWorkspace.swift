@@ -37,6 +37,53 @@ struct TeamChatAction: Identifiable, Codable, Equatable {
     let payload: [String: TeamJSON]
 }
 
+enum TeamRecovery: String, Codable {
+    case connection, authentication, permission, conflict, integrity, capacity, configuration, storage
+    var actionTitle: String {
+        switch self {
+        case .authentication: return String(localized: "로그인 다시 확인")
+        case .permission: return String(localized: "팀·초대 확인")
+        case .conflict: return String(localized: "최신 자료 확인")
+        case .integrity: return String(localized: "자료 다시 검증")
+        case .capacity: return String(localized: "파일 크기 확인")
+        case .storage: return String(localized: "기기 저장 공간 확인")
+        case .configuration: return String(localized: "연결 설정 확인")
+        case .connection: return String(localized: "연결 다시 확인")
+        }
+    }
+}
+
+struct TeamPreparedChart: Identifiable, Codable, Equatable {
+    let id: UUID
+    let songID: UUID
+    let assetID: UUID
+    let title: String
+    let label: String
+    let sha256: String
+    let bytes: Int64
+    let pageCount: Int
+    let personalPreferred: Bool
+    var pdfVerifiedAt: Date?
+    var notesCheckedAt: Date?
+    var personalCheckedAt: Date?
+    var failure: TeamRecovery?
+}
+
+/// Evidence belongs to one account/team and an exact immutable server manifest.
+struct TeamPreparation: Identifiable, Codable, Equatable {
+    let id: UUID
+    let ownerID: UUID
+    let churchID: UUID
+    let teamID: UUID
+    var title: String
+    var manifest: TeamJSON
+    var charts: [TeamPreparedChart]
+    var checkedAt: Date?
+    var needsReview = false
+    var verifiedPDFCount: Int { charts.filter { $0.pdfVerifiedAt != nil }.count }
+    var confirmedCount: Int { charts.filter { $0.pdfVerifiedAt != nil && $0.notesCheckedAt != nil && $0.personalCheckedAt != nil }.count }
+}
+
 private enum TeamPublicationError: Error { case changedIntent, changedCreation }
 
 /// Original bytes and every mutation command are frozen before the first network request.
@@ -71,11 +118,16 @@ private struct TeamPublication: Codable {
     @Published private(set) var reader: MusicStand?
     @Published private(set) var live: LiveState?
     @Published private(set) var displayedCall: LiveCall?
+    @Published private(set) var preparedItem: TeamJSON = .null
     @Published private(set) var snapshot: TeamJSON = .null
     @Published private(set) var lease: TeamJSON = .null
     @Published private(set) var online = false
     @Published private(set) var busy = false
     @Published private(set) var message = String(localized: "팀 연결 준비 중")
+    @Published private(set) var recovery: TeamRecovery?
+    @Published private(set) var connectionCheckedAt: Date?
+    @Published private(set) var preparations: [TeamPreparation] = []
+    @Published private(set) var preparationProgress: (setlistID: UUID, chartID: UUID)?
     @Published var error: String?
     @Published var showConflicts = false
     @Published private(set) var conflicts: [PersonalConflict] = []
@@ -143,6 +195,14 @@ private struct TeamPublication: Codable {
         memberships.contains { $0["church_id"].uuid == selectedChurch && $0["team_id"].uuid == selectedTeam && ["admin", "leader"].contains($0["role"].text ?? "") }
     }
     var canAdmin: Bool { memberships.contains { $0["church_id"].uuid == selectedChurch && $0["team_id"].uuid == selectedTeam && $0["role"].text == "admin" } }
+    private var selectedMembership: TeamJSON? { memberships.first { $0["church_id"].uuid == selectedChurch && $0["team_id"].uuid == selectedTeam } }
+    var selectedWorkspaceName: String { selectedMembership?["team_name"].text ?? selectedMembership?["team_display_name"].text ?? String(localized: "선택한 팀") }
+    var selectedChurchName: String { selectedMembership?["church_name"].text ?? selectedMembership?["church_display_name"].text ?? String(localized: "선택한 교회") }
+    var selectedRoleLabel: String { Self.roleLabel(selectedMembership?["role"].text ?? (session?.anonymous == true ? "guest" : "member")) }
+    static func roleLabel(_ role: String?) -> String {
+        switch role { case "admin": return String(localized: "관리자"); case "leader": return String(localized: "진행자"); case "guest": return String(localized: "게스트"); default: return String(localized: "팀원") }
+    }
+    func preparation(_ setlistID: UUID) -> TeamPreparation? { preparations.first { $0.id == setlistID } }
     var hasLease: Bool {
         guard lease["active"].flag, lease["device_id"].uuid == deviceID, lease["controller_user_id"].uuid == session?.userID,
               let expiry = lease["expires_at"].text, let date = Self.parseDate(expiry) else { return false }
@@ -153,8 +213,9 @@ private struct TeamPublication: Codable {
         return iso.date(from: value) ?? ISO8601DateFormatter().date(from: value)
     }
     var pending: LiveCall? { live?.ended == false ? live?.pending : nil }
-    var currentPerformanceKey: String? { displayedCall?.performanceKey }
+    var currentPerformanceKey: String? { preparedItem["id"].uuid == reader?.performanceItemID ? preparedItem["performance_key"].text : displayedCall?.performanceKey }
     var teamMismatch: Bool {
+        if let item = preparedItem["id"].uuid, item == reader?.performanceItemID { return preparedItem["team_chart_version_id"].uuid != reader?.current?.id }
         guard let call = displayedCall, call.performanceItemID == reader?.performanceItemID else { return false }
         return call.teamChartVersionID != reader?.current?.id
     }
@@ -210,7 +271,7 @@ private struct TeamPublication: Codable {
             guard let api, code.count >= 6, code.count <= 10, code.allSatisfy(\.isNumber) else { throw RemoteError.configuration }
             let captured = context
             let value = try await api.verifyOTP(email: email.trimmingCharacters(in: .whitespacesAndNewlines), code: code)
-            guard captured == context else { throw RemoteError.authentication }
+            guard captured == context, session == nil || session?.userID == value.userID else { throw RemoteError.authentication }
             try secureWrite(JSONEncoder().encode(value)); session = value; context = UUID()
             try loadCatalog()
             try await fetchLibrary()
@@ -343,8 +404,8 @@ private struct TeamPublication: Codable {
         context = UUID(); openGeneration &+= 1; polling?.cancel(); polling = nil; clearCatalogRefresh(); await hints.disconnect()
         refreshFlight?.task.cancel(); refreshFlight = nil
         cacheObservation?.cancel(); cacheObservation = nil
-        reader = nil; cache = nil; live = nil; displayedCall = nil; snapshot = .null; lease = .null
-        conflicts = []; sharedHeads = [:]; publishCommand = nil; pendingPublications = []; clearChatContext()
+        reader = nil; cache = nil; live = nil; displayedCall = nil; preparedItem = .null; snapshot = .null; lease = .null
+        conflicts = []; sharedHeads = [:]; publishCommand = nil; pendingPublications = []; preparations = []; preparationProgress = nil; connectionCheckedAt = nil; recovery = nil; clearChatContext()
         preferredVersions = [:]; pendingPreferences = [:]; preferenceGeneration &+= 1
         songs = []; versions = []; assets = []; setlists = []; items = []
         selectedChurch = church; selectedTeam = team; online = false
@@ -357,8 +418,8 @@ private struct TeamPublication: Codable {
             let signedOut = session, revoke = online
             try secureDelete(); polling?.cancel(); polling = nil; context = UUID(); openGeneration &+= 1; clearCatalogRefresh()
             refreshFlight?.task.cancel(); refreshFlight = nil
-            await hints.disconnect(); clearChatContext(); conflicts = []; pendingPublications = []; cacheObservation?.cancel(); cacheObservation = nil;
-            session = nil; reader = nil; cache = nil; live = nil; displayedCall = nil; snapshot = .null; lease = .null
+            await hints.disconnect(); clearChatContext(); conflicts = []; pendingPublications = []; preparations = []; preparationProgress = nil; connectionCheckedAt = nil; recovery = nil; cacheObservation?.cancel(); cacheObservation = nil;
+            session = nil; reader = nil; cache = nil; live = nil; displayedCall = nil; preparedItem = .null; snapshot = .null; lease = .null
             songs = []; versions = []; setlists = []; items = []; assets = []; memberships = []
             selectedChurch = nil; selectedTeam = nil; online = false
             preferredVersions = [:]; pendingPreferences = [:]; sharedHeads = [:]; publishCommand = nil; preferenceGeneration &+= 1
@@ -391,6 +452,47 @@ private struct TeamPublication: Codable {
         let value = try await api.rpc(name, token: auth.accessToken, payload)
         guard captured == context, session?.userID == owner else { throw RemoteError.authentication }
         return value
+    }
+    func accountExportChart(_ versionID: UUID, expectedScope: UUID) async throws -> TeamJSON {
+        guard context == expectedScope, session?.anonymous == false,
+              let version = versions.first(where: { $0.id == versionID })?.value, belongsToSelectedTeam(version),
+              let asset = assets.first(where: { $0.id == version["pdf_asset_id"].uuid })?.value,
+              belongsToSelectedTeam(asset), asset["type"].text == "pdf", asset["status"].text == "verified",
+              case .object(var fields) = version else { throw RemoteError.forbidden }
+        fields["pdf_sha256"] = asset["sha256"]; fields["pdf_bytes"] = asset["bytes"]; fields["pdf_asset"] = asset
+        return .object(fields)
+    }
+    func accountExportAsset(_ asset: TeamJSON, expectedScope: UUID) async throws -> Data {
+        guard context == expectedScope, let session, !session.anonymous, let api,
+              belongsToSelectedTeam(asset), asset["verified"].flag || asset["status"].text == "verified",
+              let id = asset["id"].uuid, let kind = asset["type"].text,
+              let hash = asset["sha256"].text, hash.count == 64, hash.allSatisfy({ "0123456789abcdef".contains($0) }),
+              let bytes = asset["bytes"].integer, bytes > 0, let key = asset["storage_key"].text, !key.isEmpty else { throw RemoteError.forbidden }
+        let limit: Int
+        if kind == "pdf" {
+            guard assets.contains(where: { $0.id == id && $0.value["storage_key"].text == key && $0.value["sha256"].text == hash && $0.value["bytes"].integer == bytes }),
+                  versions.contains(where: { $0.value["pdf_asset_id"].uuid == id }) else { throw RemoteError.forbidden }
+            limit = 100 * 1024 * 1024
+        } else {
+            guard ["native", "preview"].contains(kind), asset["owner_user_id"].uuid == session.userID else { throw RemoteError.forbidden }
+            limit = LocalInkStore.maximumArchiveBytes
+        }
+        guard bytes <= limit else { throw RemoteError.tooLarge }
+        let owner = session.userID, auth = try await credentials()
+        guard context == expectedScope, self.session?.userID == owner else { throw RemoteError.authentication }
+        let data = try await api.download(key: key, token: auth.accessToken, maximumBytes: limit)
+        guard context == expectedScope, self.session?.userID == owner else { throw RemoteError.authentication }
+        guard data.count == bytes, Self.hash(data) == hash else { throw RemoteError.invalidResponse }
+        if kind == "native" { _ = try PKDrawing(data: data) }
+        if kind == "preview" { guard UIImage(data: data) != nil else { throw RemoteError.invalidResponse } }
+        if kind == "pdf" {
+            guard let version = versions.first(where: { $0.value["pdf_asset_id"].uuid == id })?.value,
+                  let pdf = PDFDocument(data: data), !pdf.isLocked, Int64(pdf.pageCount) == version["page_count"].integer else { throw RemoteError.invalidResponse }
+            let expected = try version["page_manifest"].list.map(Self.geometry)
+            let actual = try (0..<pdf.pageCount).map { try pdf.page(at: $0)!.canonicalGeometry() }
+            guard actual == expected else { throw RemoteError.invalidResponse }
+        }
+        return data
     }
     func rpc(_ name: String, _ payload: [String: TeamJSON]) async throws -> TeamJSON {
         guard let api else { throw RemoteError.configuration }
@@ -501,10 +603,10 @@ private struct TeamPublication: Codable {
             preferredVersions = catalog.preferences
             preferredVersions.merge(pendingPreferences) { _, local in local }
         }
-        online = true; message = String(localized: "팀 자료 확인됨 · 페이지 이동은 기기별로")
+        online = true; connectionCheckedAt = Date(); message = String(localized: "팀 자료 확인됨 · 페이지 이동은 기기별로")
         try ensureCache(); await cache?.start()
         guard captured == context else { throw RemoteError.authentication }
-        try applyCachedPreferences(); try savePreferences(); try saveCatalog(); try loadPublications(); try await loadConflicts()
+        try applyCachedPreferences(); try savePreferences(); try saveCatalog(); try loadPublications(); try loadPreparations(); try await loadConflicts()
         guard captured == context else { throw RemoteError.authentication }
         catalogRefreshSchedule.refreshed()
         if maintainSubscription, api.configuration.provider == .aws { try? await subscribe(); startPolling() }
@@ -536,7 +638,7 @@ private struct TeamPublication: Codable {
         try FileManager.default.createDirectory(at: partition, withIntermediateDirectories: true)
         let data = try JSONEncoder().encode(TeamJSON.object(["songs": .array(songs.map(\.value)), "versions": .array(versions.map(\.value)),
             "assets": .array(assets.map(\.value)), "setlists": .array(setlists.map(\.value)), "items": .array(items.map(\.value)),
-            "memberships": .array(memberships)]))
+            "memberships": .array(memberships), "checked_at": connectionCheckedAt.map { .string(ISO8601DateFormatter().string(from: $0)) } ?? .null]))
         try data.write(to: partition.appendingPathComponent("team-catalog.json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         // Only opaque IDs are stored beside the secure session; no notes/tokens/email in defaults.
         UserDefaults.standard.set(selectedChurch?.uuidString, forKey: accountDefaultsKey + ".church")
@@ -556,9 +658,11 @@ private struct TeamPublication: Codable {
             setlists: json["setlists"].list, items: json["items"].list, preferences: [], user: user)
         songs = catalog.songs; versions = catalog.versions; assets = catalog.assets; setlists = catalog.setlists; items = catalog.items
         memberships = json["memberships"].list.filter { $0["user_id"].uuid == session?.userID && $0["active"].flag }
+        connectionCheckedAt = json["checked_at"].text.flatMap(Self.parseDate)
         try ensureCache()
         try loadPreferences()
         try loadPublications()
+        try loadPreparations()
         let uncertain = partition.appendingPathComponent("uncertain-call.json")
         if FileManager.default.fileExists(atPath: uncertain.path),
            case .object(let payload) = try JSONDecoder().decode(TeamJSON.self, from: Data(contentsOf: uncertain)),
@@ -614,7 +718,7 @@ private struct TeamPublication: Codable {
         guard let partition else { return }
         try FileManager.default.createDirectory(at: partition, withIntermediateDirectories: true)
         let value = TeamJSON.object(["team_reader": .bool(active ?? (reader != nil)), "snapshot": snapshot,
-            "displayed_call": displayedCall.map(Self.callJSON) ?? .null, "chart_version_id": cache?.current.map { .id($0.id) } ?? .null,
+            "displayed_call": displayedCall.map(Self.callJSON) ?? .null, "prepared_item": preparedItem, "chart_version_id": cache?.current.map { .id($0.id) } ?? .null,
             "page_index": .int(Int64(cache?.pageIndex ?? 0))])
         try JSONEncoder().encode(value).write(to: partition.appendingPathComponent("reader-selection.json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
@@ -634,7 +738,20 @@ private struct TeamPublication: Codable {
         }
         guard captured == context, let version = cache.currentLibraryVersion else { throw RemoteError.authentication }
         if value["team_reader"].flag { reader = cache }
-        if value["displayed_call"] != .null {
+        if value["prepared_item"] != .null {
+            let selected = value["prepared_item"]
+            guard belongsToSelectedTeam(selected), let id = selected["id"].uuid, selected["song_id"].uuid == version.songID,
+                  items.contains(where: { $0.id == id && $0.value["active"].flag && $0.value["song_id"].uuid == version.songID && $0.value["setlist_id"] == selected["setlist_id"] }),
+                  let key = selected["performance_key"].text, MusicalKey.isValid(key) else { throw RemoteError.invalidResponse }
+            preparedItem = selected; displayedCall = nil; cache.setPerformanceItem(id)
+            let chart = try Chart(id: version.id, songID: version.songID, writtenKey: version.writtenKey, pageCount: cache.pageCount)
+            live?.navigate(to: try DisplayedChart(chart: chart, pageIndex: cache.pageIndex, performanceItemID: id))
+            if let cached = try cachedTeamDrawing(item: id, chart: version.id, page: cache.pageIndex) {
+                let exact = try LayerIdentity(churchID: cache.church, versionID: version.id, pageIndex: cache.pageIndex, scope: .team(performanceItemID: id))
+                guard let page = cache.pdfView.document?.page(at: cache.pageIndex) else { throw RemoteError.invalidResponse }
+                cache.applyShared(exact, geometry: try page.canonicalGeometry(), drawing: cached.0)
+            }
+        } else if value["displayed_call"] != .null {
             let call = try value["displayed_call"].call()
             guard call.songID == version.songID, call.sessionID == live?.sessionID else { return }
             let chart = try Chart(id: version.id, songID: version.songID, writtenKey: version.writtenKey, pageCount: cache.pageCount)
@@ -693,11 +810,43 @@ private struct TeamPublication: Codable {
             let cache = try await downloadVersion(id)
             try await restorePersonalForOpen(cache, versionID: id)
             guard await cache.openVersion(id, page: page, validateIntent: { self.context == captured && self.openGeneration == generation }) else { throw RemoteError.invalidResponse }
+            if preparedItem != .null { preparedItem = .null; displayedCall = nil; try clearOccurrence(in: cache) }
             reader = cache; openGeneration &+= 1
             navigationChanged()
             try saveReaderSelection()
             try await refreshSharedForOpen()
         }
+    }
+    /// A setlist choice has an occurrence/key of its own; it never acknowledges a live cue.
+    func openPreparedItem(_ itemID: UUID, versionID: UUID, page: Int? = nil) async -> Bool {
+        await perform {
+            let captured = context
+            openGeneration &+= 1; let generation = openGeneration
+            do { try await fetchLibrary() }
+            catch {
+                guard captured == context, Self.isConnectivityFailure(error) else { throw error }
+                online = false; live?.setConnectivity(.offline)
+            }
+            guard captured == context, generation == openGeneration,
+                  let item = items.first(where: { $0.id == itemID && $0.value["active"].flag })?.value,
+                  belongsToSelectedTeam(item), setlists.contains(where: { $0.id == item["setlist_id"].uuid }),
+                  let version = versions.first(where: { $0.id == versionID })?.value, belongsToSelectedTeam(version),
+                  version["song_id"] == item["song_id"], let key = item["performance_key"].text, MusicalKey.isValid(key) else { throw RemoteError.invalidResponse }
+            let target = try await downloadVersion(versionID)
+            try await restorePersonalForOpen(target, versionID: versionID)
+            let selectedPage = page ?? (target.current?.id == versionID ? target.pageIndex : 0)
+            guard await target.openVersion(versionID, page: selectedPage, validateIntent: {
+                self.context == captured && self.openGeneration == generation && self.items.contains(where: { $0.id == itemID && $0.value == item })
+            }) else { throw RemoteError.conflict }
+            guard captured == context, generation == openGeneration else { throw RemoteError.conflict }
+            preparedItem = item; displayedCall = nil; reader = target; target.setPerformanceItem(itemID)
+            navigationChanged(); try saveReaderSelection(); try await refreshSharedForOpen()
+        }
+    }
+    private func clearOccurrence(in stand: MusicStand) throws {
+        guard let version = stand.currentLibraryVersion else { return }
+        live?.navigate(to: try DisplayedChart(chart: Chart(id: version.id, songID: version.songID, writtenKey: version.writtenKey, pageCount: stand.pageCount), pageIndex: stand.pageIndex))
+        stand.setPerformanceItem(nil)
     }
     private func restorePersonalForOpen(_ cache: MusicStand, versionID: UUID) async throws {
         let captured = context
@@ -718,30 +867,203 @@ private struct TeamPublication: Codable {
     func useLocalReader() async -> Bool {
         await perform { try await reader?.flush(); reader = nil; openGeneration &+= 1; try saveReaderSelection(active: false) }
     }
-    func prepare(_ setlist: TeamRow) async -> Bool {
-        await perform {
-            let captured = context
-            try await fetchLibrary()
-            let manifest = try await rpc("preflight_manifest", ["setlist_id": .id(setlist.id)])
-            let ids = manifest["charts"].list.compactMap { $0["id"].uuid }
-            guard !ids.isEmpty else { throw RemoteError.invalidResponse }
-            for id in ids {
-                let prepared = try await downloadVersion(id)
-                try await restorePersonal(prepared, versionID: id)
-            }
-            for head in manifest["annotation_heads"].list {
-                let item = try head.requiredID("performance_item_id"), chart = try head.requiredID("chart_version_id")
-                guard let page = head["page_index"].integer, ids.contains(chart) else { throw RemoteError.invalidResponse }
-                let archive = try await verifiedTeamArchive(head, expectedContext: captured)
-                guard captured == context else { throw RemoteError.authentication }
-                _ = try saveSharedSnapshot(head, archive: archive, item: item, chart: chart, page: Int(page))
-            }
-            let final = try await rpc("preflight_manifest", ["setlist_id": .id(setlist.id)])
-            guard final == manifest else { throw RemoteError.conflict }
-            guard captured == context, let partition else { throw RemoteError.authentication }
-            try JSONEncoder().encode(manifest).write(to: partition.appendingPathComponent("prepared-setlist-\(setlist.id).json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-            message = String(localized: "팀 악보와 현재 팀 메모 다운로드·검증 완료")
+    private func requestedPreparationIDs(_ setlistID: UUID) -> Set<UUID> {
+        let active = items.filter { $0.value["setlist_id"].uuid == setlistID && $0.value["active"].flag }
+        var ids = Set(active.filter { ["planned", "standby"].contains($0.value["kind"].text ?? "") }.compactMap { $0.value["team_chart_version_id"].uuid })
+        for item in active { if let song = item.value["song_id"].uuid, let preferred = preferredVersions[song] { ids.insert(preferred) } }
+        return ids
+    }
+    func preparationCharts(_ setlistID: UUID) -> [TeamPreparedChart] {
+        var charts = preparation(setlistID)?.charts ?? []
+        for id in requestedPreparationIDs(setlistID).subtracting(Set(charts.map(\.id))).sorted(by: { $0.uuidString < $1.uuidString }) {
+            guard let version = versions.first(where: { $0.id == id })?.value, let song = version["song_id"].uuid,
+                  let asset = assets.first(where: { $0.id == version["pdf_asset_id"].uuid })?.value, let assetID = asset["id"].uuid,
+                  let hash = asset["sha256"].text, let bytes = asset["bytes"].integer, let count = version["page_count"].integer else { continue }
+            charts.append(TeamPreparedChart(id: id, songID: song, assetID: assetID, title: songTitle(song), label: version["label"].text ?? "",
+                sha256: hash, bytes: bytes, pageCount: Int(count), personalPreferred: preferredVersions[song] == id))
         }
+        return charts
+    }
+    private var preparationURL: URL? { partition?.appendingPathComponent("preparation-checklists.json") }
+    private func preparationPlan(_ setlistID: UUID, manifest: TeamJSON) throws -> TeamPreparation {
+        guard let owner = session?.userID, let church = selectedChurch, let team = selectedTeam,
+              let setlist = setlists.first(where: { $0.id == setlistID }), manifest["setlist_id"].uuid == setlistID,
+              manifest["setlist_revision"].integer == setlist.value["revision"].integer,
+              case .array(let chartValues) = manifest["charts"], chartValues.count <= 1000,
+              case .array(let headValues) = manifest["annotation_heads"], headValues.count <= 5000,
+              !isAWS || (manifest["schema_version"].integer == 1 && manifest["team_id"].uuid == team) else { throw RemoteError.invalidResponse }
+        let prior = preparation(setlistID), same = prior?.manifest == manifest
+        var ids = Set<UUID>()
+        let charts = try chartValues.map { value -> TeamPreparedChart in
+            let id = try value.requiredID("id")
+            guard ids.insert(id).inserted, belongsToSelectedTeam(value), let current = versions.first(where: { $0.id == id })?.value,
+                  current["song_id"] == value["song_id"], current["pdf_asset_id"] == value["pdf_asset_id"],
+                  current["page_manifest"] == value["page_manifest"], current["page_count"] == value["page_count"],
+                  let asset = assets.first(where: { $0.id == current["pdf_asset_id"].uuid })?.value,
+                  let count = current["page_count"].integer, let bytes = asset["bytes"].integer else { throw RemoteError.invalidResponse }
+            var chart = TeamPreparedChart(id: id, songID: try value.requiredID("song_id"), assetID: try asset.requiredID("id"),
+                title: songTitle(try value.requiredID("song_id")), label: try current.requiredText("label"),
+                sha256: try asset.requiredText("sha256"), bytes: bytes, pageCount: Int(count),
+                personalPreferred: preferredVersions[value["song_id"].uuid ?? UUID()] == id)
+            if let old = prior?.charts.first(where: { $0.id == id && $0.assetID == chart.assetID && $0.sha256 == chart.sha256 && $0.bytes == bytes }) {
+                chart.pdfVerifiedAt = old.pdfVerifiedAt
+                if same { chart.notesCheckedAt = old.notesCheckedAt; chart.personalCheckedAt = old.personalCheckedAt }
+            }
+            return chart
+        }
+        guard requestedPreparationIDs(setlistID).isSubset(of: ids) else { throw RemoteError.invalidResponse }
+        var headKeys = Set<String>()
+        for head in headValues {
+            guard belongsToSelectedTeam(head), head["scope"].text == "team", head["owner_user_id"] == .null,
+                  let chartID = head["chart_version_id"].uuid, ids.contains(chartID),
+                  let itemID = head["performance_item_id"].uuid, items.contains(where: { $0.id == itemID && $0.value["setlist_id"].uuid == setlistID }),
+                  let page = head["page_index"].integer, page >= 0, let version = versions.first(where: { $0.id == chartID })?.value,
+                  page < (version["page_count"].integer ?? 0), let revision = head["revision_number"].integer, revision > 0,
+                  let bytes = head["native_bytes"].integer, bytes > 0, bytes <= LocalInkStore.maximumArchiveBytes,
+                  let hash = head["native_sha256"].text, hash.count == 64,
+                  headKeys.insert("\(itemID)/\(chartID)/\(page)").inserted,
+                  try Self.geometry(head["geometry"]) == Self.geometry(version["page_manifest"].list[Int(page)]) else { throw RemoteError.invalidResponse }
+        }
+        return TeamPreparation(id: setlistID, ownerID: owner, churchID: church, teamID: team,
+            title: setlist.value["title"].text ?? String(localized: "예배"), manifest: manifest, charts: charts,
+            checkedAt: same ? prior?.checkedAt : nil, needsReview: !same)
+    }
+    private func savePreparation(_ value: TeamPreparation, captured: UUID) throws {
+        guard captured == context, value.ownerID == session?.userID, value.churchID == selectedChurch,
+              value.teamID == selectedTeam, let url = preparationURL else { throw RemoteError.authentication }
+        var all = preparations.filter { $0.id != value.id }; all.append(value)
+        let bytes = try JSONEncoder().encode(all)
+        guard bytes.count <= 16 * 1024 * 1024, all.count <= 500 else { throw RemoteError.tooLarge }
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try bytes.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        preparations = all.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+    private func loadPreparations() throws {
+        guard let url = preparationURL, FileManager.default.fileExists(atPath: url.path) else { return }
+        let bytes = try Data(contentsOf: url); guard bytes.count <= 16 * 1024 * 1024 else { throw RemoteError.tooLarge }
+        let values = try JSONDecoder().decode([TeamPreparation].self, from: bytes)
+        guard values.count <= 500, Set(values.map(\.id)).count == values.count,
+              values.allSatisfy({ $0.ownerID == session?.userID && $0.churchID == selectedChurch && $0.teamID == selectedTeam && $0.charts.count <= 1000 && Set($0.charts.map(\.id)).count == $0.charts.count }) else { throw RemoteError.invalidResponse }
+        preparations = values.filter { value in setlists.contains { $0.id == value.id } }.map { value in
+            var updated = value
+            if setlists.first(where: { $0.id == value.id })?.value["revision"].integer != value.manifest["setlist_revision"].integer || !requestedPreparationIDs(value.id).isSubset(of: Set(value.charts.map(\.id))) {
+                updated.needsReview = true
+                for index in updated.charts.indices { updated.charts[index].notesCheckedAt = nil; updated.charts[index].personalCheckedAt = nil }
+            }
+            for index in updated.charts.indices {
+                let chart = updated.charts[index]
+                if !versions.contains(where: { $0.id == chart.id && $0.value["pdf_asset_id"].uuid == chart.assetID }) ||
+                    !assets.contains(where: { $0.id == chart.assetID && $0.value["sha256"].text == chart.sha256 && $0.value["bytes"].integer == chart.bytes }) {
+                    updated.charts[index].pdfVerifiedAt = nil; updated.charts[index].notesCheckedAt = nil
+                    updated.charts[index].personalCheckedAt = nil; updated.charts[index].failure = .permission; updated.needsReview = true
+                }
+            }
+            return updated
+        }
+    }
+    private func verifyPreparedPDF(_ chart: TeamPreparedChart) throws {
+        guard let cache, let version = versions.first(where: { $0.id == chart.id })?.value else { throw RemoteError.invalidResponse }
+        let data = try cache.sourceBytes(chart.id)
+        guard Int64(data.count) == chart.bytes, Self.hash(data) == chart.sha256,
+              let pdf = PDFDocument(data: data), !pdf.isLocked, pdf.pageCount == chart.pageCount,
+              try (0..<pdf.pageCount).map({ try pdf.page(at: $0)!.canonicalGeometry() }) == version["page_manifest"].list.map(Self.geometry) else { throw RemoteError.invalidResponse }
+    }
+    func refreshPreparationEvidence(_ setlistID: UUID) async {
+        let captured = context
+        guard var value = preparation(setlistID), let cache else { return }
+        await cache.start(); guard captured == context else { return }
+        for index in value.charts.indices {
+            do {
+                try verifyPreparedPDF(value.charts[index])
+                if value.charts[index].pdfVerifiedAt == nil { value.charts[index].pdfVerifiedAt = Date() }
+            } catch {
+                value.charts[index].failure = Self.recoveryKind(error)
+                value.charts[index].pdfVerifiedAt = nil; value.charts[index].notesCheckedAt = nil; value.charts[index].personalCheckedAt = nil
+                value.needsReview = true
+                continue
+            }
+            if value.charts[index].notesCheckedAt != nil {
+                do {
+                    for head in value.manifest["annotation_heads"].list where head["chart_version_id"].uuid == value.charts[index].id {
+                        let drawing = try cachedTeamDrawing(item: head.requiredID("performance_item_id"), chart: head.requiredID("chart_version_id"), page: Int(head["page_index"].integer ?? -1))
+                        guard drawing?.1 == head else { throw RemoteError.invalidResponse }
+                    }
+                } catch {
+                    // A damaged team-note cache cannot erase independently verified local paper.
+                    value.charts[index].notesCheckedAt = nil; value.charts[index].failure = Self.recoveryKind(error)
+                    value.needsReview = true
+                }
+            }
+        }
+        guard captured == context else { return }
+        do { try savePreparation(value, captured: captured) } catch { report(error) }
+    }
+    func retryPreparation(setlistID: UUID, versionID: UUID) async -> Bool {
+        await perform { try await runPreparation(setlistID: setlistID, only: versionID) }
+    }
+    func prepare(_ setlist: TeamRow) async -> Bool {
+        await perform { try await runPreparation(setlistID: setlist.id, only: nil) }
+    }
+    private func runPreparation(setlistID: UUID, only: UUID?) async throws {
+        let captured = context
+        defer { if context == captured { preparationProgress = nil } }
+        try await fetchLibrary()
+        guard captured == context else { throw RemoteError.authentication }
+        let manifest = try await rpc("preflight_manifest", ["setlist_id": .id(setlistID)])
+        guard captured == context else { throw RemoteError.authentication }
+        var value = try preparationPlan(setlistID, manifest: manifest)
+        if let only { guard value.charts.contains(where: { $0.id == only }) else { throw RemoteError.invalidResponse } }
+        try savePreparation(value, captured: captured)
+        var notesVerified = Set<UUID>(), failures: [Error] = []
+        for index in value.charts.indices where only == nil || value.charts[index].id == only {
+            let id = value.charts[index].id
+            preparationProgress = (setlistID, id)
+            value.charts[index].personalCheckedAt = nil; value.charts[index].notesCheckedAt = nil
+            do {
+                let prepared = try await downloadVersion(id)
+                guard captured == context else { throw RemoteError.authentication }
+                try verifyPreparedPDF(value.charts[index]); value.charts[index].pdfVerifiedAt = Date()
+                try savePreparation(value, captured: captured)
+                try await restorePersonal(prepared, versionID: id)
+                guard captured == context else { throw RemoteError.authentication }
+                value.charts[index].personalCheckedAt = Date()
+                for head in manifest["annotation_heads"].list where head["chart_version_id"].uuid == id {
+                    let item = try head.requiredID("performance_item_id"), page = Int(head["page_index"].integer ?? -1)
+                    let archive = try await verifiedTeamArchive(head, expectedContext: captured)
+                    guard captured == context else { throw RemoteError.authentication }
+                    guard try saveSharedSnapshot(head, archive: archive, item: item, chart: id, page: page) ||
+                        cachedTeamDrawing(item: item, chart: id, page: page)?.1 == head else { throw RemoteError.conflict }
+                }
+                notesVerified.insert(id); value.charts[index].failure = nil
+            } catch {
+                guard captured == context else { throw RemoteError.authentication }
+                value.charts[index].failure = Self.recoveryKind(error); value.needsReview = true; failures.append(error)
+                do { try verifyPreparedPDF(value.charts[index]) }
+                catch { value.charts[index].pdfVerifiedAt = nil }
+                value.charts[index].notesCheckedAt = nil
+                try savePreparation(value, captured: captured)
+                if [.authentication, .permission].contains(Self.recoveryKind(error)) { throw error }
+            }
+            try savePreparation(value, captured: captured)
+        }
+        do {
+            let final = try await rpc("preflight_manifest", ["setlist_id": .id(setlistID)])
+            guard captured == context else { throw RemoteError.authentication }
+            guard final == manifest else {
+                value.needsReview = true
+                for index in value.charts.indices { value.charts[index].notesCheckedAt = nil; value.charts[index].personalCheckedAt = nil; value.charts[index].failure = .conflict }
+                try savePreparation(value, captured: captured); throw RemoteError.conflict
+            }
+            let now = Date()
+            for index in value.charts.indices where notesVerified.contains(value.charts[index].id) { value.charts[index].notesCheckedAt = now }
+            value.checkedAt = now; value.needsReview = value.confirmedCount != value.charts.count
+            try savePreparation(value, captured: captured)
+        } catch {
+            guard captured == context else { throw RemoteError.authentication }
+            value.needsReview = true; try savePreparation(value, captured: captured); throw error
+        }
+        if let failure = failures.first { throw failure }
+        message = String(localized: "기기 악보 검증과 팀 메모 확인을 완료했어요.")
     }
     func invite(role: String, setlistID: UUID?) async -> String? {
         var token: String?
@@ -1133,7 +1455,7 @@ private struct TeamPublication: Codable {
                 catch { return false }
             }) else { throw RemoteError.invalidResponse }
             try self.live?.completeOpen(intent, chart: chart, fileVerified: true)
-            target.setPerformanceItem(call.performanceItemID); reader = target; displayedCall = call
+            preparedItem = .null; target.setPerformanceItem(call.performanceItemID); reader = target; displayedCall = call
             try saveReaderSelection()
             if online {
                 _ = try? await rpc("acknowledge_open", ["session_id": .id(call.sessionID), "call_id": .id(call.id), "device_id": .id(deviceID), "selected_chart_version_id": .id(desired)])
@@ -1151,7 +1473,10 @@ private struct TeamPublication: Codable {
         guard let reader, let version = reader.currentLibraryVersion else { return }
         do {
             let chart = try Chart(id: version.id, songID: version.songID, writtenKey: version.writtenKey, pageCount: reader.pageCount)
-            if live?.displayed?.chart.id == chart.id {
+            if let item = preparedItem["id"].uuid, preparedItem["song_id"].uuid == chart.songID {
+                live?.navigate(to: try DisplayedChart(chart: chart, pageIndex: reader.pageIndex, performanceItemID: item))
+                reader.setPerformanceItem(item)
+            } else if live?.displayed?.chart.id == chart.id {
                 try live?.turnPage(to: reader.pageIndex)
                 reader.setPerformanceItem(live?.displayed?.performanceItemID)
             }
@@ -1159,7 +1484,7 @@ private struct TeamPublication: Codable {
                 live?.navigate(to: try DisplayedChart(chart: chart, pageIndex: reader.pageIndex, performanceItemID: call.performanceItemID,
                     acknowledgedCallID: call.id, acknowledgedPerformanceKey: call.performanceKey))
                 reader.setPerformanceItem(call.performanceItemID)
-            } else { live?.navigate(to: try DisplayedChart(chart: chart, pageIndex: reader.pageIndex)); reader.setPerformanceItem(nil); displayedCall = nil }
+            } else { live?.navigate(to: try DisplayedChart(chart: chart, pageIndex: reader.pageIndex)); reader.setPerformanceItem(nil); displayedCall = nil; preparedItem = .null }
             try saveReaderSelection()
         } catch { report(error) }
     }
@@ -1324,13 +1649,26 @@ private struct TeamPublication: Codable {
               Self.hash(archive) == head["native_sha256"].text, head["native_bytes"].integer == Int64(archive.count),
               try Self.geometry(head["geometry"]) == cachedGeometry(chart: chart, page: page) else { throw RemoteError.invalidResponse }
         let key = "\(item)/\(chart)/\(page)"
-        let previous = try cachedTeamDrawing(item: item, chart: chart, page: page)?.1
+        let file = try sharedSnapshotURL(item: item, chart: chart, page: page)
+        var previous: TeamJSON?, damaged: Data?
+        do { previous = try cachedTeamDrawing(item: item, chart: chart, page: page)?.1 }
+        catch {
+            guard error is DecodingError || Self.recoveryKind(error) == .integrity else { throw error }
+            let bytes = try Data(contentsOf: file)
+            guard bytes.count <= 4 * 1024 * 1024 else { throw RemoteError.tooLarge }
+            damaged = bytes
+        }
         let known = sharedHeads[key] ?? previous
         if let known, let number = known["revision_number"].integer {
             if number > revision { return false }
             if number == revision, known["native_sha256"] != head["native_sha256"] { throw RemoteError.invalidResponse }
         }
         _ = try PKDrawing(data: archive)
+        if let damaged {
+            let recovery = file.deletingLastPathComponent().appendingPathComponent("RecoveryCopies", isDirectory: true)
+            try FileManager.default.createDirectory(at: recovery, withIntermediateDirectories: true)
+            try damaged.write(to: recovery.appendingPathComponent("team-snapshot-\(UUID()).json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
         try JSONEncoder().encode(TeamJSON.object(["team_id": selectedTeam.map(TeamJSON.id) ?? .null, "church_id": .id(cache!.church), "item": .id(item), "chart": .id(chart), "page": .int(Int64(page)),
             "head": head, "archive": .string(archive.base64EncodedString())])).write(
             to: sharedSnapshotURL(item: item, chart: chart, page: page), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
@@ -1810,6 +2148,7 @@ private struct TeamPublication: Codable {
             guard captured == context, intent == chatRoomGeneration, chatVisible,
                   chatLinkVersions.contains(where: { $0.id == id }),
                   await stand.openVersion(id, validateIntent: { self.context == captured && self.chatRoomGeneration == intent && self.openGeneration == generation }) else { throw RemoteError.authentication }
+            preparedItem = .null; displayedCall = nil; try clearOccurrence(in: stand)
             reader = stand; openGeneration &+= 1; navigationChanged(); try saveReaderSelection(); try await refreshSharedForOpen()
         }
     }
@@ -1823,23 +2162,50 @@ private struct TeamPublication: Codable {
     }
     @discardableResult private func perform(_ work: () async throws -> Void) async -> Bool {
         guard !busy else { return false }; busy = true; defer { busy = false; scheduleCatalogHintRefresh() }
-        do { try await work(); error = nil; return true } catch { report(error); return false }
+        do { try await work(); error = nil; recovery = nil; return true } catch { report(error); return false }
+    }
+    static func recoveryKind(_ failure: Error) -> TeamRecovery {
+        if isConnectivityFailure(failure) { return .connection }
+        if failure is DecodingError { return .integrity }
+        switch failure {
+        case RemoteError.authentication: return .authentication
+        case RemoteError.forbidden: return .permission
+        case RemoteError.conflict, InkStoreError.generationConflict, TeamPublicationError.changedCreation, TeamPublicationError.changedIntent: return .conflict
+        case RemoteError.invalidResponse, VaultError.checksum, VaultError.geometry, VaultError.invalidPDF, InkStoreError.invalidRecord: return .integrity
+        case RemoteError.tooLarge, VaultError.tooLarge: return .capacity
+        case RemoteError.configuration: return .configuration
+        default:
+            let value = failure as NSError
+            return value.domain == NSCocoaErrorDomain || value.domain == NSPOSIXErrorDomain ? .storage : .connection
+        }
     }
     private func report(_ failure: Error) {
+        recovery = Self.recoveryKind(failure)
         switch failure {
         case TeamPublicationError.changedCreation:
             error = String(localized: "확인 대기 중인 교회·팀 만들기 요청이 있어요. 이전 이름으로 다시 시도해 주세요.")
         case TeamPublicationError.changedIntent:
             error = String(localized: "확인 대기 중인 게시 요청과 내용이 달라요. 이전 요청을 다시 확인하거나 직접 삭제한 뒤 새로 게시해 주세요.")
-        case RemoteError.conflict, InkStoreError.generationConflict:
-            error = String(localized: "서버 자료가 변경되었어요. 기기의 메모·초안은 유지됩니다. 두 버전을 확인한 뒤 직접 선택해 주세요.")
-        case RemoteError.authentication:
-            online = false; error = String(localized: "로그인을 다시 확인해 주세요. 기기의 메모는 유지됩니다.")
-        case RemoteError.forbidden:
-            online = false; error = String(localized: "이 팀 자료에 접근할 권한이 없어요. 관리자에게 초대를 요청해 주세요.")
         default:
-            online = false; live?.setConnectivity(.offline)
-            error = String(localized: "팀 연결을 확인하지 못했어요. 저장된 악보와 개인 메모는 계속 사용할 수 있습니다.")
+            switch recovery {
+            case .authentication:
+                online = false; error = String(localized: "로그인이 만료되었거나 인증을 확인하지 못했어요. 기기의 악보·메모는 유지됩니다. 같은 계정으로 로그인해 주세요.")
+            case .permission:
+                online = false; error = String(localized: "이 팀 자료에 접근할 권한이 없어요. 기기의 원본과 메모는 보관됩니다. 팀과 초대를 관리자에게 확인해 주세요.")
+            case .conflict:
+                error = String(localized: "서버 자료가 변경되었어요. 기기의 메모·초안은 유지됩니다. 최신 자료를 확인한 뒤 요청을 직접 다시 선택해 주세요.")
+            case .integrity:
+                error = String(localized: "자료의 내용·페이지·크기를 검증하지 못했어요. 현재 악보와 메모는 유지됩니다. 해당 자료를 다시 준비해 주세요.")
+            case .capacity:
+                error = String(localized: "이 자료가 앱의 파일 크기 제한을 넘어요. 현재 악보와 메모는 유지됩니다. 작은 PDF나 내보내기 범위를 선택해 주세요.")
+            case .storage:
+                error = String(localized: "이 기기에 확인 결과를 저장하지 못했어요. 원본과 메모는 유지됩니다. 저장 공간을 확인한 뒤 다시 시도해 주세요.")
+            case .configuration:
+                error = String(localized: "이메일 형식이나 팀 연결 설정을 확인해 주세요. 기기의 악보·메모는 계속 사용할 수 있어요.")
+            default:
+                online = false; live?.setConnectivity(.offline)
+                error = String(localized: "서버에 연결하지 못했어요. 검증된 기기 악보와 개인 메모는 계속 사용할 수 있어요. 연결 후 직접 다시 확인해 주세요.")
+            }
         }
     }
     private static func isConnectivityFailure(_ error: Error) -> Bool {

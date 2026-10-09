@@ -28,12 +28,23 @@ struct TeamPanel: View {
     @State private var accountExportSheet = false
     @State private var discardPublication: TeamRow?
     @State private var guestLogout = false
+    @State private var entryChoice = ""
+    @State private var showLogin = false
+    @State private var showCreate = false
+    @State private var showJoin = false
+    @State private var recoveryHelp = false
+    @State private var preparationSheet = false
 
     var body: some View {
         NavigationStack {
             Form {
                 if let error = team.error {
-                    Section { Text(error).foregroundStyle(.orange); Button("닫기") { team.error = nil } }
+                    Section("확인이 필요해요") {
+                        Text(error).foregroundStyle(.orange)
+                        if let recovery = team.recovery { Button(recovery.actionTitle) { recover(recovery) }.frame(minHeight: 44) }
+                        if recoveryHelp { Text("기기 저장 공간은 iPad 설정에서 확인할 수 있어요. 팀 권한·초대나 로그인 이메일은 관리자와 확인해 주세요. 확인 중에도 기기의 원본과 메모는 보관됩니다.").font(.caption) }
+                        Button("닫기") { team.error = nil; recoveryHelp = false }
+                    }
                 }
                 if !team.configured {
                     Section {
@@ -42,34 +53,64 @@ struct TeamPanel: View {
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
                 } else if team.session == nil {
-                    Section("팀 계정") {
+                    Section("처음 시작") {
+                        Text("내 PDF는 로그인 없이 사용할 수 있어요. 팀 연결은 원하는 때 선택하세요.").font(.subheadline)
+                        Button("내 기기 PDF로 시작") { Task { if await team.useLocalReader() { opened(); dismiss() } } }.frame(minHeight: 44)
+                        Button("초대받은 교회·팀에 참여") { entryChoice = "join" }.frame(minHeight: 44)
+                        Button("새 교회·팀 만들기") { entryChoice = "create" }.frame(minHeight: 44)
+                    }
+                    if !entryChoice.isEmpty { Section(entryChoice == "create" ? "팀을 만들 계정 확인" : "팀원 계정 확인") {
+                        Text(entryChoice == "create" ? "이메일 인증 후 새 비공개 교회·팀을 만들 수 있어요." : "이메일 인증 후 관리자에게 받은 초대 코드를 입력하세요.").font(.caption).foregroundStyle(.secondary)
                         TextField("이메일", text: $email).textInputAutocapitalization(.never).keyboardType(.emailAddress).autocorrectionDisabled()
                             .accessibilityIdentifier("teamEmail")
                         if codeSent {
                             TextField("인증 번호", text: $code).keyboardType(.numberPad).textContentType(.oneTimeCode).accessibilityIdentifier("teamCode")
-                            Button("로그인") { Task { if await team.signIn(email, code: code) { await reloadSessions() } } }.disabled(code.count < 6)
+                            Button("로그인") { Task { if await team.signIn(email, code: code) { showCreate = entryChoice == "create"; showJoin = entryChoice == "join"; await reloadSessions() } } }.disabled(code.count < 6)
                         }
                         Button(codeSent ? "인증 번호 다시 받기" : "인증 번호 받기") { Task { codeSent = await team.sendCode(email) } }
                             .disabled(email.isEmpty).accessibilityIdentifier("sendTeamCode")
                     }
-                    Section("게스트 초대") {
+                    }
+                    if entryChoice == "join" { Section("이번 예배만 게스트로 참여") {
                         TextField("팀에서 사용할 이름", text: $memberName).textContentType(.name)
                         TextField("초대 코드", text: $invitation).textInputAutocapitalization(.never).autocorrectionDisabled()
                         Button("초대한 예배에 참여") { Task { if await team.redeem(invitation, guest: true, displayName: memberName) { await reloadSessions() } } }.disabled(invitation.isEmpty || memberName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || memberName.count > 120)
                         Text("게스트는 초대받은 예배의 자료만 볼 수 있어요. 개인 메모는 이 기기에 저장됩니다.").font(.caption)
-                    }
+                    } }
                 } else {
-                    Section {
+                    Section("현재 교회·팀") {
+                        Text(team.selectedWorkspaceName).font(.headline)
+                        Text(team.selectedChurchName + " · " + team.selectedRoleLabel).font(.subheadline).foregroundStyle(.secondary)
+                        if let checked = team.connectionCheckedAt { HStack { Text("마지막 팀 확인"); Text(checked, style: .time) }.font(.caption) }
                         Label(team.message, systemImage: team.online ? "checkmark.icloud" : "icloud.slash")
                         Button("팀 자료 새로 확인") { Task { await team.refresh(); await reloadSessions() } }
                         Button("내 기기 악보로 돌아가기") { Task { if await team.useLocalReader() { opened(); dismiss() } } }
+                    }
+                    if showLogin {
+                        Section("같은 계정으로 다시 로그인") {
+                            TextField("이메일", text: $email).textInputAutocapitalization(.never).keyboardType(.emailAddress).autocorrectionDisabled()
+                            TextField("인증 번호", text: $code).keyboardType(.numberPad).textContentType(.oneTimeCode)
+                            Button("인증 번호 받기") { Task { codeSent = await team.sendCode(email) } }.disabled(email.isEmpty)
+                            Button("로그인 확인") { Task { if await team.signIn(email, code: code) { showLogin = false } } }.disabled(code.count < 6)
+                            Text("다른 계정은 기기 메모를 내보내고 로그아웃한 뒤 선택하세요.").font(.caption)
+                        }
+                    }
+                    if team.selectedTeam != nil {
+                        Section("팀 바로가기") {
+                            NavigationLink("예배 준비 확인") { Form { ForEach(team.setlists) { setlist in Section { TeamPreparationChecklist(team: team, setlist: setlist) } } }.navigationTitle("예배 준비 확인") }
+                            NavigationLink("팀 곡 라이브러리") { Form { teamLibrary }.navigationTitle("팀 곡 라이브러리") }
+                            if team.session?.anonymous == false { Button("팀 대화 열기") { chatSheet = true }.frame(minHeight: 44) }
+                        }
                     }
                     if !team.memberships.isEmpty {
                         Section("내 팀") {
                             ForEach(Array(team.memberships.enumerated()), id: \.offset) { _, membership in
                                 Button { Task { await team.chooseWorkspace(membership); await reloadSessions() } } label: {
                                     HStack {
-                                        Text(membership["team_name"].text ?? (membership["role"].text == "admin" ? String(localized: "내 팀 · 관리자") : String(localized: "초대받은 팀")))
+                                        VStack(alignment: .leading) {
+                                            Text(membership["team_name"].text ?? String(localized: "초대받은 팀"))
+                                            Text((membership["church_name"].text ?? String(localized: "교회 이름 확인 필요")) + " · " + TeamWorkspace.roleLabel(membership["role"].text)).font(.caption).foregroundStyle(.secondary)
+                                        }
                                         Spacer()
                                         if membership["church_id"].uuid == team.selectedChurch && membership["team_id"].uuid == team.selectedTeam { Image(systemName: "checkmark") }
                                     }
@@ -78,12 +119,12 @@ struct TeamPanel: View {
                         }
                     }
                     if !team.session!.anonymous {
-                        Section("교회·팀 만들기") {
+                        Section { DisclosureGroup("새 교회·팀 만들기", isExpanded: $showCreate) {
                             TextField("교회 이름", text: $workspaceName)
                             TextField("팀에서 사용할 이름", text: $memberName).textContentType(.name)
                             Button("새 비공개 교회·팀 만들기") { Task { _ = await team.createWorkspace(workspaceName, memberDisplayName: memberName) } }
                                 .disabled(workspaceName.isEmpty || memberName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || memberName.count > 120)
-                        }
+                        } }
                     }
                     if team.canAdmin {
                         Section("같은 교회에 팀 추가") {
@@ -100,11 +141,11 @@ struct TeamPanel: View {
                             Button { chatSheet = true } label: { HStack { Label("팀 대화 열기", systemImage: "bubble.left.and.bubble.right"); Spacer(); if let unread = team.chatUnreadSummary { Text(unread).font(.caption.bold()).padding(6).background(Color.blue.opacity(0.12), in: Capsule()).accessibilityLabel(String(localized: "읽지 않은 대화: ") + unread) } } }.frame(minHeight: 44)
                         }
                     }
-                    Section("초대 코드로 참여") {
+                    Section { DisclosureGroup("초대 코드로 다른 팀에 참여", isExpanded: $showJoin) {
                         TextField("팀에서 사용할 이름", text: $memberName).textContentType(.name)
                         TextField("초대 코드", text: $invitation).textInputAutocapitalization(.never).autocorrectionDisabled()
                         Button("참여") { Task { _ = await team.redeem(invitation, guest: false, displayName: memberName); await reloadSessions() } }.disabled(invitation.isEmpty || memberName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || memberName.count > 120)
-                    }
+                    } }
                     Section("진행 중인 예배") {
                         if sessions.isEmpty { Text("진행 중인 예배가 없어요.").foregroundStyle(.secondary) }
                         ForEach(sessions.filter { $0.value["status"].text == "LIVE" }) { session in
@@ -112,25 +153,6 @@ struct TeamPanel: View {
                                 Task { if await team.joinSession(session.id) { dismiss() } }
                             }
                         }
-                    }
-                    Section("팀 악보") {
-                        TextField("곡 검색", text: $query).accessibilityIdentifier("teamSearch")
-                        ForEach(team.songs.filter { query.isEmpty || KoreanSearch.score(query: query, title: $0.value["canonical_title"].text ?? "", aliases: []) != nil }) { song in
-                            DisclosureGroup(team.songTitle(song.id)) {
-                                ForEach(team.versionsForSong(song.id)) { version in
-                                    HStack {
-                                        Button("v\(version.value["version_number"].integer ?? 0) · \(version.value["written_key"].text ?? "?") · \(version.value["label"].text ?? "")") {
-                                            Task { if await team.openVersion(version.id) { opened(); dismiss() } }
-                                        }.frame(minHeight: 44)
-                                        Spacer()
-                                        Button { Task { await team.prefer(version.id) } } label: {
-                                            Image(systemName: team.preferredVersions[song.id] == version.id ? "star.fill" : "star").frame(width: 44, height: 44)
-                                        }.buttonStyle(.borderless).accessibilityLabel(Text("내 기본 악보로 지정"))
-                                    }
-                                }
-                            }
-                        }
-                        if team.songs.isEmpty { Text("아직 공유한 악보가 없어요.").foregroundStyle(.secondary) }
                     }
                     if !team.pendingPublications.isEmpty {
                         Section("게시 확인 대기") {
@@ -148,14 +170,6 @@ struct TeamPanel: View {
                             }
                         }
                     }
-                    Section("예배 준비") {
-                        ForEach(team.setlists) { setlist in
-                            Button { Task { _ = await team.prepare(setlist) } } label: {
-                                Label("\(setlist.value["title"].text ?? "") · 오프라인 악보 준비", systemImage: "arrow.down.doc")
-                            }
-                        }
-                        Text("다운로드 후 PDF와 현재 팀 메모의 내용·페이지·크기를 확인합니다. 페이지 이동은 다른 기기에 전달하지 않습니다.").font(.caption)
-                    }
                     if team.canLead {
                         Section("팀 준비·진행") {
                             Button("이 기기의 PDF를 팀에 게시") { publishSheet = true }
@@ -166,6 +180,7 @@ struct TeamPanel: View {
                     if team.canAdmin {
                         Section("초대 만들기") {
                             Picker("권한", selection: $inviteRole) { Text("팀원").tag("member"); Text("진행자").tag("leader"); Text("게스트").tag("guest") }
+                            Text(inviteRole == "guest" ? "게스트는 초대한 예배 자료만 봅니다." : (inviteRole == "leader" ? "진행자는 팀 악보 게시·곡 안내·팀 메모를 진행합니다." : "팀원은 팀 자료·대화를 사용하고 개인 메모를 남깁니다.")).font(.caption).foregroundStyle(.secondary)
                             if inviteRole == "guest" {
                                 Picker("초대 예배", selection: $inviteSetlist) {
                                     Text("예배 선택").tag(nil as UUID?)
@@ -200,8 +215,15 @@ struct TeamPanel: View {
             }.disabled(team.busy)
                 .navigationTitle("팀 작업 공간")
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("닫기") { dismiss() }.frame(minHeight: 44) } }
-                .task { await reloadSessions(); await team.refreshChatRooms() }
-                .onChange(of: team.scopeID) { _ in sessions = []; Task { await reloadSessions() } }
+                .task { if team.memberships.isEmpty && entryChoice == "create" { showCreate = true }; if team.memberships.isEmpty && entryChoice == "join" { showJoin = true }; await reloadSessions(); await team.refreshChatRooms() }
+                .onChange(of: team.scopeID) { _ in sessions = []; inviteToken = nil; inviteSetlist = nil; query = ""; Task { await reloadSessions() } }
+                .sheet(isPresented: $preparationSheet) {
+                    NavigationStack {
+                        Form { ForEach(team.setlists) { setlist in Section { TeamPreparationChecklist(team: team, setlist: setlist) } } }
+                            .navigationTitle("예배 준비 확인")
+                            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("닫기") { preparationSheet = false } } }
+                    }
+                }
                 .sheet(isPresented: $administrationSheet) { TeamAdministrationView(team: team) }
                 .sheet(isPresented: $accountExportSheet) { AccountDataExportView(team: team) }
                 .alert("기기의 게시 요청을 삭제할까요?", isPresented: Binding(get: { discardPublication != nil }, set: { if !$0 { discardPublication = nil } })) {
@@ -219,10 +241,85 @@ struct TeamPanel: View {
                 .sheet(isPresented: $team.showConflicts) { PersonalConflictSheet(team: team) }
         }.preferredColorScheme(.light)
     }
+    private var teamLibrary: some View {
+        Section("팀 악보") {
+                        TextField("곡 검색", text: $query).accessibilityIdentifier("teamSearch")
+                        ForEach(team.songs.filter { query.isEmpty || KoreanSearch.score(query: query, title: $0.value["canonical_title"].text ?? "", aliases: []) != nil }) { song in
+                            DisclosureGroup(team.songTitle(song.id)) {
+                                ForEach(team.versionsForSong(song.id)) { version in
+                                    HStack {
+                                        Button("v\(version.value["version_number"].integer ?? 0) · \(version.value["written_key"].text ?? "?") · \(version.value["label"].text ?? "")") {
+                                            Task { if await team.openVersion(version.id) { opened(); dismiss() } }
+                                        }.frame(minHeight: 44)
+                                        Spacer()
+                                        Button { Task { await team.prefer(version.id) } } label: {
+                                            Image(systemName: team.preferredVersions[song.id] == version.id ? "star.fill" : "star").frame(width: 44, height: 44)
+                                        }.buttonStyle(.borderless).accessibilityLabel(Text("내 기본 악보로 지정"))
+                                    }
+                                }
+                            }
+                        }
+                        if team.songs.isEmpty { Text("아직 공유한 악보가 없어요.").foregroundStyle(.secondary) }
+                    }
+    }
+    private func recover(_ kind: TeamRecovery) {
+        switch kind {
+        case .authentication: if team.session?.anonymous == true { showJoin = true; recoveryHelp = true } else { showLogin = true; entryChoice = "join" }
+        case .permission: showJoin = true; recoveryHelp = true
+        case .configuration: entryChoice = "join"; showLogin = team.session != nil; recoveryHelp = true
+        case .integrity: preparationSheet = true
+        case .storage, .capacity: recoveryHelp = true
+        default: Task { await team.refresh(); await reloadSessions() }
+        }
+    }
     private func reloadSessions() async {
+        guard team.session != nil, team.selectedTeam != nil else { sessions = []; return }
         let captured = team.scopeID, values = await team.sessions()
         guard captured == team.scopeID else { return }
         sessions = values
+    }
+}
+
+struct TeamPreparationChecklist: View {
+    @ObservedObject var team: TeamWorkspace
+    let setlist: TeamRow
+    private var evidence: TeamPreparation? { team.preparation(setlist.id) }
+    private var charts: [TeamPreparedChart] { team.preparationCharts(setlist.id) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(setlist.value["title"].text ?? String(localized: "예배")).font(.headline)
+            Text("기기 PDF 검증 \(charts.filter { $0.pdfVerifiedAt != nil }.count) / \(charts.count)").font(.subheadline).monospacedDigit()
+            Text("메모 확인 \(charts.filter { $0.notesCheckedAt != nil && $0.personalCheckedAt != nil }.count) / \(charts.count)").font(.subheadline).monospacedDigit()
+            Text("기기 PDF와 팀 메모의 최신 확인은 서로 다른 상태입니다. 확인 시각 이후 팀 메모가 바뀔 수 있어요.").font(.caption).foregroundStyle(.secondary)
+            if let checked = evidence?.checkedAt {
+                HStack { Text("마지막 예배 자료 확인"); Text(checked, format: .dateTime.month().day().hour().minute()) }.font(.caption)
+            }
+            if evidence?.needsReview == true { Label("일부 자료를 다시 확인해 주세요", systemImage: "exclamationmark.circle").font(.subheadline).foregroundStyle(.orange) }
+            if charts.isEmpty { Text("이 예배에 준비할 곡이 없어요.").foregroundStyle(.secondary) }
+            ForEach(charts) { chart in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(chart.title).font(.subheadline.bold())
+                            Text(chart.label + (chart.personalPreferred ? " · " + String(localized: "내 기본 악보") : "")).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if team.preparationProgress?.setlistID == setlist.id, team.preparationProgress?.chartID == chart.id { ProgressView().accessibilityLabel("이 악보 확인 중") }
+                    }
+                    Label(chart.pdfVerifiedAt == nil ? String(localized: "PDF 기기 검증 필요") : String(localized: "PDF 기기 저장·검증됨"), systemImage: chart.pdfVerifiedAt == nil ? "arrow.down.doc" : "checkmark.shield")
+                    if let checked = chart.notesCheckedAt {
+                        HStack { Label("팀 메모 확인", systemImage: "person.2"); Text(checked, style: .time) }
+                    } else { Label("팀 메모 확인 필요", systemImage: "person.2.badge.gearshape") }
+                    if chart.personalCheckedAt == nil { Label("개인 메모 확인 필요 · 기기 메모 유지", systemImage: "lock") }
+                    if let failure = chart.failure { Text(failure.actionTitle).foregroundStyle(.orange) }
+                    Button(chart.failure == nil ? "이 악보 다시 확인" : "이 악보 다시 시도") { Task { _ = await team.retryPreparation(setlistID: setlist.id, versionID: chart.id) } }
+                        .frame(minHeight: 44).disabled(team.busy).accessibilityLabel(Text("\(chart.title) · 이 악보 다시 확인"))
+                }.font(.caption).padding(10).background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            }
+            Button("이 예배 모두 준비·확인") { Task { _ = await team.prepare(setlist) } }
+                .buttonStyle(.borderedProminent).frame(minHeight: 44).disabled(team.busy || charts.isEmpty)
+                .accessibilityIdentifier("prepareSetlist")
+        }.task(id: team.scopeID) { await team.refreshPreparationEvidence(setlist.id) }
     }
 }
 
@@ -385,25 +482,50 @@ struct SongCueBanner: View {
     @State private var alternatives = false
     @State private var history = false
     var body: some View {
-        if let call = team.pending {
-            HStack(spacing: 12) {
-                Image(systemName: "bell").foregroundStyle(StandStyle.blue)
+        HStack(spacing: 12) {
+            if let call = team.pending {
+                Image(systemName: "bell").foregroundStyle(StandStyle.blue).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(team.songTitle(call.songID)).font(.headline)
-                    Text("연주 키 \(call.performanceKey) · \(team.online ? String(localized: "새 곡 안내") : String(localized: "마지막 수신 안내 · 오프라인"))").font(.caption)
+                    Text(team.songTitle(call.songID)).font(.headline).lineLimit(1).minimumScaleFactor(0.7)
+                    Text("연주 키 \(call.performanceKey) · \(team.online ? String(localized: "새 곡 안내") : String(localized: "마지막 수신 안내 · 오프라인"))").font(.caption).lineLimit(1).minimumScaleFactor(0.7)
+                }.accessibilityElement(children: .combine)
+                Spacer(minLength: 0)
+                Button { Task { if await team.accept(call) { opened() } else { alternatives = true } } } label: {
+                    ViewThatFits(in: .horizontal) {
+                        Text("탭하여 열기").fixedSize(horizontal: true, vertical: false)
+                        Text("열기").fixedSize(horizontal: true, vertical: false)
+                    }
                 }
-                Spacer()
-                Button("탭하여 열기") { Task { if await team.accept(call) { opened() } else { alternatives = true } } }
-                    .buttonStyle(.borderedProminent).frame(minHeight: 44).disabled(team.busy).accessibilityIdentifier("acceptSongCue")
+                    .buttonStyle(.borderedProminent).font(.headline).dynamicTypeSize(...DynamicTypeSize.large)
+                    .frame(minWidth: 70, minHeight: 44).disabled(team.busy).accessibilityLabel(Text("탭하여 열기"))
+                    .accessibilityIdentifier("acceptSongCue")
+                    .confirmationDialog("기본 악보를 열지 못했어요. 이번에만 다른 악보를 직접 선택할 수 있어요.", isPresented: $alternatives) {
+                        ForEach(team.versionsForSong(call.songID)) { version in Button("v\(version.value["version_number"].integer ?? 0) · \(version.value["written_key"].text ?? "?") 이번에만 열기") {
+                            Task { if await team.accept(call, explicitVersion: version.id) { opened() } }
+                        } }
+                        Button("취소", role: .cancel) {}
+                    }
+            } else {
+                Image(systemName: team.session == nil ? "ipad" : (team.online ? "checkmark.icloud" : "icloud.slash")).foregroundStyle(.secondary).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(team.session == nil ? String(localized: "내 기기 악보 · 개인 메모") : (team.live?.ended == true ? String(localized: "이번 예배 진행이 종료됐어요") : (team.online ? String(localized: "새 곡 안내를 기다리고 있어요") : String(localized: "오프라인 · 검증된 기기 악보 사용"))))
+                        .font(.subheadline).lineLimit(1).minimumScaleFactor(0.7)
+                    if let checked = team.connectionCheckedAt, team.session != nil {
+                        HStack(spacing: 4) { Text("마지막 팀 확인"); Text(checked, style: .time) }.font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    } else {
+                        Text(team.session == nil ? String(localized: "페이지 이동과 필기는 이 기기에 저장돼요") : String(localized: "팀 최신 자료는 연결 후 직접 확인해 주세요"))
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                }.accessibilityElement(children: .combine)
+                Spacer(minLength: 0)
+            }
+            if team.live != nil {
                 Button { history = true } label: { Image(systemName: "clock").frame(width: 44, height: 44) }.accessibilityLabel(Text("최근 안내"))
-            }.padding(12).background(StandStyle.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 12)).padding(.horizontal, 10)
-                .confirmationDialog("기본 악보를 열지 못했어요. 이번에만 다른 악보를 직접 선택할 수 있어요.", isPresented: $alternatives) {
-                    ForEach(team.versionsForSong(call.songID)) { version in Button("v\(version.value["version_number"].integer ?? 0) · \(version.value["written_key"].text ?? "?") 이번에만 열기") {
-                        Task { if await team.accept(call, explicitVersion: version.id) { opened() } }
-                    } }
-                    Button("취소", role: .cancel) {}
-                }
-                .sheet(isPresented: $history) { NavigationStack { List(team.live?.history ?? [], id: \.id) { call in Text("\(team.songTitle(call.songID)) · \(call.performanceKey) · #\(call.sequence)") }.navigationTitle("최근 안내").toolbar { Button("닫기") { history = false } } } }
-        }
+            }
+        }.padding(.horizontal, 12).frame(height: 76)
+            .background(team.pending == nil ? Color.secondary.opacity(0.04) : StandStyle.blue.opacity(0.08))
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            .accessibilityIdentifier("songCueStatus")
+            .sheet(isPresented: $history) { NavigationStack { List(team.live?.history ?? [], id: \.id) { call in Text("\(team.songTitle(call.songID)) · \(call.performanceKey) · #\(call.sequence)") }.navigationTitle("최근 안내").toolbar { Button("닫기") { history = false } } } }
     }
 }

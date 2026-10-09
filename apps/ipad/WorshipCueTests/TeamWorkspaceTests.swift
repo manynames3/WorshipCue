@@ -64,6 +64,8 @@ private final class TeamFixture: @unchecked Sendable {
     private var memberRole = "admin", unknownUnread = false, failChat = false
     private var preferences: [UUID: UUID] = [userA: a1, userB: a2]
     private var latest: TeamJSON = .null, calls: [TeamJSON] = [], requests: [(String, TeamJSON)] = []
+    private var manifestResponses: [TeamJSON] = []
+    private var failPDFDownloads = false
     private var failCreation = false
     private var failPublication = false, conflictInk = false, failHeadReads = false, pausedPath: String?
     private var waiting: [((Int, TeamJSON) -> Void)] = []
@@ -133,8 +135,16 @@ private final class TeamFixture: @unchecked Sendable {
     }
     func setUser(_ value: UUID) { lock.withLock { user = value } }
     func addSong(_ value: TeamJSON) { lock.withLock { extraSongs.append(value) } }
+    func addItem(_ value: TeamJSON) { lock.withLock { extraItems.append(value) } }
     func catalogValue() -> TeamJSON {
         lock.withLock { .object(Dictionary(uniqueKeysWithValues: ["songs", "chart_versions", "assets", "setlists", "performance_items", "personal_preferences"].map { ($0, catalogRows($0)) }).merging(["team_id": .id(Self.team), "schema_version": .int(1), "next_cursor": .null]) { _, new in new }) }
+    }
+    func denyPDFDownloads(_ value: Bool) { lock.withLock { failPDFDownloads = value } }
+    func queueManifests(_ values: [TeamJSON]) { lock.withLock { manifestResponses = values } }
+    func manifestValue() -> TeamJSON { lock.withLock { manifest() } }
+    private func manifest() -> TeamJSON {
+        .object(["schema_version": .int(1), "team_id": .id(Self.team), "setlist_id": .id(Self.setlist), "setlist_revision": .int(1),
+            "charts": .array(charts), "annotation_heads": .array(heads.values.filter { $0["scope"].text == "team" }.sorted { $0["native_storage_key"].text! < $1["native_storage_key"].text! })])
     }
     func setOffline(_ value: Bool) { lock.withLock { offline = value } }
     func failCreations(_ value: Bool) { lock.withLock { failCreation = value } }
@@ -176,7 +186,7 @@ private final class TeamFixture: @unchecked Sendable {
         let p = body["p"]
         lock.lock()
         requests.append((name, p))
-        if offline { lock.unlock(); completion(0, .null); return }
+        if offline || (failPDFDownloads && request.httpMethod == "GET" && request.url?.pathExtension == "pdf") { lock.unlock(); completion(0, .null); return }
         if name == pausedPath { waiting.append(completion); if pauseNextOnly { pausedPath = nil; pauseNextOnly = false }; lock.unlock(); return }
         if let path = request.url?.path, request.httpMethod == "POST", let marker = path.range(of: "/worshipcue-private/") {
             let key = String(path[marker.upperBound...])
@@ -218,7 +228,7 @@ private final class TeamFixture: @unchecked Sendable {
         case "verify", "token":
             result = .object(["user": .object(["id": .id(user), "is_anonymous": .bool(false)]),
                 "access_token": .string("synthetic-access"), "refresh_token": .string("synthetic-refresh"), "expires_in": .int(3600)])
-        case "memberships": result = .array([.object(["user_id": .id(user), "church_id": .id(Self.church), "team_id": .id(Self.team), "role": .string(memberRole), "active": .bool(true)])] + extraMemberships)
+        case "memberships": result = .array([.object(["user_id": .id(user), "church_id": .id(Self.church), "team_id": .id(Self.team), "role": .string(memberRole), "active": .bool(true), "team_name": .string("Synthetic worship team"), "church_name": .string("Synthetic church")])] + extraMemberships)
         case "songs", "chart_versions", "assets", "setlists", "performance_items", "personal_preferences": result = catalogRows(name)
         case "get_team_catalog", "get_team_catalog_page":
             result = .object(Dictionary(uniqueKeysWithValues: ["songs", "chart_versions", "assets", "setlists", "performance_items", "personal_preferences"].map { ($0, catalogRows($0)) }).merging(["team_id": .id(Self.team), "schema_version": .int(1), "next_cursor": .null]) { _, new in new })
@@ -310,7 +320,7 @@ private final class TeamFixture: @unchecked Sendable {
         case "save_annotation_revision":
             if conflictInk { status = 400; result = .object(["message": .string("REVISION_CONFLICT")]) }
             else { result = .object(["revision_number": .int((p["parent_revision"].integer ?? 0) + 1)]) }
-        case "preflight_manifest": result = .object(["setlist_id": .id(Self.setlist), "setlist_revision": .int(1), "charts": .array(charts), "annotation_heads": .array(heads.values.filter { $0["scope"].text == "team" }.sorted { $0["native_storage_key"].text! < $1["native_storage_key"].text! })])
+        case "preflight_manifest": result = manifestResponses.isEmpty ? manifest() : manifestResponses.removeFirst()
         default: break
         }
         if status == 200, workflowNames.contains(name), p["command_id"].uuid != nil { workflowReceipts[receiptKey] = result }
@@ -1098,6 +1108,323 @@ private final class TeamFixture: @unchecked Sendable {
             fixture.release(200, .object(catalog)); await refresh.value
             XCTAssertNotNil(team.error); XCTAssertEqual(team.songs.map(\.value), songs); XCTAssertEqual(team.versions.map(\.value), versions)
         }
+    }
+
+    func testPreparationEvidencePersistsOfflineAndDoesNotNavigateOrReplayWork() async throws {
+        let (team, fixture, root, config, transport) = try await setupWorkspace(provider: .aws)
+        expectTrue(await team.openVersion(TeamFixture.b1, page: 1))
+        let reader = try XCTUnwrap(team.reader), bytes = try reader.sourceBytes(TeamFixture.b1)
+        expectTrue(await team.prepare(try XCTUnwrap(team.setlists.first)))
+        let evidence = try XCTUnwrap(team.preparation(TeamFixture.setlist))
+        XCTAssertEqual(evidence.verifiedPDFCount, 3); XCTAssertEqual(evidence.confirmedCount, 3)
+        XCTAssertFalse(evidence.needsReview); XCTAssertNotNil(evidence.checkedAt)
+        XCTAssertEqual(team.selectedWorkspaceName, "Synthetic worship team"); XCTAssertEqual(team.selectedChurchName, "Synthetic church")
+        XCTAssertTrue(team.reader === reader); XCTAssertEqual(reader.pageIndex, 1)
+        XCTAssertEqual(try reader.sourceBytes(TeamFixture.b1), bytes)
+        let requests = fixture.recorded("preflight_manifest").count
+        team.suspend(); fixture.setOffline(true)
+        let returning = TeamWorkspace(testRoot: root, configuration: config, transport: transport, realtimeEnabled: false)
+        await returning.restore(); await returning.refreshPreparationEvidence(TeamFixture.setlist)
+        let saved = try XCTUnwrap(returning.preparation(TeamFixture.setlist))
+        XCTAssertEqual(saved.verifiedPDFCount, 3); XCTAssertEqual(saved.confirmedCount, 3)
+        XCTAssertEqual(saved.checkedAt, evidence.checkedAt, "An offline cache check cannot claim a fresh server check")
+        XCTAssertEqual(fixture.recorded("preflight_manifest").count, requests)
+        XCTAssertEqual(returning.reader?.current?.id, TeamFixture.b1); XCTAssertEqual(returning.reader?.pageIndex, 1)
+        XCTAssertTrue(fixture.recorded("acknowledge_open").isEmpty); XCTAssertTrue(fixture.recorded("publish_call").isEmpty)
+        returning.suspend(); _ = await returning.logout()
+    }
+
+    func testPartialPreparationKeepsVerifiedPaperAndOnlyExplicitlyRetriesChosenChart() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace()
+        expectTrue(await team.openVersion(TeamFixture.b1, page: 1))
+        fixture.failHeads(true)
+        expectFalse(await team.prepare(try XCTUnwrap(team.setlists.first)))
+        let partial = try XCTUnwrap(team.preparation(TeamFixture.setlist))
+        XCTAssertEqual(partial.verifiedPDFCount, 3); XCTAssertEqual(partial.confirmedCount, 0)
+        XCTAssertTrue(partial.charts.allSatisfy { $0.personalCheckedAt == nil && $0.notesCheckedAt == nil && $0.failure == .connection })
+        XCTAssertTrue(partial.needsReview)
+        fixture.failHeads(false)
+        let before = fixture.recorded("get_annotation_head").count
+        await team.refresh()
+        XCTAssertEqual(fixture.recorded("get_annotation_head").count, before, "Reconnect must not automatically prepare or upload")
+        expectTrue(await team.retryPreparation(setlistID: TeamFixture.setlist, versionID: TeamFixture.a1))
+        let after = fixture.recorded("get_annotation_head").dropFirst(before)
+        XCTAssertFalse(after.isEmpty); XCTAssertTrue(after.allSatisfy { $0["layer_identity"]["chart_version_id"].uuid == TeamFixture.a1 })
+        let retried = try XCTUnwrap(team.preparation(TeamFixture.setlist))
+        XCTAssertEqual(retried.verifiedPDFCount, 3); XCTAssertEqual(retried.confirmedCount, 1)
+        XCTAssertTrue(retried.needsReview); XCTAssertEqual(team.reader?.current?.id, TeamFixture.b1); XCTAssertEqual(team.reader?.pageIndex, 1)
+        XCTAssertTrue(fixture.recorded("save_annotation_revision").isEmpty)
+    }
+
+    func testChangedFinalManifestRetainsPaperButInvalidatesNoteConfirmation() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace(provider: .aws)
+        expectTrue(await team.openVersion(TeamFixture.b1, page: 1))
+        let initial = fixture.manifestValue()
+        guard case .object(var changed) = initial else { return XCTFail("Missing manifest") }
+        changed["setlist_revision"] = .int(2)
+        fixture.queueManifests([initial, .object(changed)])
+        expectFalse(await team.prepare(try XCTUnwrap(team.setlists.first)))
+        let evidence = try XCTUnwrap(team.preparation(TeamFixture.setlist))
+        XCTAssertEqual(evidence.verifiedPDFCount, 3); XCTAssertEqual(evidence.confirmedCount, 0)
+        XCTAssertTrue(evidence.needsReview); XCTAssertNil(evidence.checkedAt)
+        XCTAssertTrue(evidence.charts.allSatisfy { $0.notesCheckedAt == nil && $0.personalCheckedAt == nil && $0.failure == .conflict })
+        XCTAssertEqual(team.recovery, .conflict); XCTAssertEqual(team.reader?.current?.id, TeamFixture.b1); XCTAssertEqual(team.reader?.pageIndex, 1)
+    }
+
+    func testManifestCannotOmitRequiredChartOrIntroduceForeignTeamEvidence() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace(provider: .aws)
+        for foreign in [false, true] {
+            guard case .object(var manifest) = fixture.manifestValue() else { return XCTFail("Missing manifest") }
+            if foreign { manifest["team_id"] = .id(UUID()) }
+            else { manifest["charts"] = .array(fixture.charts.filter { $0["id"].uuid != TeamFixture.a1 }) }
+            fixture.queueManifests([.object(manifest)])
+            expectFalse(await team.prepare(try XCTUnwrap(team.setlists.first)))
+            XCTAssertNil(team.preparation(TeamFixture.setlist)); XCTAssertEqual(team.recovery, .integrity)
+        }
+    }
+
+    func testDamagedTeamNotesDoNotInvalidatePaperAndExplicitRetryPreservesRecoveryCopy() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace()
+        let cache = try XCTUnwrap(team.cache), archive = MusicStand.sampleTeamDrawing().dataRepresentation()
+        let geometry = try XCTUnwrap(cache.library.assets.first { $0.id == TeamFixture.a2 }?.pages?.first)
+        fixture.installHead(try head(chart: TeamFixture.a2, page: 0, geometry: geometry, archive: archive, item: TeamFixture.itemA), archive: archive)
+        expectTrue(await team.prepare(try XCTUnwrap(team.setlists.first)))
+        let directory = try team.operationDirectory()
+        let file = directory.appendingPathComponent("team-snapshot-\(TeamFixture.itemA)-\(TeamFixture.a2)-0.json")
+        let damaged = Data("Synthetic damaged snapshot".utf8)
+        try damaged.write(to: file, options: .atomic)
+        await team.refreshPreparationEvidence(TeamFixture.setlist)
+        let evidence = try XCTUnwrap(team.preparation(TeamFixture.setlist)), chart = try XCTUnwrap(evidence.charts.first { $0.id == TeamFixture.a2 })
+        XCTAssertNotNil(chart.pdfVerifiedAt); XCTAssertNotNil(chart.personalCheckedAt)
+        XCTAssertNil(chart.notesCheckedAt); XCTAssertEqual(chart.failure, .integrity)
+        XCTAssertEqual(try Data(contentsOf: file), damaged, "Inspection cannot overwrite damaged data")
+        expectTrue(await team.retryPreparation(setlistID: TeamFixture.setlist, versionID: TeamFixture.a2))
+        XCTAssertNotNil(team.preparation(TeamFixture.setlist)?.charts.first { $0.id == TeamFixture.a2 }?.notesCheckedAt)
+        let copies = try FileManager.default.contentsOfDirectory(at: directory.appendingPathComponent("RecoveryCopies"), includingPropertiesForKeys: nil)
+        XCTAssertTrue(try copies.contains { try Data(contentsOf: $0) == damaged })
+        let restored = try await team.loadTeamDrawing(item: TeamFixture.itemA, chart: TeamFixture.a2, page: 0)
+        let saved = try JSONDecoder().decode(TeamJSON.self, from: Data(contentsOf: file))
+        XCTAssertEqual(Data(base64Encoded: try saved.requiredText("archive")), archive, "The verified source archive must be retained byte for byte")
+        let expected = try PKDrawing(data: archive)
+        XCTAssertEqual(restored.0.bounds, expected.bounds); XCTAssertEqual(restored.0.strokes.count, expected.strokes.count)
+        for (actual, original) in zip(restored.0.strokes, expected.strokes) {
+            XCTAssertEqual(actual.ink.inkType, original.ink.inkType); XCTAssertEqual(actual.ink.color, original.ink.color)
+            XCTAssertEqual(actual.transform, original.transform); XCTAssertEqual(actual.path.count, original.path.count)
+            for (point, savedPoint) in zip(actual.path, original.path) {
+                XCTAssertEqual(point.location, savedPoint.location); XCTAssertEqual(point.size, savedPoint.size)
+                XCTAssertEqual(point.force, savedPoint.force); XCTAssertEqual(point.opacity, savedPoint.opacity)
+            }
+        }
+    }
+
+    func testForeignAccountPreparationEvidenceIsRejectedAndReauthenticationKeepsIdentity() async throws {
+        let (team, fixture, root, config, transport) = try await setupWorkspace()
+        expectTrue(await team.openVersion(TeamFixture.b1, page: 1))
+        expectTrue(await team.prepare(try XCTUnwrap(team.setlists.first)))
+        let previousScope = team.scopeID, reader = team.reader
+        fixture.setUser(TeamFixture.userB)
+        expectFalse(await team.signIn("other@example.test", code: "123456"))
+        XCTAssertEqual(team.session?.userID, TeamFixture.userA); XCTAssertEqual(team.scopeID, previousScope)
+        XCTAssertTrue(team.reader === reader); XCTAssertEqual(team.reader?.pageIndex, 1)
+        fixture.setUser(TeamFixture.userA)
+        let file = try team.operationDirectory().appendingPathComponent("preparation-checklists.json")
+        var values = try JSONDecoder().decode([TeamPreparation].self, from: Data(contentsOf: file))
+        let current = try XCTUnwrap(values.first)
+        values[0] = TeamPreparation(id: current.id, ownerID: TeamFixture.userB, churchID: current.churchID, teamID: current.teamID,
+            title: current.title, manifest: current.manifest, charts: current.charts, checkedAt: current.checkedAt, needsReview: false)
+        let invalid = try JSONEncoder().encode(values); try invalid.write(to: file, options: .atomic)
+        team.suspend()
+        let returning = TeamWorkspace(testRoot: root, configuration: config, transport: transport, realtimeEnabled: false)
+        await returning.restore()
+        XCTAssertNil(returning.preparation(TeamFixture.setlist)); XCTAssertEqual(returning.recovery, .integrity)
+        XCTAssertEqual(try Data(contentsOf: file), invalid, "Invalid evidence is retained, never relocated into a different account")
+        returning.suspend(); _ = await returning.logout()
+    }
+
+    func testRecoveryActionsDistinguishConnectionPermissionAuthenticationConflictAndIntegrity() {
+        XCTAssertEqual(TeamWorkspace.recoveryKind(URLError(.networkConnectionLost)), .connection)
+        XCTAssertEqual(TeamWorkspace.recoveryKind(RemoteError.authentication), .authentication)
+        XCTAssertEqual(TeamWorkspace.recoveryKind(RemoteError.forbidden), .permission)
+        XCTAssertEqual(TeamWorkspace.recoveryKind(RemoteError.conflict), .conflict)
+        XCTAssertEqual(TeamWorkspace.recoveryKind(RemoteError.invalidResponse), .integrity)
+        XCTAssertEqual(TeamWorkspace.recoveryKind(VaultError.checksum), .integrity)
+        XCTAssertEqual(TeamWorkspace.recoveryKind(RemoteError.tooLarge), .capacity)
+        XCTAssertEqual(TeamWorkspace.recoveryKind(CocoaError(.fileWriteOutOfSpace)), .storage)
+        XCTAssertEqual(Set([TeamRecovery.connection, .authentication, .permission, .conflict, .integrity].map(\.actionTitle)).count, 5)
+    }
+
+    func testRenderedCueBannerReservesHeightAcrossIdlePendingAcceptedAndEnded() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace()
+        expectTrue(await team.openVersion(TeamFixture.b1, page: 1))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previous = scene.windows.first { $0.isKeyWindow }, window = UIWindow(windowScene: scene)
+        window.frame = scene.coordinateSpace.bounds
+        defer { window.isHidden = true; window.rootViewController = nil; previous?.makeKeyAndVisible() }
+        func capture(_ state: String) async throws {
+            for (width, type) in [(CGFloat(768), DynamicTypeSize.large), (CGFloat(320), .xxxLarge)] {
+                var measuredBannerSize = CGSize.zero
+                let banner = SongCueBanner(team: team, opened: {}).background(GeometryReader { geometry in
+                    Color.clear.onAppear { measuredBannerSize = geometry.size }
+                }).frame(width: width).environment(\.dynamicTypeSize, type)
+                let host = UIHostingController(rootView: banner)
+                window.rootViewController = host; window.makeKeyAndVisible()
+                let size = host.sizeThatFits(in: CGSize(width: width, height: 1000))
+                host.view.frame = CGRect(origin: .zero, size: CGSize(width: width, height: size.height)); host.view.layoutIfNeeded()
+                try await Task.sleep(for: .milliseconds(40))
+                XCTAssertEqual(measuredBannerSize.height, 76, accuracy: 0.5, "\(state) must not move the chart as cue state changes")
+                // UIWindow hosting adds its status-bar safe area; it is outside the cue component.
+                XCTAssertEqual(size.height - host.view.safeAreaInsets.top - host.view.safeAreaInsets.bottom, 76, accuracy: 0.5)
+                var rendered = false
+                let image = UIGraphicsImageRenderer(size: host.view.bounds.size).image { _ in rendered = host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true) }
+                XCTAssertTrue(rendered); XCTAssertEqual(image.size.height, size.height, accuracy: 0.5)
+                let attachment = XCTAttachment(image: image); attachment.name = "Build8 cue \(state) width \(Int(width))"; attachment.lifetime = .keepAlways; add(attachment)
+            }
+        }
+        try await capture("idle")
+        XCTAssertEqual(team.reader?.current?.id, TeamFixture.b1); XCTAssertEqual(team.reader?.pageIndex, 1)
+        let call = fixture.call(1); fixture.deliver(call); expectTrue(await team.joinSession(TeamFixture.live))
+        try await capture("pending")
+        XCTAssertEqual(team.reader?.current?.id, TeamFixture.b1); XCTAssertEqual(team.reader?.pageIndex, 1)
+        XCTAssertTrue(fixture.recorded("acknowledge_open").isEmpty)
+        expectTrue(await team.accept(try call.call())); XCTAssertEqual(team.reader?.current?.id, TeamFixture.a1)
+        await team.reader?.turnPage(1); team.navigationChanged()
+        try await capture("accepted")
+        XCTAssertEqual(team.reader?.pageIndex, 1)
+        expectTrue(await team.acquire(TeamFixture.setlist, takeover: false)); expectTrue(await team.endSession())
+        try await capture("ended")
+        XCTAssertEqual(team.reader?.current?.id, TeamFixture.a1); XCTAssertEqual(team.reader?.pageIndex, 1)
+        XCTAssertTrue(fixture.recorded("publish_call").isEmpty)
+    }
+
+    func testRepeatedPreparedOccurrenceKeepsItsOwnKeyInkAndPendingCueAcrossOfflineRestore() async throws {
+        let (team, fixture, root, config, transport) = try await setupWorkspace()
+        let repeated = UUID()
+        fixture.addItem(.object(["id": .id(repeated), "church_id": .id(TeamFixture.church), "team_id": .id(TeamFixture.team),
+            "setlist_id": .id(TeamFixture.setlist), "song_id": .id(TeamFixture.songA), "team_chart_version_id": .id(TeamFixture.a2),
+            "performance_key": .string("D"), "kind": .string("planned"), "active": .bool(true), "position": .int(2)]))
+        let cache = try XCTUnwrap(team.cache), geometry = try XCTUnwrap(cache.library.assets.first { $0.id == TeamFixture.a2 }?.pages?[1])
+        let firstInk = MusicStand.sampleTeamDrawing(), secondInk = firstInk.transformed(using: CGAffineTransform(translationX: 50, y: 90))
+        fixture.installHead(try head(chart: TeamFixture.a2, page: 1, geometry: geometry, archive: firstInk.dataRepresentation(), item: TeamFixture.itemA), archive: firstInk.dataRepresentation())
+        fixture.installHead(try head(chart: TeamFixture.a2, page: 1, geometry: geometry, archive: secondInk.dataRepresentation(), item: repeated), archive: secondInk.dataRepresentation())
+        let oldCall = fixture.call(1); fixture.deliver(oldCall); expectTrue(await team.joinSession(TeamFixture.live))
+        expectTrue(await team.accept(try oldCall.call(), explicitVersion: TeamFixture.a2)); await team.reader?.turnPage(1); team.navigationChanged()
+        let pending = fixture.call(2, song: TeamFixture.songB, chart: TeamFixture.b1, item: TeamFixture.itemB)
+        fixture.deliver(pending); try await team.reconcile()
+        let acknowledgements = fixture.recorded("acknowledge_open").count
+        expectTrue(await team.openPreparedItem(TeamFixture.itemA, versionID: TeamFixture.a2))
+        XCTAssertEqual(team.reader?.pageIndex, 1); XCTAssertEqual(team.currentPerformanceKey, "G")
+        expectTrue(await team.openPreparedItem(repeated, versionID: TeamFixture.a2))
+        XCTAssertEqual(team.reader?.performanceItemID, repeated); XCTAssertEqual(team.currentPerformanceKey, "D")
+        XCTAssertNil(team.displayedCall); XCTAssertNil(team.live?.displayed?.acknowledgedCallID)
+        XCTAssertEqual(team.pending?.id, pending["id"].uuid); XCTAssertEqual(team.reader?.current?.id, TeamFixture.a2); XCTAssertEqual(team.reader?.pageIndex, 1)
+        let shared = try await team.loadTeamDrawing(item: repeated, chart: TeamFixture.a2, page: 1)
+        XCTAssertEqual(shared.0.bounds, secondInk.bounds)
+        XCTAssertEqual(fixture.recorded("acknowledge_open").count, acknowledgements); XCTAssertTrue(fixture.recorded("publish_call").isEmpty)
+        team.suspend(); fixture.setOffline(true)
+        let returning = TeamWorkspace(testRoot: root, configuration: config, transport: transport, realtimeEnabled: false)
+        await returning.restore()
+        XCTAssertEqual(returning.reader?.performanceItemID, repeated); XCTAssertEqual(returning.currentPerformanceKey, "D")
+        XCTAssertEqual(returning.reader?.current?.id, TeamFixture.a2); XCTAssertEqual(returning.reader?.pageIndex, 1)
+        let offlineInk = try await returning.loadTeamDrawing(item: repeated, chart: TeamFixture.a2, page: 1)
+        XCTAssertEqual(offlineInk.0.bounds, secondInk.bounds)
+        expectTrue(await returning.openVersion(TeamFixture.a2, page: 1))
+        XCTAssertEqual(returning.preparedItem, .null); XCTAssertNil(returning.reader?.performanceItemID); XCTAssertNil(returning.currentPerformanceKey)
+        XCTAssertEqual(returning.pending?.id, pending["id"].uuid)
+        XCTAssertEqual(fixture.recorded("acknowledge_open").count, acknowledgements)
+        returning.suspend(); _ = await returning.logout()
+    }
+
+    func testPreparedItemPermissionFailureOrWrongSongCannotReplaceExistingReaderContext() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace(provider: .aws)
+        expectTrue(await team.openVersion(TeamFixture.b1, page: 1))
+        let reader = try XCTUnwrap(team.reader)
+        expectFalse(await team.openPreparedItem(TeamFixture.itemA, versionID: TeamFixture.b1))
+        XCTAssertTrue(team.reader === reader); XCTAssertEqual(reader.current?.id, TeamFixture.b1); XCTAssertEqual(reader.pageIndex, 1)
+        fixture.pause("get_team_catalog_page")
+        let denied = Task { await team.openPreparedItem(TeamFixture.itemA, versionID: TeamFixture.a2) }; try await waitPaused(fixture)
+        fixture.release(403, .null); expectFalse(await denied.value)
+        XCTAssertEqual(team.recovery, .permission); XCTAssertTrue(team.reader === reader)
+        XCTAssertEqual(reader.current?.id, TeamFixture.b1); XCTAssertEqual(reader.pageIndex, 1); XCTAssertEqual(team.preparedItem, .null)
+        XCTAssertTrue(fixture.recorded("acknowledge_open").isEmpty); XCTAssertTrue(fixture.recorded("publish_call").isEmpty)
+    }
+
+    func testFailedRepairCannotRetainOldVerifiedPDFProofForDamagedLocalBytes() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace()
+        expectTrue(await team.openVersion(TeamFixture.b1, page: 1))
+        expectTrue(await team.prepare(try XCTUnwrap(team.setlists.first)))
+        XCTAssertNotNil(team.preparation(TeamFixture.setlist)?.charts.first { $0.id == TeamFixture.a1 }?.pdfVerifiedAt)
+        let file = try team.operationDirectory().appendingPathComponent("pdfs").appendingPathComponent("\(TeamFixture.a1).pdf")
+        let damaged = Data("Synthetic damaged PDF".utf8); try damaged.write(to: file, options: .atomic)
+        fixture.denyPDFDownloads(true)
+        expectFalse(await team.retryPreparation(setlistID: TeamFixture.setlist, versionID: TeamFixture.a1))
+        let evidence = try XCTUnwrap(team.preparation(TeamFixture.setlist)), chart = try XCTUnwrap(evidence.charts.first { $0.id == TeamFixture.a1 })
+        XCTAssertNil(chart.pdfVerifiedAt); XCTAssertNil(chart.notesCheckedAt); XCTAssertNil(chart.personalCheckedAt)
+        XCTAssertEqual(evidence.verifiedPDFCount, 2); XCTAssertTrue(evidence.needsReview)
+        XCTAssertEqual(try Data(contentsOf: file), damaged)
+        XCTAssertEqual(team.reader?.current?.id, TeamFixture.b1); XCTAssertEqual(team.reader?.pageIndex, 1)
+        XCTAssertEqual(try team.reader?.sourceBytes(TeamFixture.b1), fixture.originals[TeamFixture.b1])
+    }
+
+    func testRenderedTeamBrowsingAndPreparationKeepCurrentReaderOnWideAndNarrowLayouts() async throws {
+        let (team, _, _, _, _) = try await setupWorkspace()
+        expectTrue(await team.openVersion(TeamFixture.b1, page: 1))
+        expectTrue(await team.prepare(try XCTUnwrap(team.setlists.first)))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previous = scene.windows.first { $0.isKeyWindow }, window = UIWindow(windowScene: scene)
+        window.frame = scene.coordinateSpace.bounds
+        defer { window.isHidden = true; window.rootViewController = nil; previous?.makeKeyAndVisible() }
+        for section in [StandSection.today, .library] {
+            for width in [CGFloat(1024), 390] {
+                let view = TeamBrowserView(team: team, section: section,
+                    connect: { XCTFail("Rendering cannot change account/team") },
+                    opened: { XCTFail("Browsing cannot open a chart without a tap") })
+                    .preferredColorScheme(.light)
+                let host = UIHostingController(rootView: view)
+                window.rootViewController = host; window.makeKeyAndVisible()
+                host.view.frame = CGRect(x: 0, y: 0, width: width, height: 768); host.view.layoutIfNeeded()
+                try await Task.sleep(for: .milliseconds(120))
+                var rendered = false
+                let image = UIGraphicsImageRenderer(size: host.view.bounds.size).image { _ in
+                    rendered = host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+                }
+                XCTAssertTrue(rendered)
+                let attachment = XCTAttachment(image: image)
+                attachment.name = "Build8 team browser \(section == .today ? "preparation" : "library") width \(Int(width))"
+                attachment.lifetime = .keepAlways; add(attachment)
+                XCTAssertEqual(team.reader?.current?.id, TeamFixture.b1)
+                XCTAssertEqual(team.reader?.pageIndex, 1)
+            }
+        }
+    }
+
+    func testExplicitPreparedItemPreviewShowsExactTeamChartWithoutNavigatingOrAcknowledgingCue() async throws {
+        let (team, fixture, _, _, _) = try await setupWorkspace()
+        let cache = try XCTUnwrap(team.cache), archive = MusicStand.sampleTeamDrawing().dataRepresentation()
+        let geometry = try XCTUnwrap(cache.library.assets.first { $0.id == TeamFixture.a2 }?.pages?[1])
+        fixture.installHead(try head(chart: TeamFixture.a2, page: 1, geometry: geometry, archive: archive, item: TeamFixture.itemA), archive: archive)
+        expectTrue(await team.openPreparedItem(TeamFixture.itemA, versionID: TeamFixture.a1, page: 1))
+        XCTAssertTrue(team.teamMismatch); XCTAssertNil(team.displayedCall)
+        let pending = fixture.call(1, song: TeamFixture.songB, chart: TeamFixture.b1, item: TeamFixture.itemB)
+        fixture.deliver(pending); expectTrue(await team.joinSession(TeamFixture.live))
+        let preview = TeamInkDraft(team: team, itemID: TeamFixture.itemA, chartID: TeamFixture.a2, editable: false, initialPage: 1)
+        await preview.load()
+        XCTAssertTrue(preview.ready); XCTAssertEqual(preview.page, 1)
+        XCTAssertEqual(preview.geometry, geometry); XCTAssertEqual(preview.drawing.bounds, MusicStand.sampleTeamDrawing().bounds)
+        XCTAssertFalse(preview.editable); XCTAssertEqual(preview.document?.pageCount, fixture.charts.first { $0["id"].uuid == TeamFixture.a2 }?["page_count"].integer.map(Int.init))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previous = scene.windows.first { $0.isKeyWindow }, window = UIWindow(windowScene: scene)
+        let host = UIHostingController(rootView: TeamInkSheet(team: team, itemID: TeamFixture.itemA, chartID: TeamFixture.a2, editable: false, initialPage: 1))
+        window.frame = scene.coordinateSpace.bounds; window.rootViewController = host; window.makeKeyAndVisible()
+        defer { window.isHidden = true; window.rootViewController = nil; previous?.makeKeyAndVisible() }
+        try await Task.sleep(for: .milliseconds(200)); host.view.layoutIfNeeded()
+        var rendered = false
+        let image = UIGraphicsImageRenderer(size: host.view.bounds.size).image { _ in rendered = host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true) }
+        XCTAssertTrue(rendered); XCTAssertGreaterThan(image.size.width, 100)
+        let attachment = XCTAttachment(image: image); attachment.name = "Build8 prepared occurrence exact team chart preview"; attachment.lifetime = .keepAlways; add(attachment)
+        XCTAssertEqual(team.reader?.current?.id, TeamFixture.a1); XCTAssertEqual(team.reader?.pageIndex, 1); XCTAssertEqual(team.reader?.performanceItemID, TeamFixture.itemA)
+        XCTAssertEqual(team.pending?.id, pending["id"].uuid)
+        XCTAssertTrue(fixture.recorded("acknowledge_open").isEmpty); XCTAssertTrue(fixture.recorded("publish_call").isEmpty)
+        XCTAssertTrue(fixture.recorded("save_annotation_revision").isEmpty)
     }
 
 }

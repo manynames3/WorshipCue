@@ -1,0 +1,2 @@
+# Shareable PDFs contain fixed byte offsets and must not receive text conversions.
+output/pdf/*.pdf binary

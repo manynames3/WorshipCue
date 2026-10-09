@@ -9,6 +9,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
+import math
 from pathlib import Path
 import random
 import re
@@ -76,16 +77,30 @@ def client(http, token, team, clock=time.monotonic, pause=time.sleep):
             return dict(success=False, elapsed=clock() - start, attempts=attempt + 1, failures={'UNEXPECTED_ERROR_REDACTED': 1})
 
 
-def qualify(http, team, tokens, clients):
+def arrival_delay(index, clients, window):
+    require(1 <= clients <= 50 and 0 <= index < clients and isinstance(window, (int, float))
+            and not isinstance(window, bool) and math.isfinite(window) and 0 <= window <= 30, 'ARRIVAL_WINDOW_INVALID')
+    return window * index / max(1, clients - 1)
+
+
+def qualify(http, team, tokens, clients, arrival_window=0):
     require(1 <= clients <= 50, 'CLIENT_LIMIT')
+    arrival_delay(0, clients, arrival_window)
     started = time.monotonic()
+    def execute(index):
+        scheduled = started + arrival_delay(index, clients, arrival_window)
+        delay = scheduled - time.monotonic()
+        if delay > 0:
+            time.sleep(delay)
+        return client(http, tokens[index % len(tokens)], team)
     with ThreadPoolExecutor(max_workers=clients) as pool:
-        results = list(pool.map(lambda n: client(http, tokens[n % len(tokens)], team), range(clients)))
+        results = list(pool.map(execute, range(clients)))
     elapsed = sorted(r['elapsed'] for r in results)
     failures = Counter()
     for result in results:
         failures.update(result['failures'])
     return dict(check='bounded_catalog_api_concurrency', clients=clients, synthetic_identities=len(tokens),
+        arrival_mode='raw_burst' if arrival_window == 0 else 'paced_start', arrival_window_seconds=arrival_window,
         passed=sum(r['success'] for r in results), failed=sum(not r['success'] for r in results),
         attempts=sum(r['attempts'] for r in results), retry_codes=dict(failures),
         elapsed_seconds=round(time.monotonic() - started, 3),
@@ -125,6 +140,20 @@ def self_test():
                 def api(self, *args): return {}
             result = client(API(), 'opaque', 'team', pause=lambda _: self.fail('Unexpected retry'))
             self.assertFalse(result['success']); self.assertEqual(1, result['attempts'])
+        def test_paced_arrivals_are_explicit_bounded_and_do_not_change_raw_burst(self):
+            self.assertEqual([0] * 50, [arrival_delay(i, 50, 0) for i in range(50)])
+            offsets = [arrival_delay(i, 50, 5) for i in range(50)]
+            self.assertEqual((0, 5), (offsets[0], offsets[-1]))
+            self.assertTrue(all(b > a for a, b in zip(offsets, offsets[1:])))
+            self.assertEqual(0, arrival_delay(0, 1, 5))
+            for invalid in (-1, 31, float('nan'), float('inf'), True):
+                with self.assertRaises(Failure): arrival_delay(0, 50, invalid)
+        def test_exhausted_retries_remain_failure_in_either_arrival_mode(self):
+            class API:
+                def api(self, *args): raise Failure('HTTP_503', 503)
+            result = client(API(), 'opaque', 'team', pause=lambda _: None)
+            self.assertFalse(result['success']); self.assertEqual(5, result['attempts'])
+            self.assertEqual(5, result['failures']['HTTP_503'])
     return 0 if unittest.TextTestRunner().run(unittest.defaultTestLoader.loadTestsFromTestCase(Tests)).wasSuccessful() else 1
 
 
@@ -132,11 +161,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path); parser.add_argument('--state-file', type=Path)
     parser.add_argument('--clients', type=int, default=20); parser.add_argument('--self-test', action='store_true')
+    parser.add_argument('--arrival-window-seconds', type=float, default=0,
+                        help='Optional 0-30 second evenly paced starts; default 0 preserves the original raw burst')
     args = parser.parse_args()
     if args.self_test: return self_test()
     if args.config is None or args.state_file is None: parser.error('Private config/state required')
     try:
-        result = qualify(*inputs(args.config, args.state_file), args.clients)
+        result = qualify(*inputs(args.config, args.state_file), args.clients, args.arrival_window_seconds)
         print(json.dumps(result, sort_keys=True), flush=True)
         return 0 if result['failed'] == 0 else 1
     except Exception as error:

@@ -32,3 +32,11 @@ The final operator policy covers six exact alarm/account sources: the four mail 
 The operator workflow is to check the alarms and restricted queue, investigate routing/permission/processing errors, retry the repaired event safely, and retain suppression for real permanent failures/complaints. Re-enabling a destination requires verified ownership and an explicit support decision; there is no automatic unsuppression. This process must not expose personal charts, handwriting or team chat.
 
 SES production access is an AWS email-sending approval. It does not require Apple enrollment or publish the iPad app.
+
+## 2026-10-08 · Authenticated SES case clarification
+
+Authenticated AWS Support follow-up (2026-10-08): the case is **Pending customer action** and requests six specific use-case details before a final decision. The earlier account API **DENIED** receipt remains recorded; no fresh account API read or production approval occurred. The user submitted the complete follow-up; authenticated correspondence confirms receipt at 20:26 EDT on October 8, and the case now shows **Customer action completed**. No production approval or new account API status read is established by this response. See [Support follow-up](../verification/SES-support-followup.md).
+
+## 2026-10-08 · Build 8 read-only operational check
+
+At **21:09 EDT / 2026-10-09 01:09 UTC**, the configured-region SES account API still reports `ReviewDetails.Status=DENIED`, `ProductionAccessEnabled=false`, and `SendingEnabled=true`. Sending enabled is sandbox sending; it does not allow arbitrary recipients. The acknowledged Support follow-up and its earlier **Customer action completed** status do not establish production approval. No new email, support submission, quota or account-setting change was made during this check. All six exact development-stack alarms are OK and have actions enabled. See [Build 8 evidence](../verification/BUILD8.md).

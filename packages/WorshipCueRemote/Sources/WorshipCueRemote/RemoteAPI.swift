@@ -113,6 +113,11 @@ public actor RemoteAPI {
     public nonisolated let configuration: RemoteConfiguration
     private let transport: URLSession
     private var otpChallenge: (email: String, session: String, challenge: String)?
+    private struct CatalogRequest: Hashable {
+        let teamID: UUID
+        let token: String
+    }
+    private var catalogsInFlight: [CatalogRequest: (id: UUID, task: Task<RemoteJSON, Error>)] = [:]
     public init(configuration: RemoteConfiguration, transport: URLSession = .shared) {
         self.configuration = configuration; self.transport = transport
     }
@@ -168,6 +173,29 @@ public actor RemoteAPI {
     }
     public func teamCatalog(token: String, teamID: UUID) async throws -> RemoteJSON {
         guard configuration.provider == .aws else { throw RemoteError.configuration }
+        try Task.checkCancellation()
+        let key = CatalogRequest(teamID: teamID, token: token)
+        if let pending = catalogsInFlight[key] {
+            let value = try await pending.task.value
+            try Task.checkCancellation()
+            return value
+        }
+        // Share only an identical request already running. No catalog, credential
+        // or failure is cached afterward, and a different session never joins it.
+        guard catalogsInFlight.count < 8 else { throw RemoteError.unavailable }
+        let id = UUID()
+        let task = Task { try await fetchTeamCatalog(token: token, teamID: teamID) }
+        catalogsInFlight[key] = (id, task)
+        defer {
+            if catalogsInFlight[key]?.id == id { catalogsInFlight.removeValue(forKey: key) }
+        }
+        // Cancellation belongs to this waiter; it must not cancel another
+        // musician's current refresh or turn a partial page into a catalog.
+        let value = try await task.value
+        try Task.checkCancellation()
+        return value
+    }
+    private func fetchTeamCatalog(token: String, teamID: UUID) async throws -> RemoteJSON {
         let keys = ["songs", "chart_versions", "assets", "setlists", "performance_items", "personal_preferences"]
         var accumulated = Dictionary(uniqueKeysWithValues: keys.map { ($0, [RemoteJSON]()) })
         var cursor: RemoteJSON?, seen = Set<UUID>(), scopeToken: String?, bytes = 0, rowCount = 0

@@ -25,11 +25,20 @@ import WorshipCueRemote
     private var payload: TeamJSON = .null
     private let team: TeamWorkspace
     private let context: UUID
-    let call: LiveCall
+    let itemID: UUID
+    let chartID: UUID
+    let originCall: LiveCall?
     let editable: Bool
+    private let preparedSelection: Bool
+    var songTitle: String { team.versions.first(where: { $0.id == chartID })?.value["song_id"].uuid.map(team.songTitle) ?? String(localized: "곡 정보 확인 필요") }
     weak var canvas: PersonalCanvas?
     init(team: TeamWorkspace, call: LiveCall, editable: Bool, initialPage: Int = 0) {
-        self.team = team; self.call = call; self.editable = editable; context = team.scopeID; page = initialPage
+        self.team = team; itemID = call.performanceItemID; chartID = call.teamChartVersionID; originCall = call
+        self.editable = editable; preparedSelection = false; context = team.scopeID; page = initialPage
+    }
+    init(team: TeamWorkspace, itemID: UUID, chartID: UUID, editable: Bool, initialPage: Int = 0) {
+        self.team = team; self.itemID = itemID; self.chartID = chartID; originCall = nil
+        self.editable = editable; preparedSelection = true; context = team.scopeID; page = initialPage
     }
     var tool: PKTool { eraser ? PKEraserTool(.vector) : PKInkingTool(marker ? .marker : .pen, color: color.uiColor, width: marker ? 18 : 2) }
     var canTurnPages: Bool { document != nil && (!editable || ready) && !publishing && !writing }
@@ -39,8 +48,12 @@ import WorshipCueRemote
         ready = false; drawing = PKDrawing(); canvas?.isUserInteractionEnabled = false
         do {
             guard team.scopeID == context else { throw RemoteError.authentication }
-            let stand = try await team.preparedVersion(call.teamChartVersionID)
-            let bytes = try stand.sourceBytes(call.teamChartVersionID)
+            if preparedSelection {
+                guard let version = team.versions.first(where: { $0.id == chartID }),
+                      team.items.contains(where: { $0.id == itemID && $0.value["active"].flag && $0.value["song_id"] == version.value["song_id"] }) else { throw RemoteError.forbidden }
+            }
+            let stand = try await team.preparedVersion(chartID)
+            let bytes = try stand.sourceBytes(chartID)
             guard let doc = PDFDocument(data: bytes), let current = doc.page(at: targetPage) else { throw VaultError.invalidPDF }
             let newGeometry = try current.canonicalGeometry()
             guard team.scopeID == context, loadGeneration == generation, page == targetPage else { return }
@@ -48,16 +61,16 @@ import WorshipCueRemote
             document = doc; geometry = newGeometry
             var newDrawing: PKDrawing, newParent: Int64, newCommand = UUID(), newPayload: TeamJSON = .null, newDirty = false
             if editable {
-                let saved = try team.teamDraft(call.performanceItemID, chart: call.teamChartVersionID, page: targetPage)
+                let saved = try team.teamDraft(itemID, chart: chartID, page: targetPage)
                 if saved != .null, let archive = saved["archive"].text, let data = Data(base64Encoded: archive) {
                     newDrawing = try PKDrawing(data: data); newParent = saved["parent_revision"].integer ?? 0
                     newCommand = try saved.requiredID("command_id"); newPayload = saved["payload"]; newDirty = true
                 } else {
-                    let remote = try await team.loadTeamDrawing(item: call.performanceItemID, chart: call.teamChartVersionID, page: targetPage)
+                    let remote = try await team.loadTeamDrawing(item: itemID, chart: chartID, page: targetPage)
                     newDrawing = remote.0; newParent = remote.1["revision_number"].integer ?? 0
                 }
             } else {
-                let remote = try await team.loadTeamDrawing(item: call.performanceItemID, chart: call.teamChartVersionID, page: targetPage)
+                let remote = try await team.loadTeamDrawing(item: itemID, chart: chartID, page: targetPage)
                 newDrawing = remote.0; newParent = remote.1["revision_number"].integer ?? 0
             }
             guard team.scopeID == context, loadGeneration == generation, page == targetPage else { return }
@@ -83,7 +96,7 @@ import WorshipCueRemote
         do {
             let archive = drawing.dataRepresentation()
             guard archive.count <= LocalInkStore.maximumArchiveBytes else { throw InkStoreError.archiveTooLarge }
-            try team.saveTeamDraft(value(archive), item: call.performanceItemID, chart: call.teamChartVersionID, page: page)
+            try team.saveTeamDraft(value(archive), item: itemID, chart: chartID, page: page)
             error = nil
         } catch { self.error = String(localized: "초안을 기기에 저장하지 못했어요. 이 창을 유지하고 저장 공간을 확인해 주세요.") }
     }
@@ -97,10 +110,10 @@ import WorshipCueRemote
         guard error == nil, let geometry else { return false }
         publishing = true; canvas?.isUserInteractionEnabled = false
         defer { publishing = false; canvas?.isUserInteractionEnabled = editable && ready }
-        let success = await team.publishTeamDraft(value(drawing.dataRepresentation()), item: call.performanceItemID, chart: call.teamChartVersionID, page: page, geometry: geometry)
+        let success = await team.publishTeamDraft(value(drawing.dataRepresentation()), item: itemID, chart: chartID, page: page, geometry: geometry)
         guard team.scopeID == context else { return false }
         if success { dirty = false; await load() }
-        else { payload = (try? team.teamDraft(call.performanceItemID, chart: call.teamChartVersionID, page: page))?["payload"] ?? .null }
+        else { payload = (try? team.teamDraft(itemID, chart: chartID, page: page))?["payload"] ?? .null }
         return success
     }
     func move(_ delta: Int) async {
@@ -115,12 +128,12 @@ import WorshipCueRemote
         publishing = true; canvas?.isUserInteractionEnabled = false
         defer { publishing = false; canvas?.isUserInteractionEnabled = editable && ready }
         do {
-            let remote = try await team.loadTeamDrawing(item: call.performanceItemID, chart: call.teamChartVersionID, page: targetPage)
+            let remote = try await team.loadTeamDrawing(item: itemID, chart: chartID, page: targetPage)
             guard team.scopeID == context, generation == loadGeneration, targetPage == page else { return }
             // Save the prior proposed and accepted copies before the user chooses a new parent.
             try team.preserveTeamCopies(draft: archive, remote: remote.0.dataRepresentation())
             parent = remote.1["revision_number"].integer ?? 0; command = UUID(); payload = .null; dirty = true
-            try team.saveTeamDraft(value(archive), item: call.performanceItemID, chart: call.teamChartVersionID, page: targetPage)
+            try team.saveTeamDraft(value(archive), item: itemID, chart: chartID, page: targetPage)
         } catch { self.error = String(localized: "두 사본을 보관하지 못했어요. 기존 초안은 유지됩니다.") }
     }
 }
@@ -135,10 +148,13 @@ struct TeamInkSheet: View {
     init(team: TeamWorkspace, call: LiveCall, editable: Bool, initialPage: Int = 0) {
         self.team = team; _draft = StateObject(wrappedValue: TeamInkDraft(team: team, call: call, editable: editable, initialPage: initialPage))
     }
+    init(team: TeamWorkspace, itemID: UUID, chartID: UUID, editable: Bool, initialPage: Int = 0) {
+        self.team = team; _draft = StateObject(wrappedValue: TeamInkDraft(team: team, itemID: itemID, chartID: chartID, editable: editable, initialPage: initialPage))
+    }
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
-                Text("\(team.songTitle(draft.call.songID)) · 팀 악보 · 개인 메모와 분리됨").font(.subheadline)
+                Text("\(draft.songTitle) · 팀 악보 · 개인 메모와 분리됨").font(.subheadline)
                 if let document = draft.document, let page = document.page(at: draft.page), let geometry = draft.geometry {
                     TeamDraftSurface(page: page, geometry: geometry, draft: draft).id(draft.page)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -182,7 +198,10 @@ struct TeamInkSheet: View {
                     Button("두 사본 보관·기기 초안 선택") { Task { await draft.rebaseExplicitly() } }
                 }
                 .task { await draft.load() }
-                .sheet(isPresented: $serverPreview) { TeamInkSheet(team: team, call: draft.call, editable: false, initialPage: draft.page) }
+                .sheet(isPresented: $serverPreview) {
+                    if let call = draft.originCall { TeamInkSheet(team: team, call: call, editable: false, initialPage: draft.page) }
+                    else { TeamInkSheet(team: team, itemID: draft.itemID, chartID: draft.chartID, editable: false, initialPage: draft.page) }
+                }
                 .onDisappear { draft.persist() }
                 .interactiveDismissDisabled(draft.publishing || draft.writing || (draft.dirty && draft.error != nil))
         }.preferredColorScheme(.light)

@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+<title id="title">WorshipCue infrastructure and readiness</title>
+<desc id="desc">Four areas: local iPad, secure sign-in, separate team workspaces, and backup with monitoring. Current development implementation is distinguished from general email approval and remaining pilot and release gates.</desc>
+<rect x="0" y="0" width="1600" height="1000" rx="0" fill="#F5F8F7"/>
+<text x="48" y="62" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700">WorshipCue</text>
+<text x="48" y="99" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="400">How the app, team cloud and recovery system fit together</text>
+<rect x="1185" y="32" width="367" height="38" rx="19" fill="#E4F2EF"/>
+<text x="1206" y="57" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="700">CURRENT DEVELOPMENT SYSTEM</text>
+<text x="1210" y="98" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400">Readiness gates are shown below.</text>
+<rect x="48" y="164" width="338" height="568" rx="16" fill="#FFFFFF" stroke="#D8E4E3"/>
+<rect x="70" y="186" width="32" height="32" rx="10" fill="#E4F2EF"/>
+<text x="81" y="209" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">1</text>
+<text x="117" y="209" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700">On the iPad</text>
+<text x="72" y="244" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="400">Local workspace | PDFKit + PencilKit</text>
+<rect x="84" y="269" width="265" height="174" rx="14" fill="#F0F7F5"/>
+<rect x="106" y="291" width="54" height="66" rx="6" fill="#FFFFFF" stroke="#D8E4E3"/>
+<text x="117" y="319" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="700">PDF</text>
+<text x="180" y="316" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="700">Read and mark</text>
+<text x="180" y="347" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="700">your charts</text>
+<text x="108" y="393" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400">Saved PDFs and notes</text>
+<text x="108" y="418" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400">remain on the device.</text>
+<text x="72" y="485" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">You control the music stand</text>
+<text x="72" y="519" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400">Open a new song by tapping.</text>
+<text x="72" y="547" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400">Page turns stay local.</text>
+<text x="72" y="597" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">Personal notes stay private</text>
+<text x="72" y="631" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400">Owner-only cloud notes and team</text>
+<text x="72" y="659" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400">marks use separate layers.</text>
+<rect x="446" y="164" width="592" height="180" rx="16" fill="#FFFFFF" stroke="#D8E4E3"/>
+<rect x="468" y="186" width="32" height="32" rx="10" fill="#E4F2EF"/>
+<text x="479" y="209" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">2</text>
+<text x="515" y="209" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700">Secure sign-in</text>
+<text x="470" y="244" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="400">Managed identity | Amazon Cognito + Amazon SES</text>
+<text x="470" y="281" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400">Email codes identify members. Invitations restrict guests to the</text>
+<text x="470" y="308" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400">rehearsal they are invited to.</text>
+<rect x="470" y="310" width="541" height="23" rx="7" fill="#FFF2D7"/>
+<text x="483" y="327" fill="#865E18" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700">General user email access awaits AWS approval.</text>
+<rect x="446" y="398" width="592" height="334" rx="16" fill="#FFFFFF" stroke="#D8E4E3"/>
+<rect x="468" y="420" width="32" height="32" rx="10" fill="#E4F2EF"/>
+<text x="479" y="443" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">3</text>
+<text x="515" y="443" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700">Separate team workspaces</text>
+<text x="470" y="478" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="400">Request gateway | API Gateway + AWS Lambda</text>
+<rect x="470" y="507" width="252" height="111" rx="12" fill="#F0F7F5"/>
+<text x="487" y="537" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="700">Team records</text>
+<text x="487" y="565" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">Amazon DynamoDB</text>
+<text x="487" y="591" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="400">Library, setlists and chat</text>
+<rect x="740" y="507" width="273" height="111" rx="12" fill="#F0F7F5"/>
+<text x="757" y="537" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="700">Private chart files</text>
+<text x="757" y="565" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">Amazon S3</text>
+<text x="757" y="591" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="400">Immutable PDF / note versions</text>
+<text x="470" y="657" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700">Every operation checks that exact team.</text>
+<text x="470" y="691" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400">WebSocket hints announce durable updates; a cue never changes</text>
+<text x="470" y="716" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400">a song or page automatically.</text>
+<rect x="1098" y="164" width="454" height="568" rx="16" fill="#FFFFFF" stroke="#D8E4E3"/>
+<rect x="1120" y="186" width="32" height="32" rx="10" fill="#E4F2EF"/>
+<text x="1131" y="209" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">4</text>
+<text x="1167" y="209" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700">Recover and monitor</text>
+<text x="1122" y="244" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="400">Independent copies | Scheduled backup + CloudWatch</text>
+<text x="1122" y="286" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Daily metadata and file copies</text>
+<text x="1122" y="320" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400">DynamoDB snapshots and resumable, verified</text>
+<text x="1122" y="347" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400">file copies go to a separate private S3 bucket.</text>
+<text x="1122" y="443" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Operators can act on failures</text>
+<text x="1122" y="477" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400">Six scoped alarms route backup and email</text>
+<text x="1122" y="504" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400">failures to the operator. Email complaints and</text>
+<text x="1122" y="531" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400">permanent bounces are suppressed.</text>
+<rect x="1122" y="600" width="406" height="104" rx="12" fill="#E4F2EF"/>
+<text x="1139" y="629" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700">Recovery checked in development</text>
+<text x="1139" y="657" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400">Scratch restore compared team records and</text>
+<text x="1139" y="682" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400">seven copied assets.</text>
+<path d="M386,546 L444,546" stroke="#066269" stroke-width="2.5" fill="none"/>
+<polygon points="444,546 435,541 435,551" fill="#066269"/>
+<path d="M740,345 L740,396" stroke="#066269" stroke-width="2.5" fill="none"/>
+<polygon points="740,396 735,387 745,387" fill="#066269"/>
+<text x="757" y="376" fill="#066269" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700">Identity confirmed</text>
+<path d="M1039,546 L1096,546" stroke="#066269" stroke-width="2.5" fill="none"/>
+<polygon points="1096,546 1087,541 1087,551" fill="#066269"/>
+<rect x="48" y="790" width="1504" height="158" rx="16" fill="#EAF0EF"/>
+<text x="72" y="828" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700">Before a wider pilot or public release</text>
+<text x="72" y="861" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">Email &amp; capacity</text>
+<text x="72" y="889" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400">AWS email approval and broader burst-load qualification</text>
+<text x="72" y="913" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400">remain open.</text>
+<text x="570" y="861" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">Real rehearsal evidence</text>
+<text x="570" y="889" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400">Two iPads, physical Pencil, older iPadOS and an</text>
+<text x="570" y="913" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400">extended offline/online soak.</text>
+<text x="1070" y="861" fill="#17343A" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">Release responsibilities</text>
+<text x="1070" y="889" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400">Account deletion, retention and support; no APNs or</text>
+<text x="1070" y="913" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400">TestFlight distribution yet.</text>
+<text x="48" y="978" fill="#536970" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="400">Development architecture | 8 October 2026 | Each church and team keeps its own library, chat and setlists.</text>
+</svg>

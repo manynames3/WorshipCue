@@ -49,6 +49,10 @@ enum InkColor: String, CaseIterable, Identifiable {
     @Published private(set) var pageCount = 0
     @Published private(set) var status = String(localized: "개인 메모 · Apple Pencil")
     @Published var error: String?
+    var needsSaveRecovery: Bool { current == nil || !pending.isEmpty || !restoreFailures.isEmpty }
+    var recoveryActionTitle: String {
+        current == nil ? String(localized: "악보 준비 다시 시도") : String(localized: "저장·복원 다시 시도")
+    }
     @Published private(set) var busy = false
     @Published private(set) var selectionCount = 0
     @Published private(set) var transferMode: TransferOverlay.Mode = .inactive
@@ -555,7 +559,10 @@ enum InkColor: String, CaseIterable, Identifiable {
         }
         catch { fail(String(localized: "기기에 저장하지 못했어요. 남은 저장 공간을 확인해 주세요.")) }
     }
-    private func fail(_ message: String) { error = message; status = String(localized: "저장 또는 복원 확인 필요") }
+    private func fail(_ message: String) {
+        error = message
+        if needsSaveRecovery { status = String(localized: "저장 또는 복원 확인 필요") }
+    }
 
     var currentOverlay: PageInkView? {
         overlays.values.first { $0.address.versionID == current?.id && $0.address.pageIndex == pageIndex && $0.ready }

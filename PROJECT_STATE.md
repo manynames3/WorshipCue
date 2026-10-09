@@ -1,7 +1,25 @@
 # Project state
 Updated: 2026-10-08
 
-## Current state
+## Current state · v2 Build 8
+
+Development continues on **v2 / Build 8**, marketing version **0.0.1**, minimum **iPadOS 16.0**. V1 and `main` remain preserved at `45c813977affb102e55737aac74dcb58428a43ee`. The selected AWS development backend is active; the earlier Supabase implementation and original local documents/notes remain preserved. Older provider proposals and Build 5 status below are historical.
+
+Build 8 adds a fixed, adaptive cue area; clear personal/team browsing and active workspace labels; direct team/chat access; per-chart PDF and memo preparation evidence with individual retries; and actionable recovery controls. Explicit setlist-item navigation retains its exact occurrence, performance key and shared-note context without acknowledging a live cue. Different-version team previews use the exact team chart. Damaged PDF/shared-note caches can be repaired from verified authorized copies while retaining damaged bytes for recovery. The selected-team personal cloud ZIP now includes verified own PencilKit/preview files and the authorized source PDFs needed to interpret them; it excludes local unsynced work, drafts, other teams and shared team ink, and is not an automatic restore or whole-account backup.
+
+Latest actual-device hosted batch on **iPad (6th generation), iPadOS 17.7.11**: **107 cases, 106 passed, zero failed, one expected private-input skip**. The separately opted-in user-PDF case passed **1/1**; all **eight** fresh device PDFKit renders were visually inspected. A subsequent adaptive cue regression passed **1/1**. Release compilation and bundle-configuration checks pass. The current touch-workflow runner exits **65** before executing any workflow cases; a compiled UI test is not a passing interaction result.
+
+Current cloud checks: **190/190 AWS controlled tests**, **31/31 remote transport tests**, **27/27 hosted scenarios** and **4/4 hosted workspace scenarios** pass. Catalog responses now pack small libraries into bounded authenticated pages, and identical in-flight native catalog requests are coalesced without caching results or bypassing permissions. The raw **50-client burst remains failed qualification: 48 passed, two failed**. A separately paced comparison passes **50/50**, but does not replace representative concurrent session/rehearsal qualification. The shared Lambda concurrency quota remains **ten**.
+
+Read-only installed-app inventory exits **0**, confirming **Build 8 / 0.0.1**. A normal process launch without test arguments was accepted, exit **0**; no fresh normal full-screen capture was obtained. Preservation checks retain all **seven original PDFs and three complete personal ink records exactly**. Private charts, handwriting, device/account identifiers, signing assets, credentials and raw results remain outside Git on the external drive. Free Personal Team signing continues; no paid Apple enrollment, APNs, TestFlight, app billing or public app release is enabled. No automatic song changes, page syncing, note merging, offline live replay or automatic team publication is introduced.
+
+The latest read at **2026-10-09 02:21:26 UTC / October 8 22:21 EDT** confirms SES **DENIED**, sandboxed, with production sending **false**, and all **six operational alarms OK**. The user-submitted Support follow-up and its receipt remain recorded below; submission is not production approval. Broad recipient onboarding remains blocked by SES approval. Backup/restore evidence remains limited to the previously qualified small archive; account deletion and an approved support/retention policy remain incomplete.
+
+The app is **not end-user-ready or pilot-qualified**. Original iPadOS 16.7.16 hardware, physical Apple Pencil/palm behavior, two real iPads, real-account multi-device work, disconnected/resumed and maximum-file stress, representative concurrent capacity and rehearsal soak remain unqualified. Exact results and retained failures are in [Build 8 evidence](verification/BUILD8.md); the current build plan remains [docs/12_BUILD_PLAN.md](docs/12_BUILD_PLAN.md).
+
+Stakeholder infrastructure diagrams are available as a [shareable one-page PDF](output/pdf/worshipcue-infrastructure.pdf), [slide-ready image](docs/architecture/worshipcue-infrastructure.png) and [editable vector](docs/architecture/worshipcue-infrastructure.svg). They distinguish offline device work, sign-in, separate team workspaces, live updates and backup/operations, including the remaining release gates.
+
+## Historical snapshot · v2 Build 5
 
 V1 / Build 3 is preserved as branch and annotated tag `v1`, commit `45c813977affb102e55737aac74dcb58428a43ee`; `main` retains that checkpoint. Development continues on **v2 / Build 5**, minimum **iPadOS 16.0**, marketing version 0.0.1. The concept-based reader, Today/Library/Stand navigation, docked manual-transfer inspector, original local PDF/ink/setlist store and approved icon remain.
 
@@ -21,7 +39,7 @@ New requirement 2026-10-08: **team chat** is authorized under D43 and planned af
 
 Confirmed D44: first church/10–20 members, easy addition of churches/teams, **separate PDF libraries, chat and setlists per team even inside one church**. Build 5's church-wide catalog/access helpers and server/account/church native partitions do not meet this new scope. The additive exact-team ownership/access/onboarding/partition amendment is planned before hosted qualification. The user requested a current Neon comparison; its full managed platform and stronger free file quota make it a viable lower-usage-cost alternative, while current Supabase adapters would need migration/requalification. No provider switch is authorized or implemented.
 
-## Next milestone
+## Historical Build 5 next milestone
 
 Finish the production PDF finalizer after dependency approval, connect an explicitly approved Supabase development configuration and qualify managed Auth/Storage/Realtime with two actual iPads. Continue original-device/Pencil and rehearsal qualification; the available automated/software evidence does not waive those gates. Read `docs/12_BUILD_PLAN.md`.
 
@@ -29,13 +47,13 @@ Before selecting/deploying the hosted provider, complete the D44 team-workspace 
 
 Add the user-requested team chat slice against exact team membership after the workspace gate; qualify durable messages/retries/reconnect and keep chat separate from live navigation. Foreground chat can be tested with free development signing. Background APNs needs later supported paid Apple enrollment.
 
-## External prerequisites
+## Historical Build 5 external prerequisites
 
 - Original iPadOS 16.7.16 device and physical Apple Pencil qualification. Only the 17.7.11 iPad currently has a qualified development connection.
 - Parser-dependency approval and an authorized Supabase development project or real local Supabase stack. Local SQL shims are not managed Auth/Storage/Realtime.
 - Apple signing/TestFlight and authorized chart rights before church distribution. Development remains on the existing free Personal Team.
 
-## Not yet validated
+## Historical Build 5 unvalidated areas
 
 Managed email delivery/anonymous lifecycle, actual Storage/Realtime access, fifty networked clients, multi-iPad performance, physical Pencil/oldest-device input, pressure/memory/thermal/resume/soak, cloud metadata-and-file backup restore, account export/deletion/retention, latest iPadOS runtime, App Store review or buyer willingness to pay. See the detailed current reports for exact failures and scope.
 
@@ -284,3 +302,7 @@ A real small backup completes with seven pinned copies (one copied/six verified 
 The final deployment contains 50 resources, UPDATE_COMPLETE; artifacts CREATE_COMPLETE. The 436,244-byte pinned package matches all three deployed Lambda hashes/Successful update states. All six alarms are OK. Exact commands, retained failures, final hosted results and remaining physical/service gates are in [Build 7 evidence](verification/CHAT7.md), [SES operations](docs/SES_PRODUCTION_READINESS.md) and [account/retention facts](docs/ACCOUNT_DATA_AND_RETENTION.md). No new production dependency beyond previously approved pypdf was added. Free Personal Team signing continues, expiring October 14; no annual Apple enrollment, APNs, TestFlight or public app release.
 
 Broader onboarding, native real-account cloud workflows, two-iPad/physical Pencil/original iPadOS 16 qualification, background and maximum-file stress, representative load, account deletion/approved retention and the rehearsal soak remain release gates. This is not an end-user-ready claim.
+
+## 2026-10-08 · Authenticated SES case clarification
+
+Authenticated AWS Support follow-up (2026-10-08): the case is **Pending customer action** and requests six specific use-case details before a final decision. The earlier account API **DENIED** receipt remains recorded; no fresh account API read or production approval occurred. The user submitted the complete follow-up; authenticated correspondence confirms receipt at 20:26 EDT on October 8, and the case now shows **Customer action completed**. No production approval or new account API status read is established by this response. See [Support follow-up](verification/SES-support-followup.md).

@@ -11,6 +11,8 @@ struct MusicStandScreen: View {
     @StateObject private var team: TeamWorkspace
     private var stand: MusicStand { team.reader ?? localStand }
     @State private var teamPresented = false
+    @State private var chatPresented = false
+    @State private var browsingTeam = false
     @State private var teamPreview = false
     @State private var section: StandSection = .reader
     @State private var inspectorPresented = false
@@ -49,15 +51,27 @@ struct MusicStandScreen: View {
             let sidebar = geometry.size.width >= 700
             let docked = geometry.size.width >= 1000 && geometry.size.height >= 500
             VStack(spacing: 0) {
-                header(compact: geometry.size.width < 900)
+                header(compact: geometry.size.width < 900, narrow: geometry.size.width < 700)
                 Divider()
                 SongCueBanner(team: team, opened: { section = .reader })
                 HStack(spacing: 0) {
                     if sidebar { StandNavigation(section: $section).frame(width: 84); Divider() }
                     if section == .reader { reader(docked: docked) }
                     else {
-                        WorkspaceView(stand: localStand, tab: Binding(get: { section == .library ? 1 : 0 }, set: { section = $0 == 1 ? .library : .today }),
-                                      embedded: true, onOpen: { Task { if await team.useLocalReader() { section = .reader } } })
+                        VStack(spacing: 0) {
+                            Picker("자료 위치", selection: $browsingTeam) {
+                                Text("내 기기").tag(false)
+                                Text("팀 자료").tag(true)
+                            }.pickerStyle(.segmented).padding(.horizontal, 18).padding(.vertical, 10)
+                                .accessibilityIdentifier("librarySource")
+                            if browsingTeam {
+                                TeamBrowserView(team: team, section: section, connect: { teamPresented = true },
+                                                opened: { section = .reader })
+                            } else {
+                                WorkspaceView(stand: localStand, tab: Binding(get: { section == .library ? 1 : 0 }, set: { section = $0 == 1 ? .library : .today }),
+                                              embedded: true, onOpen: { Task { if await team.useLocalReader() { section = .reader } } })
+                            }
+                        }
                     }
                 }
                 if !sidebar { Divider(); StandNavigation(section: $section, horizontal: true) }
@@ -71,8 +85,18 @@ struct MusicStandScreen: View {
         }
         .tint(StandStyle.blue)
         .task { await localStand.start(); await team.restore() }
-        .sheet(isPresented: $teamPresented) { TeamPanel(team: team, local: localStand, opened: { section = .reader }) }
-        .sheet(isPresented: $teamPreview) { if let call = team.displayedCall { TeamInkSheet(team: team, call: call, editable: false) } }
+        .sheet(isPresented: $teamPresented) { TeamPanel(team: team, local: localStand, opened: {
+            browsingTeam = team.reader != nil; section = .reader
+        }) }
+        .sheet(isPresented: $chatPresented) { TeamChatView(team: team, opened: { browsingTeam = true; section = .reader }) }
+        .onChange(of: team.scopeID) { _ in chatPresented = false }
+        .sheet(isPresented: $teamPreview) {
+            if let call = team.displayedCall {
+                TeamInkSheet(team: team, call: call, editable: false)
+            } else if let item = team.preparedItem["id"].uuid, let chart = team.preparedItem["team_chart_version_id"].uuid {
+                TeamInkSheet(team: team, itemID: item, chartID: chart, editable: false)
+            }
+        }
         .onChange(of: stand.current?.id) { _ in team.navigationChanged(); Task { try? await team.refreshShared() } }
         .onChange(of: stand.pageIndex) { _ in team.navigationChanged(); Task { try? await team.refreshShared() } }
         .sheet(isPresented: $exportPresented) { ExportSheet(stand: stand) }
@@ -91,7 +115,9 @@ struct MusicStandScreen: View {
             }
         }
         .alert("확인 필요", isPresented: Binding(get: { stand.error != nil }, set: { if !$0 { stand.error = nil } })) {
-            Button("저장 다시 시도") { Task { await stand.retrySave() } }
+            if stand.needsSaveRecovery {
+                Button(stand.recoveryActionTitle) { Task { await stand.retrySave() } }
+            }
             Button("닫기", role: .cancel) { stand.error = nil }
         } message: { Text(stand.error ?? "") }
         .onChange(of: scenePhase) { phase in
@@ -105,30 +131,82 @@ struct MusicStandScreen: View {
         }
     }
 
-    private func header(compact: Bool) -> some View {
-        HStack(spacing: compact ? 10 : 20) {
+    private func header(compact: Bool, narrow: Bool) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: compact ? 10 : 20) {
+                headerDetails(compact: compact, narrow: narrow)
+                Spacer(minLength: 0)
+                if !narrow { headerActions }
+            }.frame(minHeight: 68)
+            if narrow {
+                HStack(spacing: 10) { Spacer(minLength: 0); headerActions }.padding(.bottom, 8)
+            }
+        }.padding(.horizontal, 18)
+    }
+
+    @ViewBuilder private func headerDetails(compact: Bool, narrow: Bool) -> some View {
+        if narrow {
+            VStack(alignment: .leading, spacing: 8) {
+                headerTitle
+                HStack(spacing: 12) { headerChartInfo }
+            }.padding(.vertical, 10)
+        } else {
             if !compact { Text("WorshipCue").font(.title3).fontWeight(.semibold); Divider().frame(height: 24) }
+            headerTitle
+            headerChartInfo
+        }
+    }
+
+    private var headerTitle: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(section == .reader ? (stand.currentSongTitle ?? String(localized: "악보 준비 중…")) : section.title)
+                .font(.headline).fontWeight(.semibold).lineLimit(1)
+                .accessibilityLabel(section == .reader ? (stand.current?.name ?? String(localized: "악보 준비 중…")) : section.title)
+                .accessibilityIdentifier("currentChart")
+            HStack(spacing: 8) {
+                Label((section == .reader ? team.reader != nil : browsingTeam) ? team.selectedWorkspaceName : String(localized: "내 기기 · 개인 자료"),
+                      systemImage: (section == .reader ? team.reader != nil : browsingTeam) ? "person.2" : "ipad")
+                    .lineLimit(1).accessibilityIdentifier("activeWorkspace")
+                if section == .reader { saveStatus }
+            }.font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder private var headerChartInfo: some View {
+        if section == .reader, let version = stand.currentLibraryVersion {
+            Text("v\(version.number) · \(version.writtenKey ?? "?")")
+                .font(.subheadline).monospacedDigit().padding(.horizontal, 12).padding(.vertical, 7)
+                .background(StandStyle.surface, in: Capsule()).accessibilityIdentifier("currentVersionBadge")
+        }
+        if section == .reader, team.reader != nil, let key = team.currentPerformanceKey {
             VStack(alignment: .leading, spacing: 4) {
-                Text(section == .reader ? (stand.currentSongTitle ?? String(localized: "악보 준비 중…")) : section.title)
-                    .font(compact ? .headline : .title3).fontWeight(.semibold).lineLimit(1)
-                    .accessibilityLabel(section == .reader ? (stand.current?.name ?? String(localized: "악보 준비 중…")) : section.title)
-                    .accessibilityIdentifier("currentChart")
-                if compact && section == .reader { saveStatus }
-            }
-            if section == .reader, let version = stand.currentLibraryVersion {
-                Text("v\(version.number) · \(version.writtenKey ?? "?")")
-                    .font(.subheadline).monospacedDigit().padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(StandStyle.surface, in: Capsule()).accessibilityIdentifier("currentVersionBadge")
-            }
-            if section == .reader, team.reader != nil, let key = team.currentPerformanceKey {
                 Text("연주 키 \(key)").font(.subheadline).foregroundStyle(StandStyle.blue)
                 if let written = stand.currentLibraryVersion?.writtenKey, MusicalKey.compare(written: written, performance: key) == .different {
                     Label("악보 키가 달라요", systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
                 }
             }
-            if !compact { saveStatus }
-            Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder private var headerActions: some View {
             if stand.busy { ProgressView().accessibilityLabel(Text("작업 중")) }
+            Button { teamPresented = true } label: {
+                Image(systemName: "person.2").frame(width: 44, height: 44)
+            }.buttonStyle(.plain).background(StandStyle.surface, in: Circle())
+                .accessibilityLabel(Text("팀 선택·계정"))
+                .accessibilityIdentifier("openTeamWorkspaceDirect")
+            Button { chatPresented = true } label: {
+                Image(systemName: "bubble.left.and.bubble.right").frame(width: 44, height: 44)
+                    .overlay(alignment: .topTrailing) {
+                        if let unread = team.chatUnreadSummary, unread != "0" {
+                            Text(unread).font(.caption2.bold()).padding(4).background(StandStyle.blue, in: Capsule()).foregroundStyle(.white)
+                        }
+                    }
+            }.buttonStyle(.plain).background(StandStyle.surface, in: Circle())
+                .disabled(team.session?.anonymous != false || team.selectedTeam == nil)
+                .accessibilityLabel(Text("팀 대화 열기"))
+                .accessibilityValue(team.chatUnreadSummary.map { String(localized: "읽지 않은 대화: ") + $0 } ?? "")
+                .accessibilityIdentifier("openTeamChatDirect")
             if section == .reader {
                 Button { inspectorPresented.toggle() } label: { Image(systemName: "sidebar.right").frame(width: 44, height: 44) }
                     .buttonStyle(.plain).background(StandStyle.surface, in: Circle())
@@ -145,7 +223,6 @@ struct MusicStandScreen: View {
                 Button { importing = true } label: { Label("파일에서 PDF 가져오기", systemImage: "doc.badge.plus") }
             } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44).background(StandStyle.surface, in: Circle()) }
                 .accessibilityLabel(Text("악보 작업")).accessibilityIdentifier("standActions")
-        }.padding(.horizontal, 18).frame(minHeight: 68)
     }
 
     private var saveStatus: some View {

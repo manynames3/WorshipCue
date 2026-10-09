@@ -1,0 +1,166 @@
+{
+  "build": 8,
+  "version": "0.0.1",
+  "minimum_ipados": "16.0",
+  "device_model": "iPad (6th generation)",
+  "device_os": "17.7.11",
+  "native_full_batch": {
+    "build": {
+      "exit": 0
+    },
+    "native": {
+      "exit": 0,
+      "summary": {
+        "passedTests": 106,
+        "failedTests": 0,
+        "skippedTests": 1,
+        "totalTestCount": 107
+      },
+      "expectedTestCount": null
+    }
+  },
+  "adaptive_cue_after_full_batch": {
+    "build": {
+      "exit": 0
+    },
+    "cue": {
+      "exit": 0,
+      "summary": {
+        "passedTests": 1,
+        "failedTests": 0,
+        "skippedTests": 0,
+        "totalTestCount": 1
+      }
+    }
+  },
+  "private_pdf_pair": {
+    "required_case_passed": 1,
+    "failed": 0,
+    "all_eight_renders_inspected": true,
+    "original_mac_pdfs_unchanged": true
+  },
+  "touch_runner": {
+    "build_exit": 0,
+    "runner_exit": 65,
+    "actual_workflow_cases_executed": 0,
+    "runner_initialization_errors": 1,
+    "reason": "Timed out while enabling automation mode"
+  },
+  "normal_store_preservation": {
+    "normal-launch": {
+      "exit": 0
+    },
+    "after-copy": {
+      "exit": 0
+    },
+    "preservation": {
+      "prior_pdfs": 7,
+      "current_pdfs": 7,
+      "prior_pdf_bytes_preserved": true,
+      "prior_ink_rows": 3,
+      "current_ink_rows": 3,
+      "prior_all_ink_columns_preserved": true,
+      "sqlite_quick_check": [
+        "ok",
+        "ok"
+      ]
+    }
+  },
+  "installed_app": {
+    "exit": 0,
+    "apps": [
+      {
+        "bundleIdentifier": "com.worshipcue.spike",
+        "bundleVersion": "8",
+        "version": "0.0.1",
+        "name": "WorshipCue"
+      }
+    ]
+  },
+  "release_build_exit": 0,
+  "controlled_tests": {
+    "aws_passed": 190,
+    "remote_passed": 31,
+    "core_passed": 55,
+    "local_passed": 14,
+    "reference_passed": 32,
+    "ink_check_groups_passed": 9
+  },
+  "actual_hosted": {
+    "scenarios_passed": 27,
+    "workspace_name_isolation_checks_passed": 4
+  },
+  "load": {
+    "scope": "two synthetic identities; one first-page read per client, no fanout or rehearsal soak",
+    "raw_50": {
+      "passed": 48,
+      "failed": 2,
+      "attempts": 155,
+      "http_429": 18,
+      "http_503": 89,
+      "exit": 1
+    },
+    "paced_50_over_five_seconds": {
+      "passed": 50,
+      "failed": 0,
+      "attempts": 50,
+      "exit": 0
+    },
+    "lambda_shared_concurrency_quota": 10,
+    "pilot_capacity_qualified": false
+  },
+  "operations_checked_at_utc": "2026-10-09T02:21:26.816040+00:00",
+  "ses": {
+    "production_access_enabled": false,
+    "sending_enabled": true,
+    "review_status": "DENIED"
+  },
+  "alarms": {
+    "expected": 6,
+    "found": 6,
+    "states": {
+      "OK": 6,
+      "ALARM": 0,
+      "INSUFFICIENT_DATA": 0
+    },
+    "actions_enabled": 6,
+    "scoped_configuration_verified": true
+  },
+  "source_sha256_at_checkpoint": {
+    "apps/ipad/WorshipCue/AccountDataExport.swift": "aaa5e84bc222934c02af08183427cdcaaa7bad5182fcc4e158f81d31005614a3",
+    "apps/ipad/WorshipCue/DocumentVault.swift": "d22980f88441800354b8e7fcc23ed0d96a8def086dcc19176108874194cc5ff5",
+    "apps/ipad/WorshipCue/ExportAndTransfer.swift": "18dd78cbefe8a88160a4e5f7912f8065f47c96c387b2fec23191489b275304b8",
+    "apps/ipad/WorshipCue/ImportSheets.swift": "61113014ffae4b68ffca036f480b546b3f4cb347eb41e86aa8d566104ed63e91",
+    "apps/ipad/WorshipCue/InkClipboard.swift": "21022533487a9d2a9a021c113b3b63549ab0cbd6c31ad2b63d304e42129aa652",
+    "apps/ipad/WorshipCue/MusicStand.swift": "a3eee866a0cf583fc97702080435cc56a28108d652886d075394e6a42525457e",
+    "apps/ipad/WorshipCue/PDFExporter.swift": "8fe23e4931d32136d10bc00f96109085e15d852900b3359622c23772ae7f349d",
+    "apps/ipad/WorshipCue/PageInkView.swift": "88b710e39ed4bceed457aa590a04d24e13059380a879c0f2711dc908c7f997f9",
+    "apps/ipad/WorshipCue/SetlistEditor.swift": "1998107123d139945ab27c24097a49c560ffc571bab16a56d72bc0ccb7f7a382",
+    "apps/ipad/WorshipCue/StandChrome.swift": "b8f2d740d564ec517e5517312ad98bd4811989f9d736d829b414866cfda00944",
+    "apps/ipad/WorshipCue/TeamAdministration.swift": "0caa3ae0238ab76be29d0a93d6171ee1af995ff9fc4be57639ad9b8658ac9da9",
+    "apps/ipad/WorshipCue/TeamBrowserView.swift": "c2acaf5bd9188674f2fc676b74c2d60a06ca444db79b4c5481d9806a57f14cf7",
+    "apps/ipad/WorshipCue/TeamChatView.swift": "37b84e95c78aa43c90579ad647acb7d025a90cf6005df5d9dc856dc9b5ea64d3",
+    "apps/ipad/WorshipCue/TeamInkSheet.swift": "312b1c32716832bf434e94db110ac50d84355b11ab9d7aab59c0725a8ba45cef",
+    "apps/ipad/WorshipCue/TeamViews.swift": "2aefa9f019091ed1176bcea488eee7876ef8da70df6740cc5d529a1c19c38973",
+    "apps/ipad/WorshipCue/TeamWorkspace.swift": "ad252c150faf1d017073a192d6c2904b3313766b1049b72c55e1414b17579713",
+    "apps/ipad/WorshipCue/VersionInspector.swift": "e5419c3bea3d00f8d6fb70557f25d42ed21527e87311de31a7a96d61a3af2dd8",
+    "apps/ipad/WorshipCue/WorkspaceView.swift": "e7898bbdbf987ec14376675d42ccf6c15c1069dc75a2f271e7432e8e25f7d655",
+    "apps/ipad/WorshipCue/WorshipCueApp.swift": "620b4043a4a8de5c9139bc8e8edf34f54388d32a2fb0babed48828e5c55b3348",
+    "apps/ipad/WorshipCueTests/AccountDataExportTests.swift": "bd9ab957091ef1922b9ff5be73e62e589472ef009c8e6add79f625238d857a86",
+    "apps/ipad/WorshipCueTests/NativeInkTests.swift": "64ef1d3384fb4c7f1b49c122d201621ab863f012abe31676c6e9a2c1387ca912",
+    "apps/ipad/WorshipCueTests/TeamAdministrationTests.swift": "77d8da2e8585cd77cbee973f9963250f9a79ae185c6f80d1ed45b5ddcd4ba831",
+    "apps/ipad/WorshipCueTests/TeamWorkspaceTests.swift": "9b2799349c3d4b933a941d66aaf83ee63008d05a48e9b2d2b291a6b4c9e3615d",
+    "aws/src/domain.py": "3aebad8faa1fc19729675f0442ebc5d66548ae8e0ac370daed6a6f1f050346da",
+    "packages/WorshipCueRemote/Sources/WorshipCueRemote/RemoteAPI.swift": "b436322c5fcc84fcafd89ea4b75015c7b9a2eff3cbc860706eb21b3b2b639126"
+  },
+  "release_ready": false,
+  "limits": [
+    "physical Pencil and original iPadOS16 runtime not verified",
+    "two real iPads and real-account rehearsal not verified",
+    "touch UI runner failed before workflow cases",
+    "general email onboarding sandboxed",
+    "raw50-client burst failed",
+    "account deletion/retention policy not implemented",
+    "small previous restore does not qualify larger multi-invocation recovery"
+  ]
+}

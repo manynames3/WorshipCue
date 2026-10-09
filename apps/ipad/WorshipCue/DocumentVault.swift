@@ -107,7 +107,23 @@ struct PacketSlice: Identifiable {
         let asset = LibraryAsset(id: version.id, filename: "\(version.id.uuidString).pdf", sha256: sha256, bytes: bytes, pages: pages)
         let target = root.appendingPathComponent(asset.filename)
         if FileManager.default.fileExists(atPath: target.path) {
-            guard try Data(contentsOf: target) == data else { throw VaultError.checksum }
+            let existing = try Data(contentsOf: target, options: .mappedIfSafe)
+            if existing != data {
+                // Repair only a damaged cache with the identical immutable receipt;
+                // retain the old bytes before atomically promoting verified ones.
+                let snapshot = try library.snapshot()
+                guard snapshot.versions.first(where: { $0.id == version.id }) == version,
+                      snapshot.assets.first(where: { $0.id == asset.id }) == asset,
+                      existing.count != bytes || SHA256.hash(data: existing).map({ String(format: "%02x", $0) }).joined() != sha256
+                else { throw VaultError.checksum }
+                let recovery = root.appendingPathComponent("RecoveryCopies", isDirectory: true)
+                try FileManager.default.createDirectory(at: recovery, withIntermediateDirectories: true,
+                    attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
+                try existing.write(to: recovery.appendingPathComponent("\(version.id.uuidString)-\(UUID().uuidString).pdf"),
+                                   options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                try data.write(to: target, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                try verifyPromoted(asset)
+            }
             try library.cachePublished(song: song, version: version, asset: asset)
         } else {
             try data.write(to: target, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])

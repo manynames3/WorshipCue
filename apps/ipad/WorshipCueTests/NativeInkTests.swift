@@ -512,6 +512,51 @@ import WorshipCueLocal
         XCTAssertEqual(restored.address, overlay.address)
     }
 
+    func testPDFImportFailurePreservesSavedReaderAndDoesNotOfferSaveRecovery() async throws {
+        let (stand, root) = try await testStand()
+        let chart = try XCTUnwrap(stand.current)
+        let document = try XCTUnwrap(stand.pdfView.document)
+        let before = stand.charts.map(\.id)
+        let source = root.appendingPathComponent("invalid-input.pdf")
+        try Data("Not a PDF".utf8).write(to: source)
+        await stand.importFile(source)
+        XCTAssertNotNil(stand.error)
+        XCTAssertFalse(stand.needsSaveRecovery, "A failed import must not suggest retrying an unrelated ink save")
+        XCTAssertEqual(stand.current?.id, chart.id)
+        XCTAssertTrue(stand.pdfView.document === document)
+        XCTAssertEqual(stand.charts.map(\.id), before)
+        XCTAssertEqual(stand.status, "기기에 저장됨")
+    }
+
+    func testCachedPDFRepairRequiresIdenticalReceiptAndRetainsDamagedCopy() async throws {
+        let (stand, root) = try await testStand()
+        let version = try XCTUnwrap(stand.currentLibraryVersion)
+        let song = try XCTUnwrap(stand.library.songs.first { $0.id == version.songID })
+        let asset = try XCTUnwrap(stand.library.assets.first { $0.id == version.assetID })
+        let pages = try XCTUnwrap(asset.pages)
+        let folder = root.appendingPathComponent("pdfs")
+        let target = folder.appendingPathComponent(asset.filename)
+        let original = try Data(contentsOf: target)
+        let vault = try DocumentVault(root: folder)
+        let damaged = Data("Damaged downloaded copy".utf8)
+        try damaged.write(to: target, options: .atomic)
+        try vault.cachePublished(original, song: song, version: version, sha256: asset.sha256, bytes: asset.bytes, pages: pages)
+        XCTAssertEqual(try vault.sourceBytes(version.id), original)
+        let recovery = folder.appendingPathComponent("RecoveryCopies")
+        let retained = try FileManager.default.contentsOfDirectory(at: recovery, includingPropertiesForKeys: nil)
+        XCTAssertEqual(retained.count, 1)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(retained.first)), damaged)
+        XCTAssertEqual(try vault.library.snapshot(), stand.library)
+
+        try damaged.write(to: target, options: .atomic)
+        let changed = LibraryVersion(id: version.id, songID: version.songID, number: version.number,
+                                     assetID: version.assetID, label: "Altered receipt", writtenKey: version.writtenKey)
+        XCTAssertThrowsError(try vault.cachePublished(original, song: song, version: changed,
+                                                     sha256: asset.sha256, bytes: asset.bytes, pages: pages))
+        XCTAssertEqual(try Data(contentsOf: target), damaged)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(at: recovery, includingPropertiesForKeys: nil).count, 1)
+    }
+
     func testStorageFailureBlocksNavigationRetainsInkAndRetries() async throws {
         let (stand, root) = try await testStand()
         let v1 = try XCTUnwrap(stand.current)
@@ -526,6 +571,7 @@ import WorshipCueLocal
         await stand.choose(v2)
         XCTAssertEqual(stand.current?.id, v1.id)
         XCTAssertNotNil(stand.error)
+        XCTAssertTrue(stand.needsSaveRecovery)
         XCTAssertNotEqual(stand.status, "기기에 저장됨")
         XCTAssertEqual(overlay.personal.drawing.dataRepresentation(), bytes)
         let store = try LocalInkStore(url: root.appendingPathComponent("personal.sqlite"))
@@ -536,6 +582,7 @@ import WorshipCueLocal
         XCTAssertEqual(sqlite3_exec(database, "DROP TRIGGER m0_test_fault", nil, nil, nil), SQLITE_OK)
         await stand.retrySave()
         XCTAssertNil(stand.error)
+        XCTAssertFalse(stand.needsSaveRecovery)
         XCTAssertEqual(stand.status, "기기에 저장됨")
         let saved = try await store.load(overlay.address)
         XCTAssertEqual(saved?.archive, bytes)

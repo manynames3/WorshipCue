@@ -128,12 +128,47 @@ final class MusicStandUITests: XCTestCase {
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count) + text)
     }
 
+    func testBuild8DirectWorkspaceAndLibrarySourcesPreserveReader() throws {
+        tool("tool.pen"); stroke(at: 0.4); assertCount(1); saved()
+        app.buttons["nextPage"].tap()
+        let chart = app.staticTexts["currentChart"].label
+        let page = app.staticTexts["pagePosition"].label
+        XCTAssertTrue(app.buttons["openTeamWorkspaceDirect"].exists)
+        XCTAssertTrue(app.buttons["openTeamChatDirect"].exists)
+        XCTAssertFalse(app.buttons["openTeamChatDirect"].isEnabled, "Signed-out users cannot enter private chat")
+        app.buttons["nav.1"].tap()
+        let source = app.segmentedControls["librarySource"]
+        XCTAssertTrue(source.waitForExistence(timeout: 10))
+        source.buttons["팀 자료"].tap()
+        XCTAssertTrue(app.buttons["팀에 참여하거나 새 팀 만들기"].waitForExistence(timeout: 10))
+        capture("Build8 explicit team library before sign-in")
+        source.buttons["내 기기"].tap()
+        XCTAssertTrue(app.textFields["librarySearch"].waitForExistence(timeout: 10))
+        app.buttons["nav.2"].tap()
+        XCTAssertTrue(canvas.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["currentChart"].label, chart)
+        XCTAssertEqual(app.staticTexts["pagePosition"].label, page)
+        app.buttons["openTeamWorkspaceDirect"].tap()
+        XCTAssertTrue(app.buttons["닫기"].waitForExistence(timeout: 10))
+        capture("Build8 direct workspace onboarding")
+        app.buttons["닫기"].tap()
+        XCTAssertEqual(app.staticTexts["pagePosition"].label, page)
+        app.buttons["previousPage"].tap(); assertCount(1)
+        try assertVisibleBlackStroke(at: 0.4, on: canvas)
+        capture("Build8 fixed cue area and direct workspace controls")
+    }
+
     func testTeamSetupKeepsLocalChartPageAndInkAvailable() throws {
         tool("tool.pen"); stroke(at: 0.4); assertCount(1); saved()
         app.buttons["nextPage"].tap(); assertCount(0)
         let chart = app.staticTexts["currentChart"].label
         let page = app.staticTexts["pagePosition"].label
         app.buttons["standActions"].tap(); app.buttons["openTeamWorkspace"].tap()
+        let join = app.buttons["초대받은 교회·팀에 참여"]
+        if join.waitForExistence(timeout: 3) {
+            XCTAssertTrue(app.buttons["내 기기 PDF로 시작"].exists)
+            join.tap()
+        }
         let email = app.textFields["teamEmail"]
         if email.waitForExistence(timeout: 3) {
             XCTAssertTrue(app.buttons["sendTeamCode"].exists, "A configured service offers the real email-code flow")

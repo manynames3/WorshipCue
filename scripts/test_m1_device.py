@@ -13,7 +13,7 @@ def main():
     parser.add_argument('--group', choices=['native', 'ui', 'all'], default='all')
     parser.add_argument('--full-native', action='store_true', help='Include existing M0 native regressions (private PDF case skips without its inputs)')
     parser.add_argument('--regressions', action='store_true', help='Also run the four existing synthetic reader UI workflows in separate sessions')
-    parser.add_argument('--only', nargs='+', choices=['native', 'workspace', 'export-ui', 'packet', 'clone', 'drawing', 'colors', 'transfer', 'team', 'team-setup', 'v2'],
+    parser.add_argument('--only', nargs='+', choices=['native', 'workspace', 'export-ui', 'packet', 'clone', 'drawing', 'colors', 'transfer', 'team', 'team-setup', 'workspace-sources', 'v2'],
                         help='Run only selected groups; reader UI groups also require --regressions')
     parser.add_argument('--batch-ui', action='store_true', help='Run selected UI workflows in one runner; keep individual results available through --only')
     parser.add_argument('--command-timeout', type=int, help='Bound an individual command in seconds; a timeout remains a failed/unverified check')
@@ -78,7 +78,8 @@ def main():
                             ('packet', 'testM1WeeklyPacketRangesKeepReaderAndCreateIndependentSongs'),
                             ('clone', 'testM1SetlistRepeatAndCloneKeepOriginalOccurrencesAndKeys'),
                             ('v2', 'testV2ConceptLayoutNavigationAndManualVersionInspector'),
-                            ('team-setup', 'testTeamSetupKeepsLocalChartPageAndInkAvailable')]:
+                            ('team-setup', 'testTeamSetupKeepsLocalChartPageAndInkAvailable'),
+                            ('workspace-sources', 'testBuild8DirectWorkspaceAndLibrarySourcesPreserveReader')]:
             groups.append((label, [f'WorshipCueUITests/MusicStandUITests/{case}']))
         if args.regressions:
             for label, case in [('drawing', 'testDrawingToolsSaveAndColdRelaunch'),

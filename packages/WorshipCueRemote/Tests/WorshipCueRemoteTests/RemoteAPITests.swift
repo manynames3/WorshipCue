@@ -215,6 +215,63 @@ final class RemoteAPITests: XCTestCase {
         let result = try await api.teamCatalog(token: "account", teamID: team)
         XCTAssertEqual(result["songs"], .array([])); XCTAssertEqual(requests, 1)
     }
+    func testAWSOverlappingCatalogRefreshesShareOnlyInFlightRequest() async throws {
+        let api = try awsAPI(), team = UUID()
+        nonisolated(unsafe) var requests = 0
+        StubProtocol.handler = { _ in
+            requests += 1; Thread.sleep(forTimeInterval: 0.05)
+            return (200, self.catalogPage(team: team))
+        }
+        let results = try await withThrowingTaskGroup(of: RemoteJSON.self) { group in
+            for _ in 0..<20 { group.addTask { try await api.teamCatalog(token: "account", teamID: team) } }
+            var values = [RemoteJSON]()
+            for try await value in group { values.append(value) }
+            return values
+        }
+        XCTAssertEqual(results.count, 20); XCTAssertEqual(requests, 1)
+        _ = try await api.teamCatalog(token: "account", teamID: team)
+        XCTAssertEqual(requests, 2) // A completed result is never a permission cache.
+    }
+    func testAWSCatalogCoalescingNeverCrossesTokenOrTeamAndFailedRequestIsNotReplayed() async throws {
+        let api = try awsAPI(), first = UUID(), second = UUID()
+        nonisolated(unsafe) var requests = 0
+        StubProtocol.handler = { request in
+            requests += 1; Thread.sleep(forTimeInterval: 0.025)
+            let payload = try JSONDecoder().decode(RemoteJSON.self, from: Self.body(request))["p"]
+            guard let team = payload["team_id"].uuid else { throw RemoteError.invalidResponse }
+            return (200, self.catalogPage(team: team, songs: [.string(request.value(forHTTPHeaderField: "Authorization")!)]))
+        }
+        async let original = api.teamCatalog(token: "original", teamID: first)
+        async let changedAccount = api.teamCatalog(token: "changed", teamID: first)
+        async let changedTeam = api.teamCatalog(token: "original", teamID: second)
+        let values = try await (original, changedAccount, changedTeam)
+        XCTAssertEqual(requests, 3)
+        XCTAssertEqual(values.0["songs"], .array([.string("Bearer original")]))
+        XCTAssertEqual(values.1["songs"], .array([.string("Bearer changed")]))
+        XCTAssertEqual(values.2["songs"], .array([.string("Bearer original")]))
+        StubProtocol.handler = { _ in requests += 1; return (403, .null) }
+        for _ in 0..<2 {
+            do { _ = try await api.teamCatalog(token: "original", teamID: first); XCTFail("Revocation accepted") }
+            catch { XCTAssertEqual(error as? RemoteError, .forbidden) }
+        }
+        XCTAssertEqual(requests, 5)
+    }
+    func testAWSOneCancelledCatalogWaiterDoesNotCancelOthersOrReturnRows() async throws {
+        let api = try awsAPI(), team = UUID()
+        nonisolated(unsafe) var requests = 0
+        StubProtocol.handler = { _ in
+            requests += 1; Thread.sleep(forTimeInterval: 0.05)
+            return (200, self.catalogPage(team: team))
+        }
+        let cancelled = Task { try await api.teamCatalog(token: "account", teamID: team) }
+        try await Task.sleep(for: .milliseconds(10))
+        let retained = Task { try await api.teamCatalog(token: "account", teamID: team) }
+        cancelled.cancel()
+        do { _ = try await cancelled.value; XCTFail("Cancelled caller received catalog") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        let value = try await retained.value
+        XCTAssertEqual(value["songs"], .array([])); XCTAssertEqual(requests, 1)
+    }
     func testAWSCatalogForwardsOpaqueCursorAndAcceptsEmptyAdvancingPage() async throws {
         let api = try awsAPI(), team = UUID(), first = catalogCursor(team: team), second = catalogCursor(team: team)
         let song: RemoteJSON = .object(["id": .id(UUID()), "title": .string("Synthetic chart")])

@@ -1,12 +1,14 @@
 # Personal data, backup and account lifecycle
 
-Build 7 implements personal-record export and account preflight. It does **not** implement account deletion or claim complete erasure. These are technical product facts, not a promise that an unfinished release meets every distribution requirement.
+Build 8 implements a file-inclusive selected-team personal cloud ZIP and account preflight. It does **not** implement account deletion or claim complete erasure. These are technical product facts, not a promise that an unfinished release meets every distribution requirement.
 
 ## What a musician can export now
 
-The account panel offers an explicit export for the currently selected, accessible team. The protected, atomically saved JSON includes the musician’s membership/profile, preferences, personal annotation layers/heads/revisions, verified personal native/preview file references, own current chat messages, room preferences and block settings. It excludes other authors, team ink, shared/source PDFs, sign-in credentials, invitation secrets and archived command receipts. A deleted message remains a tombstone; an old receipt cannot recover its previous text.
+The account panel offers an explicit export for the currently selected, accessible team. A protected ZIP includes a schema-2 JSON manifest of the musician’s membership/profile, preferences, personal annotation layers/heads/revisions, verified own native/preview files, own current chat messages, room preferences and block settings. It also includes currently authorized immutable source PDFs needed to interpret the exported personal annotations. Other authors’ personal records, team ink, unrelated shared PDFs, other teams, sign-in credentials, invitation secrets and archived command receipts are excluded. A deleted message remains a tombstone; an old receipt cannot recover its previous text.
 
-Cloud file references are a manifest, **not the file bytes or a standalone handwriting backup**. The existing chart PDF export produces a readable selected-layer copy. The account export screen says this clearly and opens the normal share/save flow only after a complete validated records file exists. A later-page access failure, malformed reference, changed account/team or interrupted transfer does not expose a partial export.
+This is a **selected-team cloud bundle**, not a complete account or device backup. Local unsynced notes, local drafts and standalone device charts are excluded and clearly disclosed. Use the existing chart PDF export for a readable copy containing selected local layers. ZIP creation verifies every file’s size and SHA-256 receipt, validates source chart/page geometry, writes one file at a time off the main actor, and publishes the completed archive atomically. Failure, cancellation or a changed account/team removes the partial job; closing the export sheet removes its temporary archive after explicit sharing/saving. There is no automatic restore/import.
+
+The ZIP is bounded to 1 GiB total, 100 MiB per PDF and 2 MiB per native/preview asset, with at most 65,535 unique safe relative entry names. Large-archive memory, storage pressure and background interruption still require device qualification.
 
 The backend verifies the exact active team membership on every page. Owner-bound opaque cursors expire after one hour and bind to that membership; a catalog cursor cannot be reused for account export. Pages contain at most 100 records and 512 KiB. The native assembler allows at most 1,000 pages, 50,000 rows and 64 MiB of response data. Head/revision references must match the exported personal layer and verified asset type, hash, byte count and key before the file is written.
 
@@ -33,4 +35,4 @@ A complete deletion implementation needs a durable, resumable operation, rather 
 
 No retention duration is silently selected here. Until the ledger, cleanup worker and approved retention are implemented and tested, the product must continue to disclose that deletion is unsupported and must not claim backup erasure.
 
-See [Build 7 qualification](../verification/CHAT7.md) for actual results and [SES operations](SES_PRODUCTION_READINESS.md) for email review and operator recovery.
+See [Build 8 qualification](../verification/BUILD8.md), [Build 7 qualification](../verification/CHAT7.md) for actual results and [SES operations](SES_PRODUCTION_READINESS.md) for email review and operator recovery.

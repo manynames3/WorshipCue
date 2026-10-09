@@ -128,6 +128,33 @@ class DomainTests(unittest.TestCase):
         self.assertEqual(self.team, roster['team_id'])
         self.assertEqual({self.admin['id'], self.member['id']}, {m['user_id'] for m in roster['members']})
 
+    def test_authorized_membership_names_are_exact_team_and_never_canonical_acl_fields(self):
+        first = self.domain.rows('memberships', self.member)
+        self.assertEqual(1, len(first))
+        self.assertEqual((self.team, 'Worship Team', 'Test Church'),
+                         (first[0]['team_id'], first[0]['team_name'], first[0]['church_name']))
+        self.assertEqual([], self.domain.rows('memberships', self.member, self.second['team_id']))
+        self.assertEqual([], self.domain.rows('memberships', self.guest))
+        self.assertEqual('Other Church', self.domain.rows('memberships', self.outside)[0]['church_name'])
+        separate = self.domain.rows('memberships', self.admin, self.second['team_id'])[0]
+        self.assertEqual(('Separate Team', 'Test Church'), (separate['team_name'], separate['church_name']))
+        canonical = self.store.get('T#' + self.team, 'memberships#' + self.member['id'])
+        self.assertNotIn('team_name', canonical); self.assertNotIn('church_name', canonical)
+
+    def test_membership_name_read_rechecks_revocation_before_return(self):
+        original_get, original_transact = self.store.get, self.store.transact
+        def revoke_after_profile(pk, sk):
+            result = original_get(pk, sk)
+            if pk == 'C#' + self.first['church_id'] and sk == 'PROFILE':
+                old = original_get('T#' + self.team, 'memberships#' + self.member['id'])
+                original_transact([dict(op='put', pk='T#' + self.team, sk='memberships#' + self.member['id'],
+                                        expected=old, value=dict(old, active=False))])
+            return result
+        self.store.get = revoke_after_profile
+        with self.assertRaises(APIError) as caught:
+            self.domain.rows('memberships', self.member)
+        self.assertEqual('ACCESS_REVOKED', caught.exception.code)
+
     def test_team_catalog_matches_authorized_rows_and_excludes_other_team_and_private_metadata(self):
         _, _, chart = self.setlist()
         other = self.chart(self.second['team_id'])
@@ -904,6 +931,48 @@ class DomainTests(unittest.TestCase):
         self.expect_error('ACCESS_REVOKED', 'get_team_catalog_page', dict(team_id=self.team, selected_team_id=self.second['team_id']))
         self.expect_error('ACCESS_REVOKED', 'get_team_catalog_page', dict(team_id=self.second['team_id']), self.guest)
 
+    def test_small_catalog_packs_sections_with_one_fresh_permission_fence(self):
+        _, _, chart = self.setlist()
+        private, native, preview = self.ink(chart)
+        self.call('save_annotation_revision', private, self.member)
+        self.call('set_personal_preference', dict(song_id=chart['song_id'], preferred_version_id=chart['id']), self.member)
+        original_get, original_transact = self.store.get, self.store.transact
+        reads, transactions = [], []
+        def counted_get(pk, sk):
+            reads.append((pk, sk))
+            return original_get(pk, sk)
+        def counted_transact(writes):
+            transactions.append(copy.deepcopy(writes))
+            return original_transact(writes)
+        self.store.get, self.store.transact = counted_get, counted_transact
+        page = self.call('get_team_catalog_page', dict(team_id=self.team, limit=100))
+        self.assertIsNone(page['next_cursor'])
+        self.assertLessEqual(reads.count(('T#' + self.team, 'memberships#' + self.admin['id'])), 3)
+        for name in ('songs', 'chart_versions', 'assets', 'setlists', 'performance_items', 'personal_preferences'):
+            self.assertEqual(self.domain.rows(name, self.admin, self.team), page[name])
+        self.assertTrue({native['id'], preview['id']}.isdisjoint(row['id'] for row in page['assets']))
+        self.assertEqual(1, len(transactions))
+        self.assertTrue(any(w['sk'] == 'memberships#' + self.admin['id'] and w['op'] == 'check' for w in transactions[0]))
+
+    def test_finished_combined_catalog_still_fences_concurrent_revocation(self):
+        self.setlist()
+        original = self.store.transact
+        def revoke_before_final_check(writes):
+            self.assertTrue(all(w['op'] == 'check' for w in writes))
+            old = self.store.get('T#' + self.team, 'memberships#' + self.member['id'])
+            original([dict(op='put', pk='T#' + self.team, sk='memberships#' + self.member['id'],
+                           expected=old, value=dict(old, active=False))])
+            return original(writes)
+        self.store.transact = revoke_before_final_check
+        self.expect_error('REVISION_CONFLICT', 'get_team_catalog_page', dict(team_id=self.team, limit=100), self.member)
+
+    def test_catalog_combined_page_limits_rows_across_section_boundaries(self):
+        self.setlist()
+        catalog, pages = self.paged_catalog(limit=2)
+        self.assertEqual(5, sum(len(rows) for rows in catalog.values()))
+        self.assertEqual(3, len(pages))
+        self.assertTrue(any(page['songs'] and page['chart_versions'] for page in pages))
+
     def test_catalog_cursor_is_opaque_owner_bound_reusable_expiring_and_typed(self):
         self.chart()
         payload = dict(team_id=self.team, limit=1)
@@ -924,27 +993,28 @@ class DomainTests(unittest.TestCase):
     def test_catalog_scope_change_fences_role_and_guest_grant_paging(self):
         s, _, _ = self.setlist()
         self.join(self.team, self.guest, 'guest', s['id'])
-        member_cursor = self.call('get_team_catalog_page', dict(team_id=self.team), self.member)['next_cursor']
-        guest_cursor = self.call('get_team_catalog_page', dict(team_id=self.team), self.guest)['next_cursor']
+        member_cursor = self.call('get_team_catalog_page', dict(team_id=self.team, limit=1), self.member)['next_cursor']
+        guest_cursor = self.call('get_team_catalog_page', dict(team_id=self.team, limit=1), self.guest)['next_cursor']
         self.call('set_member_role', dict(team_id=self.team, user_id=self.member['id'], role='leader', expected_revision=1, command_id=uid()))
         self.expect_error('CATALOG_CHANGED', 'get_team_catalog_page', dict(team_id=self.team, cursor=member_cursor), self.member)
         second, _, _ = self.setlist()
         self.join(self.team, self.guest, 'guest', second['id'])
         self.expect_error('CATALOG_CHANGED', 'get_team_catalog_page', dict(team_id=self.team, cursor=guest_cursor), self.guest)
-        fresh = self.call('get_team_catalog_page', dict(team_id=self.team), self.guest)['next_cursor']
+        fresh = self.call('get_team_catalog_page', dict(team_id=self.team, limit=1), self.guest)['next_cursor']
         self.call('revoke_guest_grant', dict(setlist_id=second['id'], user_id=self.guest['id']))
         self.expect_error('CATALOG_CHANGED', 'get_team_catalog_page', dict(team_id=self.team, cursor=fresh), self.guest)
         self.call('revoke_guest_grant', dict(setlist_id=s['id'], user_id=self.guest['id']))
         self.expect_error('ACCESS_REVOKED', 'get_team_catalog_page', dict(team_id=self.team, cursor=fresh), self.guest)
 
     def test_filtered_asset_page_progress_never_exposes_private_resource_ids(self):
-        private = self.asset('native', actor=self.member)
+        private = [self.asset('native', actor=self.member) for _ in range(25)]
         value, pages = self.paged_catalog(limit=1)
         self.assertEqual([], value['assets'])
-        self.assertNotIn(private['id'], json.dumps(pages))
-        self.assertNotIn(private['storage_key'], json.dumps(pages))
+        for row in private:
+            self.assertNotIn(row['id'], json.dumps(pages))
+            self.assertNotIn(row['storage_key'], json.dumps(pages))
         self.assertTrue(any(not any(page[name] for name in value) and page['next_cursor'] for page in pages))
-        self.assertEqual(len(pages), 6)
+        self.assertEqual(len(pages), 3)
 
     def test_embedded_setlist_paging_guards_revision_and_bounds_items(self):
         s, first_item, _ = self.setlist()
@@ -975,6 +1045,7 @@ class DomainTests(unittest.TestCase):
         self.assertGreater(len(pages), 50)
 
     def test_catalog_cursor_write_transaction_fences_concurrent_revocation(self):
+        self.chart()
         original = self.store.transact
         fired = False
         def revoke_before_cursor(writes):
@@ -985,7 +1056,7 @@ class DomainTests(unittest.TestCase):
                 original([dict(op='put', pk='T#' + self.team, sk='memberships#' + self.member['id'], expected=old, value=dict(old, active=False))])
             return original(writes)
         self.store.transact = revoke_before_cursor
-        self.expect_error('REVISION_CONFLICT', 'get_team_catalog_page', dict(team_id=self.team), self.member)
+        self.expect_error('REVISION_CONFLICT', 'get_team_catalog_page', dict(team_id=self.team, limit=1), self.member)
         self.assertEqual([], self.store.query('U#' + self.member['id'], 'CATALOG_CURSOR#'))
 
     def test_guest_catalog_cursor_transaction_fences_each_grant_revocation(self):
@@ -1004,7 +1075,7 @@ class DomainTests(unittest.TestCase):
                                value=dict(old, revoked_at=self.time.isoformat()))])
             return original(writes)
         self.store.transact = revoke_before_cursor
-        self.expect_error('REVISION_CONFLICT', 'get_team_catalog_page', dict(team_id=self.team), self.guest)
+        self.expect_error('REVISION_CONFLICT', 'get_team_catalog_page', dict(team_id=self.team, limit=1), self.guest)
         checked = {w['sk'] for w in captured if w['op'] == 'check'}
         self.assertTrue({'guest_grants#' + self.guest['id'] + '#' + row['id'] for row in (first, second)} <= checked)
         self.assertLessEqual(len(captured), 100)
@@ -1103,9 +1174,10 @@ class DomainTests(unittest.TestCase):
         self.expect_error('ACCESS_REVOKED', 'get_account_export_page', dict(team_id=self.team, selected_team_id=self.second['team_id']))
 
     def test_account_export_cursor_is_distinct_owner_bound_and_revocation_fenced(self):
+        self.chart()
         p = dict(team_id=self.team, limit=1)
         export = self.call('get_account_export_page', p, self.member)['next_cursor']
-        catalog = self.call('get_team_catalog_page', p, self.member)['next_cursor']
+        catalog = self.call('get_team_catalog_page', dict(p, limit=1), self.member)['next_cursor']
         self.expect_error('INVALID_CURSOR', 'get_account_export_page', dict(p, cursor=catalog), self.member)
         self.expect_error('INVALID_CURSOR', 'get_team_catalog_page', dict(p, cursor=export), self.member)
         self.expect_error('INVALID_CURSOR', 'get_account_export_page', dict(p, cursor=export))
@@ -1163,7 +1235,7 @@ class DomainTests(unittest.TestCase):
         self.assertNotIn(unrelated['id'], json.dumps(pages))
         self.assertTrue(all(options.get('limit') == 5001 for _, prefix, options in seen if prefix == 'live_calls#'))
         self.store.query = original
-        cursor = self.call('get_team_catalog_page', dict(team_id=self.team), self.guest)['next_cursor']
+        cursor = self.call('get_team_catalog_page', dict(team_id=self.team, limit=1), self.guest)['next_cursor']
         self.call('save_setlist', dict(setlist_id=s['id'], base_revision=1, items=[], command_id=uid()))
         self.expect_error('CATALOG_CHANGED', 'get_team_catalog_page', dict(team_id=self.team, cursor=cursor), self.guest)
 

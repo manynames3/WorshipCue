@@ -72,3 +72,7 @@ SES denied production access. Status API gives no explanation; Support API readi
 Actual native real-account cloud workflows, new-build physical touch UI, two iPads, physical Pencil, original iPadOS 16 hardware, background/resume/airplane stress, maximum-file performance, WebSocket fanout and two-hour rehearsal remain unverified. Account deletion, approved retention/orphan cleanup, complete-file account export and support/distribution readiness remain unfinished. Backup is not an atomic database/files snapshot. Shared development Lambda concurrency quota 10; bounded API burst checks do not replace representative sustained load.
 
 Free Personal Team profile expires October 14. No annual Apple enrollment/APNs/TestFlight/billing feature/public app release. AWS usage projections are not measured bills.
+
+## 2026-10-08 · Authenticated SES case clarification
+
+Authenticated AWS Support follow-up (2026-10-08): the case is **Pending customer action** and requests six specific use-case details before a final decision. The earlier account API **DENIED** receipt remains recorded; no fresh account API read or production approval occurred. The user submitted the complete follow-up; authenticated correspondence confirms receipt at 20:26 EDT on October 8, and the case now shows **Customer action completed**. No production approval or new account API status read is established by this response. See [Support follow-up](SES-support-followup.md).

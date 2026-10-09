@@ -310,6 +310,9 @@ private struct WorkspaceError: ViewModifier {
     @ObservedObject var stand: MusicStand
     func body(content: Content) -> some View {
         content.alert("확인 필요", isPresented: Binding(get: { stand.error != nil }, set: { if !$0 { stand.error = nil } })) {
+            if stand.needsSaveRecovery {
+                Button(stand.recoveryActionTitle) { Task { await stand.retrySave() } }
+            }
             Button("닫기", role: .cancel) { stand.error = nil }
         } message: { Text(stand.error ?? "") }
     }

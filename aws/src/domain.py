@@ -99,6 +99,7 @@ CHAT_REFERENCE_BUDGET = 5000
 TEAM_MEMBER_LIMIT = 200
 CATALOG_TABLES = ('songs', 'chart_versions', 'assets', 'setlists', 'performance_items', 'personal_preferences')
 CATALOG_PAGE_BYTES = 512 * 1024
+CATALOG_PAGE_STEPS = 12  # Bound section/setlist work even when every row is filtered out.
 EXPORT_TABLES = ('memberships', 'personal_preferences', 'annotation_layers', 'annotation_heads', 'annotation_revisions',
                  'assets', 'chat_messages', 'chat_preferences', 'chat_blocks')
 TABLES = {'songs', 'chart_versions', 'assets', 'setlists', 'performance_items', 'personal_preferences',
@@ -361,7 +362,22 @@ class _Operation:
         if table not in TABLES:
             raise APIError('INVALID_INPUT')
         if table == 'memberships':
-            return [dict(m, revision=m.get('revision', 1)) for m in self.memberships() if team is None or m['team_id'] == identifier(team)]
+            result = []
+            for member in self.memberships():
+                if team is not None and member['team_id'] != identifier(team):
+                    continue
+                profile = self.get('T#' + member['team_id'], 'teams#' + member['team_id'])
+                church = self.get('C#' + member['church_id'], 'PROFILE')
+                if not profile or not church or profile['team_id'] != member['team_id'] or profile['church_id'] != member['church_id'] or church['id'] != member['church_id']:
+                    raise APIError('ACCESS_REVOKED', 403)
+                # Workspace names are presentation metadata, never a role/ACL
+                # copy persisted into canonical membership or catalog scopes.
+                fresh = _Operation(self.store, lambda: self.now, self.actor).member(member['team_id'])
+                if fresh != member:
+                    raise APIError('ACCESS_REVOKED', 403)
+                result.append(dict(member, revision=member.get('revision', 1),
+                                   team_name=profile['name'], church_name=church['name']))
+            return result
         if table == 'guest_grants':
             return self.grants(identifier(team) if team else None)
         teams = [identifier(team)] if team else sorted({m['team_id'] for m in self.memberships()} | {g['team_id'] for g in self.grants()})
@@ -422,7 +438,11 @@ class _Operation:
         elif name in ('get_team_catalog', 'get_team_catalog_page'):
             team = identifier(p.get('team_id'))
             context({'team_id': team})
-            if not self.can_member(team) and not self.authorized_setlists(team):
+            if name == 'get_team_catalog_page':
+                # Reuse this request's initial scope; the final independent read and
+                # conditional transaction below still fence concurrent revocation.
+                self._initial_catalog_scope = self.catalog_scope(team)
+            elif not self.can_member(team) and not self.authorized_setlists(team):
                 raise APIError('ACCESS_REVOKED', 403)
         elif name == 'get_account_export_page':
             context(self.member(p.get('team_id')))
@@ -752,87 +772,98 @@ class _Operation:
     def rpc_get_team_catalog_page(self, p):
         team, limit = identifier(p['team_id']), integer(p.get('limit', 50), 1, 100)
         original = self.store
-        member, grants, scope = self.catalog_scope(team)
+        member, grants, scope = self._initial_catalog_scope
         position = self.catalog_cursor(p.get('cursor'), team, scope)
-        table, after = position['table'], position.get('after_key')
         self.store = _CatalogReads(original)
         references = self.guest_catalog_references(team, grants) if not member else None
         result = dict(schema_version=1, team_id=team, **{name: [] for name in CATALOG_TABLES})
-        next_position = None
         budget = CATALOG_PAGE_BYTES - 2048  # Reserve cursor/envelope bytes before adding rows.
+        row_count, byte_stopped = 0, False
         def append(row):
-            nonlocal budget
+            nonlocal budget, row_count, byte_stopped
             size = len(encode(row).encode()) + 1
             if size > budget:
-                if not result[table]:
+                if row_count == 0:
                     raise APIError('RESOURCE_LIMIT', 413)
+                byte_stopped = True
                 return False
             result[table].append(row)
             budget -= size
+            row_count += 1
             return True
         def advance():
             index = CATALOG_TABLES.index(table) + 1
             return dict(table=CATALOG_TABLES[index], after_key=None) if index < len(CATALOG_TABLES) else None
 
-        if table == 'performance_items':
-            # Embedded items need a revision fence when one setlist spans pages.
-            if position.get('item_offset') is not None:
-                row = self.store.get('T#' + team, after)
-                if not row or row['revision'] != position.get('setlist_revision'):
-                    raise APIError('CATALOG_CHANGED', 409)
-                offset = position['item_offset']
-            else:
-                rows = ([s for key, s in sorted(references['setlists'].items()) if after is None or 'setlists#' + key > after][:1]
-                        if references else self.store.query('T#' + team, 'setlists#', after=after, limit=1))
-                row, offset = (rows[0], 0) if rows else (None, 0)
-            if row:
-                source_key = 'setlists#' + row['id']
-                allowed = bool(member) or any(g['setlist_id'] == row['id'] for g in grants)
-                called = set()
-                if allowed and not member:
-                    called = references['called']
-                for index in range(offset, len(row.get('items', []))):
-                    item = row['items'][index]
-                    if allowed and (member or item['active'] or item['id'] in called):
-                        if len(result[table]) >= limit or not append(item):
-                            next_position = dict(table=table, after_key=source_key, item_offset=index, setlist_revision=row['revision'])
-                            break
+        # Pack adjacent sections instead of spending one authenticated HTTP/Lambda
+        # invocation per empty or tiny section. Bounds apply to the whole page.
+        next_position = position
+        for _ in range(CATALOG_PAGE_STEPS):
+            table, after = position['table'], position.get('after_key')
+            section_limit = limit - row_count
+            if table == 'performance_items':
+                # Embedded items need a revision fence when one setlist spans pages.
+                if position.get('item_offset') is not None:
+                    row = self.store.get('T#' + team, after)
+                    if not row or row['revision'] != position.get('setlist_revision'):
+                        raise APIError('CATALOG_CHANGED', 409)
+                    offset = position['item_offset']
                 else:
-                    more = (any('setlists#' + key > source_key for key in references['setlists'])
-                            if references else self.store.query('T#' + team, 'setlists#', after=source_key, limit=1))
-                    next_position = dict(table=table, after_key=source_key) if more else advance()
-            else:
-                next_position = advance()
-        elif table == 'personal_preferences' and not member:
-            next_position = advance()
-        else:
-            prefix = table + '#' + self.actor['id'] + '#' if table == 'personal_preferences' else table + '#'
-            if references and table in ('songs', 'chart_versions', 'setlists'):
-                ids = references['songs'] if table == 'songs' else references['charts'] if table == 'chart_versions' else references['setlists']
-                ids = [key for key in sorted(ids) if after is None or prefix + key > after][:limit + 1]
-                candidates = [self.entity(table, key) for key in ids]
-                if any(row['team_id'] != team for row in candidates):
-                    raise APIError('ACCESS_REVOKED', 403)
-            else:
-                candidates = self.store.query('T#' + team, prefix, after=after, limit=limit + 1)
-            consumed = after
-            stopped = False
-            for row in candidates[:limit]:
-                key = prefix + row['song_id'] if table == 'personal_preferences' else table + '#' + row['id']
-                allowed = bool(member)
-                if table == 'chart_versions':
-                    allowed = bool(member) or row['id'] in references['charts']
-                elif table == 'songs' and not member:
-                    allowed = row['id'] in references['songs']
-                elif table == 'assets':
-                    allowed = (self.asset_readable(row) or row['owner_user_id'] == self.actor['id']) if member else self.guest_catalog_asset(row, references)
-                elif table == 'setlists':
+                    rows = ([s for key, s in sorted(references['setlists'].items()) if after is None or 'setlists#' + key > after][:1]
+                            if references else self.store.query('T#' + team, 'setlists#', after=after, limit=1))
+                    row, offset = (rows[0], 0) if rows else (None, 0)
+                if row:
+                    source_key = 'setlists#' + row['id']
                     allowed = bool(member) or any(g['setlist_id'] == row['id'] for g in grants)
-                if allowed and not append({k: v for k, v in row.items() if k not in ('token_hash', 'items')}):
-                    stopped = True
-                    break
-                consumed = key
-            next_position = dict(table=table, after_key=consumed) if stopped or len(candidates) > limit else advance()
+                    called = set()
+                    if allowed and not member:
+                        called = references['called']
+                    for index in range(offset, len(row.get('items', []))):
+                        item = row['items'][index]
+                        if allowed and (member or item['active'] or item['id'] in called):
+                            if row_count >= limit or not append(item):
+                                next_position = dict(table=table, after_key=source_key, item_offset=index, setlist_revision=row['revision'])
+                                break
+                    else:
+                        more = (any('setlists#' + key > source_key for key in references['setlists'])
+                                if references else self.store.query('T#' + team, 'setlists#', after=source_key, limit=1))
+                        next_position = dict(table=table, after_key=source_key) if more else advance()
+                else:
+                    next_position = advance()
+            elif table == 'personal_preferences' and not member:
+                next_position = advance()
+            else:
+                prefix = table + '#' + self.actor['id'] + '#' if table == 'personal_preferences' else table + '#'
+                if references and table in ('songs', 'chart_versions', 'setlists'):
+                    ids = references['songs'] if table == 'songs' else references['charts'] if table == 'chart_versions' else references['setlists']
+                    ids = [key for key in sorted(ids) if after is None or prefix + key > after][:section_limit + 1]
+                    candidates = [self.entity(table, key) for key in ids]
+                    if any(row['team_id'] != team for row in candidates):
+                        raise APIError('ACCESS_REVOKED', 403)
+                else:
+                    candidates = self.store.query('T#' + team, prefix, after=after, limit=section_limit + 1)
+                consumed = after
+                stopped = False
+                for row in candidates[:section_limit]:
+                    key = prefix + row['song_id'] if table == 'personal_preferences' else table + '#' + row['id']
+                    allowed = bool(member)
+                    if table == 'chart_versions':
+                        allowed = bool(member) or row['id'] in references['charts']
+                    elif table == 'songs' and not member:
+                        allowed = row['id'] in references['songs']
+                    elif table == 'assets':
+                        allowed = (row['owner_user_id'] == self.actor['id'] or self.asset_readable(row)) if member else self.guest_catalog_asset(row, references)
+                    elif table == 'setlists':
+                        allowed = bool(member) or any(g['setlist_id'] == row['id'] for g in grants)
+                    if allowed and not append({k: v for k, v in row.items() if k not in ('token_hash', 'items')}):
+                        stopped = True
+                        break
+                    consumed = key
+                next_position = dict(table=table, after_key=consumed) if stopped or len(candidates) > section_limit else advance()
+
+            if next_position is None or row_count >= limit or byte_stopped:
+                break
+            position = next_position
 
         fresh = _Operation(original, lambda: self.now, self.actor)
         if fresh.catalog_scope(team)[2] != scope:
