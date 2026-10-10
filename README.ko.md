@@ -1,11 +1,11 @@
 <p align="center"><img src="apps/ipad/WorshipCue/Assets.xcassets/AppIcon.appiconset/Icon-167.png" width="112" alt="WorshipCue 앱 아이콘"></p>
 <h1 align="center">WorshipCue</h1>
 <p align="center"><strong>악보와 필기는 각자 편하게. 곡 안내와 팀 필기는 함께.</strong></p>
-<p align="center"><a href="README.md">English</a> · <a href="CHANGELOG.md">기능·수정 이력</a> · <a href="docs/ENGINEERING.md">설계와 구현</a> · <a href="verification/STATUS.md">검증 현황</a></p>
+<p align="center"><a href="README.md">English</a> · <a href="CHANGELOG.md">기능·수정 이력</a> · <a href="docs/ENGINEERING.md">설계와 구현</a> · <a href="#시스템-구성">시스템 구성</a> · <a href="verification/STATUS.md">검증 현황</a></p>
 
 찬양팀의 PDF 편곡 악보, 개인 필기, 이번 주 곡 목록과 팀 대화를 하나의 리허설 흐름으로 연결하는 한국어 중심 iPad 네이티브 앱입니다. 연주자는 자기 악보와 페이지를 직접 선택하고, 리더는 팀 표시와 조용한 곡 안내를 전달합니다.
 
-**[Aiden Rhaa](https://github.com/manynames3)**의 제품·엔지니어링 프로젝트입니다. iPad 화면과 필기부터 오프라인 저장, 팀 권한, 클라우드 운영과 브라우저 동반 화면까지 이어지는 구현 과정은 [설계와 구현 문서](docs/ENGINEERING.md)에 정리했습니다.
+**제품 방향과 개발: [Aiden Rhaa](https://github.com/manynames3).** WorshipCue는 iPad 악보 보기와 오프라인 준비, 권한이 분리된 팀 협업, 브라우저 게스트 참여를 하나의 리허설 흐름으로 연결합니다. [설계와 구현 문서](docs/ENGINEERING.md)에는 제품 결정, 문제 해결과 검증 과정을 기록했습니다.
 
 > **현재 개발 중이며 App Store 출시 버전은 아닙니다.** 이 소개에는 실제 로컬 Build 19까지의 작업이 포함됩니다. 공개 앱 소스는 `main`과 `v1`의 Build 3, `v2`의 Build 8 체크포인트이며 이후 소스는 아직 공개되지 않았습니다. [빌드·공개·검증 현황](verification/STATUS.md#publication-and-builds).
 
@@ -72,6 +72,19 @@ WorshipCue는 PDF로 연습하는 연주자와 보컬, 연주하면서 팀을 �
 iPad는 로컬 악보와 개인 필기를 유지합니다. AWS API Gateway·Lambda가 관리형 계정과 정확한 팀 권한을 확인하고 DynamoDB 기록과 비공개 S3 파일에 접근합니다. WebSocket은 변경을 알리고 클라이언트가 저장된 상태를 다시 확인합니다. Neon은 대체 로그인 경로이며 AWS 데이터베이스·파일·대화를 이전한 것은 아닙니다.
 
 [설계와 구현](docs/ENGINEERING.md)에는 구조도와 실제 문제 해결 과정을 담았습니다. 악보 버전별 필기 보존, Python 런타임 차이로 생긴 로그인 오류, 대화 좌표계 수정, 실제 PDF 페이지 성능 측정과 서버 용량 배포 보호를 설명합니다.
+
+## 시스템 구성
+
+아래 구조도는 iPad와 브라우저 게스트가 로그인, 팀 권한, 비공개 파일, 대화와 복구 기능에 연결되는 방식을 보여 줍니다. 연주자가 직접 곡을 열고 페이지를 넘기며, 개인 필기는 보호하고, 팀별 콘텐츠는 서로 분리합니다.
+
+<p align="center"><a href="output/pdf/worshipcue-architecture-icons-v2-ko.pdf"><img src="docs/architecture/worshipcue-architecture-icons-v2-ko.png" width="960" alt="WorshipCue 한국어 시스템 구성도"></a></p>
+<p align="center"><a href="output/pdf/worshipcue-architecture-icons-v2-ko.pdf">한 페이지 PDF</a> · <a href="docs/architecture/worshipcue-architecture-icons-v2-ko.svg">편집 가능한 SVG</a></p>
+
+<details>
+<summary>영문 시스템 구성도 보기</summary>
+<p align="center"><a href="output/pdf/worshipcue-architecture-icons-v2.pdf"><img src="docs/architecture/worshipcue-architecture-icons-v2.png" width="960" alt="WorshipCue English system architecture diagram"></a></p>
+<p align="center"><a href="output/pdf/worshipcue-architecture-icons-v2.pdf">한 페이지 PDF</a> · <a href="docs/architecture/worshipcue-architecture-icons-v2.svg">편집 가능한 SVG</a></p>
+</details>
 
 최근 기록에는 제어된 백엔드 **227건 통과**, 실제 Neon/AWS **12건 통과**, 독립 브라우저 HTTP 클라이언트 **22건 통과**, 최종 제스처 인계 수정 전 실제 기기 네이티브 **122건 통과·3건 건너뜀**이 포함됩니다. 서로 다른 실행이며 전체 제품 출시 검증을 뜻하지 않습니다. 실패한 부하·제스처 검사도 [검증 현황](verification/STATUS.md)에 남겼습니다.
 
