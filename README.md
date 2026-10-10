@@ -5,11 +5,11 @@
 <p align="center"><strong>Keep the music. Keep your notes. Stay together.</strong></p>
 <p align="center">A Korean-first native iPad music stand for worship teams.</p>
 <p align="center">악보와 필기는 각자 편하게. 곡 안내와 팀 필기는 함께.</p>
-<p align="center"><a href="README.ko.md">한국어</a> · <a href="CHANGELOG.md">Features & fixes</a> · <a href="docs/ENGINEERING.md">Engineering</a> · <a href="verification/STATUS.md">Verification</a></p>
+<p align="center"><a href="README.ko.md">한국어</a> · <a href="CHANGELOG.md">Features & fixes</a> · <a href="docs/ENGINEERING.md">Engineering</a> · <a href="#system-architecture">Architecture</a> · <a href="verification/STATUS.md">Verification</a></p>
 
 WorshipCue brings PDF arrangements, personal handwriting, weekly setlists and team conversation into one rehearsal workflow. Musicians keep control of their music stand while leaders share chart markings and quiet song cues.
 
-A product and engineering project by **[Aiden Rhaa](https://github.com/manynames3)**, spanning native iPad interaction, offline persistence, cloud authorization and a browser companion. Read [how the system is built](docs/ENGINEERING.md) for the decisions, debugging and verification behind the experience.
+**Product direction and development by [Aiden Rhaa](https://github.com/manynames3).** WorshipCue brings native iPad music reading, offline preparation, permissioned team collaboration and browser guest access into one rehearsal workflow. The [engineering walkthrough](docs/ENGINEERING.md) records the decisions, debugging and verification behind the product.
 
 > **Active development, not an App Store release.** This overview includes actual local work through Build 19. Published application source remains v1 / Build 3 on `main` and `v1`, and v2 / Build 8 on `v2`. Later source changes are pending publication. [Build and verification status](verification/STATUS.md#publication-and-builds).
 
@@ -81,7 +81,20 @@ Browser guests can read music and talk with the group. Captures use synthetic ch
 
 The iPad owns the readable local chart and personal notes. AWS API Gateway and Lambda enforce managed identity and exact-team permissions before accessing DynamoDB records or private S3 files. WebSocket hints help clients catch up to durable state. Neon provides the alternative managed sign-in path; it does not replace the AWS database, storage or messaging.
 
-The [engineering walkthrough](docs/ENGINEERING.md) includes an architecture diagram and concrete cases: preserving ink across document versions, diagnosing a Python-runtime authentication mismatch, correcting message read-state geometry, measuring real PDF page turns and guarding a capacity deployment.
+## System architecture
+
+The diagrams show how the iPad and browser companion connect to sign-in, team permissions, private file storage, chat and recovery. They also make the product boundaries visible: musicians open songs and turn pages themselves; personal notes stay private; team content is separated by team.
+
+<p align="center"><a href="output/pdf/worshipcue-architecture-icons-v2-ko.pdf"><img src="docs/architecture/worshipcue-architecture-icons-v2-ko.png" width="960" alt="WorshipCue system architecture, Korean edition"></a></p>
+<p align="center"><a href="output/pdf/worshipcue-architecture-icons-v2-ko.pdf">한국어 한 페이지 PDF</a> · <a href="docs/architecture/worshipcue-architecture-icons-v2-ko.svg">편집 가능한 한국어 SVG</a></p>
+
+<details>
+<summary>View the English architecture diagram</summary>
+<p align="center"><a href="output/pdf/worshipcue-architecture-icons-v2.pdf"><img src="docs/architecture/worshipcue-architecture-icons-v2.png" width="960" alt="WorshipCue system architecture, English edition"></a></p>
+<p align="center"><a href="output/pdf/worshipcue-architecture-icons-v2.pdf">One-page PDF</a> · <a href="docs/architecture/worshipcue-architecture-icons-v2.svg">Editable SVG</a></p>
+</details>
+
+The [engineering walkthrough](docs/ENGINEERING.md) adds implementation detail and concrete cases: preserving ink across document versions, diagnosing a Python-runtime authentication mismatch, correcting message read-state geometry, measuring real PDF page turns and guarding a capacity deployment.
 
 Recent recorded evidence includes **227 controlled backend tests**, a **12-case real hosted Neon/AWS check**, a **22-check independent browser-client run**, and **122 passed / three skipped physical native cases** before the final gesture handoff change. These are separate runs, not a combined release qualification. The [verification summary](verification/STATUS.md) retains failed burst and gesture checks alongside passing results.
 
