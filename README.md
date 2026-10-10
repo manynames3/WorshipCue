@@ -1,148 +1,133 @@
 <p align="center">
-  <img src="apps/ipad/WorshipCue/Assets.xcassets/AppIcon.appiconset/Icon-167.png" width="112" alt="WorshipCue teal folded-ribbon W app icon">
+  <img src="apps/ipad/WorshipCue/Assets.xcassets/AppIcon.appiconset/Icon-167.png" width="112" alt="WorshipCue folded-ribbon W icon">
 </p>
-
 <h1 align="center">WorshipCue</h1>
-<p align="center"><strong>Your charts. Your notes. Your cue.</strong></p>
+<p align="center"><strong>Keep the music. Keep your notes. Stay together.</strong></p>
 <p align="center">A Korean-first native iPad music stand for worship teams.</p>
 <p align="center">악보와 필기는 각자 편하게. 곡 안내와 팀 필기는 함께.</p>
-<p align="center"><a href="README.ko.md">한국어 소개</a> · <a href="#working-today">Working today</a> · <a href="#development">Development</a> · <a href="verification/M1.md">Test evidence</a></p>
+<p align="center"><a href="README.ko.md">한국어</a> · <a href="CHANGELOG.md">Features & fixes</a> · <a href="docs/ENGINEERING.md">Engineering</a> · <a href="verification/STATUS.md">Verification</a></p>
 
-## Why WorshipCue exists
+WorshipCue brings PDF arrangements, personal handwriting, weekly setlists and team conversation into one rehearsal workflow. Musicians keep control of their music stand while leaders share chart markings and quiet song cues.
 
-Worship musicians prepare more than a PDF. They mark the bridge, circle an entrance, write a voicing, and remember which arrangement they rehearsed. When a revised chart arrives, that work should remain easy to find. When a leader calls an unplanned song, musicians need a clear cue and a moment to choose when to open it.
+A product and engineering project by **[Aiden Rhaa](https://github.com/manynames3)**, spanning native iPad interaction, offline persistence, cloud authorization and a browser companion. Read [how the system is built](docs/ENGINEERING.md) for the decisions, debugging and verification behind the experience.
 
-WorshipCue is being built around those moments: **keep the chart you trust, preserve the notes you made, and stay aware of the team's next move.**
+> **Active development, not an App Store release.** This overview includes actual local work through Build 19. Published application source remains v1 / Build 3 on `main` and `v1`, and v2 / Build 8 on `v2`. Later source changes are pending publication. [Build and verification status](verification/STATUS.md#publication-and-builds).
 
-It is for musicians and singers who already rehearse from PDF charts on iPad, and for bandmasters—often leading from the keyboard—who need to communicate changes while performing. The first interface is Korean; the underlying implementation is native Swift, PDFKit and PencilKit.
+## Why this exists
 
-## What this means in rehearsal
+A worship chart carries more than notes and chords. It carries the bridge repeat, the vocal entrance, the voicing and the version the team actually rehearsed. A new arrangement should not erase that preparation. A last-minute song call should not pull the page away while someone is still playing.
 
-| The moment | The experience WorshipCue is built to provide | Current status |
-|---|---|---|
-| “The updated arrangement arrived. Where are my notes?” | Keep the original PDF and its notes; select only the markings you want to carry into the new chart. | Immutable imports, version/page-specific ink and manual selected-note transfer implemented. Local library metadata, Korean search and explicit version/preference controls are implemented. |
-| “I need to mark this entrance quickly.” | Write or highlight directly on the chart, switch colors in a small popover, and undo without touching the team layer. | Implemented; finger drawing, color selection and recovery tested on a real iPad. Physical Apple Pencil qualification remains open. |
-| “We lost Wi-Fi during rehearsal.” | Continue reading local charts and saving personal notes on the device. | Local reading/save/restore implemented. Local preflight checks selected, preferred and standby PDFs. Network recovery belongs to later milestones. |
-| “The bandmaster circled the second chorus.” | See team handwriting on the exact matching chart, with your personal notes kept separate. | Read-only local team sample implemented. Actual shared handwriting and backend permissions are planned. |
-| “We're moving to an unplanned song.” | See a quiet song/key cue and tap when you are ready to open it; keep control of your page. | Live announcements are specified and planned; no live backend is running. |
+WorshipCue is built for the people living those moments: musicians and singers rehearsing from PDFs, and bandmasters who need to guide a team while performing. It keeps personal preparation useful, shared changes clear and navigation deliberate.
 
-## Working today
+## From preparation to the music stand
 
-The current app is an early **M1 local music stand build**, developed and tested on a real iPad. It is not an App Store release or a qualified rehearsal pilot. [Current verification](verification/M1.md) separates native evidence, UI evidence and open device requirements.
+| In rehearsal | What WorshipCue provides |
+| --- | --- |
+| “Which arrangement are we using?” | A searchable, versioned library with favorites, explicit preferred charts and exact-version setlists. Korean initials, aliases and hymn numbers support familiar ways of finding music. |
+| “I need my notes on the new chart.” | Preserve the original PDF and its ink. Select only the strokes you want, preview their placement on another version and confirm the transfer. |
+| “Let me mark that entrance.” | Native pen/highlighter, eraser, undo/redo and a small color popover; pen and highlighter remember separate colors. |
+| “Is Sunday's set ready on this iPad?” | Ordered and standby songs, individual PDF/memo readiness checks and targeted retries. Prepared local charts and personal notes remain usable offline. |
+| “The leader changed the second chorus.” | Team marks tied to the exact performance item, chart version and page, with personal handwriting kept separate. |
+| “What did we agree about the ending?” | Team/setlist chat, replies, chart links, pinned instructions and unread/mute controls, with explicit send/retry behavior. |
+| “A guest needs the music and conversation.” | A revocable browser link to one chat room and one service's published PDFs. Guests enter a name and join without installing the iPad app. |
+| “We're moving to a different song.” | A quiet visual cue. The musician taps to open it and turns their own pages. |
 
-- **Read PDFs on iPad.** Import from Files into validated, app-owned immutable assets; an import failure preserves the chart already open.
-- **Prepare a weekly set.** Create, reorder and clone local setlists with separate standby songs; choose an exact chart version and performance key for each occurrence.
-- **Find the chart you rehearsed.** Korean title/initial/alias/hymn-number search, favorites, immutable numbered versions and an explicitly selected personal preferred chart. Opening another chart does not change your preference.
-- **Split a weekly PDF deliberately.** Choose inclusive page ranges and song/version metadata. Derived PDFs preserve embedded arranger annotations; the original packet and its notes stay intact.
-- **Export a fallback.** Create a new PDF with source/arranger content and optionally your personal ink, then share or save it through the native share sheet.
-- **Make personal notes.** Pen, highlighter, stroke eraser, undo and redo. Apple Pencil integration is implemented; the visible **손가락 필기** mode supports tested finger drawing.
-- **Change colors quickly.** Eight named colors in one compact popover. Pen and highlighter remember separate choices. Select a color, tap ×, or tap outside to close it.
-- **Keep notes attached to the right chart.** Ink is stored against the exact version and page. Local save status follows a database commit, with recovery and save-failure handling.
-- **Move selected notes deliberately.** Select strokes, copy, choose a destination, drag/scale the paste preview, then confirm or cancel. The source notes stay intact; a committed paste can be undone.
-- **Keep your own place.** Page turns are local. The reader remembers its chart/page and restores locally saved notes after reopening.
-- **Inspect separate team ink.** A read-only sample demonstrates exact-version/page isolation. It is a local development example, not a synchronization service.
+These are implemented development capabilities with different qualification scopes. Real multi-iPad rehearsal, final gesture checks and other release gates remain open; see [the recorded results](verification/STATUS.md).
 
-### Actual app screens
-
-These screenshots come from device UI tests using synthetic charts and isolated test stores. They show the running app, not proposed designs or private musician handwriting.
+## Actual implementation captures
 
 <p align="center">
-  <img src="verification/m0-color-popover.png" width="340" alt="Running WorshipCue iPad app with compact eight-color pen popover">
-  <img src="verification/m0-blue-pen-pink-highlighter.png" width="340" alt="Running WorshipCue iPad app showing a blue pen stroke and pink highlighter on a synthetic chart">
+  <img src="verification/swipe12-normal.png" width="780" alt="WorshipCue native iPad music stand with a synthetic chart, annotation tools and independent page controls">
 </p>
 
-The more polished layouts in [UI concepts](docs/ui-concepts/README.md) are design explorations for later milestones.
+The iPad music stand: music in the center, annotations within reach and a full-screen control at the bottom right.
 
-## The musician stays in control
+<p align="center">
+  <img src="verification/chat17-light.png" width="390" alt="WorshipCue native chat with incoming and outgoing bubbles, replies and chart links using synthetic messages">
+</p>
 
-These are fixed product decisions, not optional follow modes:
+Native team chat with familiar message bubbles, grouped senders and inline rehearsal context.
 
-- **You choose when a song opens.** Planned announcements require a tap; receiving a cue or reconnecting must preserve the currently open chart.
-- **You turn your own pages.** There is no page synchronization.
-- **Your notes belong to the paper you marked.** Published charts are immutable. Transfer is manual; there is no automatic note merging or guessed alignment.
-- **Personal and team notes have separate layers.** Shared ink must match the exact performance item, chart version and page. Other versions require a preview rather than an overlay.
-- **A key label is information.** Changing metadata does not transpose PDF chords or notation.
+<p align="center">
+  <img src="verification/browser14-desktop.jpg" width="780" alt="WorshipCue browser guest companion showing a synthetic PDF beside its scoped group chat">
+</p>
 
-The current build uses local development identities. Managed accounts, church membership, guest access and server-enforced privacy still require implementation and verification.
+Browser guests can read music and talk with the group. Captures use synthetic charts and conversations; the native chat view uses controlled transport. These are actual implementation captures, not design concepts or proof of a live multi-iPad session. [Capture provenance](verification/STATUS.md#screenshot-provenance).
 
-## What comes next
+## Capabilities in development
 
-The [milestone plan](docs/12_BUILD_PLAN.md) builds outward from reliable reading and handwriting:
+- **Local preparation:** immutable PDF imports, library metadata/search, favorites, version selection, weekly sets, deliberate packet splitting and fallback PDF export.
+- **Native music stand:** PDFKit rendering, PencilKit annotations, independent personal/team layers, selected-note transfer, page restoration, full-screen reading and two-finger paging. At fitted zoom, two fingers turn pages; Touch mode keeps one finger available for writing. Zoomed charts pan. Latest swipe/post-zoom behavior still needs final device confirmation.
+- **Private team workspaces:** each team has separate PDFs, setlists and chat—even within the same church. Invitations, roles and last-admin safeguards control membership. Team admins cannot read another musician's personal ink.
+- **Managed sign-in:** optional Neon email-code authentication connects to the existing AWS services alongside the original Cognito route. Identity and cached data stay separated across providers. Development delivery works; production email branding/configuration remains unfinished.
+- **Conversation and coordination:** durable chat with replies, edit/delete/pin, chart links, moderation/report/block controls, saved drafts and explicit retries. Live hints prompt authorized state reads; chat never navigates the reader.
+- **Scoped browser sharing:** default 24-hour / ten-join guest links, original PDF viewing with self-hosted PDF.js, independent page/zoom controls, group chat and revocation. Personal native notes stay private.
+- **Recovery and portability:** checksum-verified downloads, atomic cache promotion, frozen publication commands, explicit whole-copy note conflict choices, selected-team personal cloud ZIP export, scheduled backups and isolated restore tooling. The ZIP excludes local unsynced work and is not a whole-account restore.
 
-1. **A private team workspace:** managed accounts, scoped guests, verified downloads and personal-note synchronization with explicit conflict handling.
-2. **Shared rehearsal markings:** bandmaster circles, arrows and handwriting tied to the exact chart and performance context.
-3. **Live song/key cues:** a visual latest-cue banner, explicit tap-to-open and a separate recent-call history.
-4. **Rehearsal qualification:** oldest-device testing, offline/recovery work, long sessions and real musicians using the app before a release.
+[The changelog](CHANGELOG.md) records additions and fixes, including the authentication handoff, code resend, chat visibility, page-turn performance and capacity safeguards.
 
-These features are planned, not available services. No hosted backend, billing or public distribution is enabled.
+## Principles that shape the product
 
-## Development
+- **The musician chooses when to open a song.** Cues are visual only; no automatic song changes, sounds or vibrations.
+- **Pages remain personal.** There is no page syncing.
+- **Notes belong to the chart that was marked.** PDFs are immutable; version transfer is manual, with no automatic note merging or guessed alignment.
+- **Shared ink has an exact context.** A different version requires preview, not an overlay on the wrong arrangement.
+- **“Saved” and “ready” mean verified work.** Local save follows a database commit; a downloaded file becomes ready only after validation and atomic promotion.
+- **A key label does not transpose a PDF.** Performance metadata and printed notation are distinct.
 
-### Run the native app
+## Engineering behind the experience
 
-The deployment target is **iPadOS 16.0**. The currently tested physical device is an **iPad (6th generation), iPadOS 17.7.11**. The original 16.7.16 iPad and physical Apple Pencil still need qualification.
+**Swift / SwiftUI · PDFKit / PencilKit · SQLite / GRDB · Python · AWS · Neon Auth · PDF.js**
 
-Use macOS with an iOS SDK and a Swift 6.1+ toolchain. Current successful Debug/device and Release build evidence uses Xcode 27.0. GRDB is pinned to 7.11.1. The latest Xcode 26.6 asset build is blocked by an absent simulator runtime; see the exact test record.
+The iPad owns the readable local chart and personal notes. AWS API Gateway and Lambda enforce managed identity and exact-team permissions before accessing DynamoDB records or private S3 files. WebSocket hints help clients catch up to durable state. Neon provides the alternative managed sign-in path; it does not replace the AWS database, storage or messaging.
+
+The [engineering walkthrough](docs/ENGINEERING.md) includes an architecture diagram and concrete cases: preserving ink across document versions, diagnosing a Python-runtime authentication mismatch, correcting message read-state geometry, measuring real PDF page turns and guarding a capacity deployment.
+
+Recent recorded evidence includes **227 controlled backend tests**, a **12-case real hosted Neon/AWS check**, a **22-check independent browser-client run**, and **122 passed / three skipped physical native cases** before the final gesture handoff change. These are separate runs, not a combined release qualification. The [verification summary](verification/STATUS.md) retains failed burst and gesture checks alongside passing results.
+
+## Run the published development checkpoint
+
+The app targets **iPadOS 16.0+**. Physical development checks have used an iPad (6th generation) on iPadOS 17.7.11; the original iPadOS 16 device and physical Apple Pencil still require qualification.
+
+Use macOS, Xcode with an iOS SDK and a Swift 6.1+ toolchain. Configure your own device signing locally. The development device has used a free Personal Team; paid distribution is not enabled.
 
 ```sh
 git clone https://github.com/manynames3/WorshipCue.git
 cd WorshipCue
+git switch v2
 open apps/ipad/WorshipCue.xcodeproj
 ```
 
-Choose scheme **WorshipCue** and your available iPad or installed simulator. Configure your own development signing locally for device runs. The current local device setup uses a free Personal Team; no paid enrollment was purchased. Keep signing identities and device identifiers out of commits.
+Choose **WorshipCue** for the app/native tests or **WorshipCueUI** for UI workflows. Local reading does not require a cloud account; cloud operations require your private deployment configuration. Credentials and signing identities must stay out of commits.
 
-See [native setup and test commands](apps/ipad/README.md). The existing [external-drive toolchain setup](docs/13_EXTERNAL_XCODE_SETUP.md) is optional; scripts support `WORSHIPCUE_XCODE_APP` and `WORSHIPCUE_TOOLS_ROOT` overrides for a different local layout.
+[Native setup](https://github.com/manynames3/WorshipCue/blob/v2/apps/ipad/README.md) · [AWS setup](https://github.com/manynames3/WorshipCue/blob/v2/aws/README.md) · [Optional external-drive Xcode setup](https://github.com/manynames3/WorshipCue/blob/v2/docs/13_EXTERNAL_XCODE_SETUP.md)
 
-### Check the reference contracts and local storage
-
-With Xcode's developer tools selected:
+Portable package checks, with the appropriate Xcode toolchain selected:
 
 ```sh
 swift test --package-path reference/WorshipCueCore
 swift test --package-path packages/WorshipCueLocal
+swift test --package-path packages/WorshipCueRemote
 swift run --package-path packages/WorshipCueLocal InkChecks
-
-python3 -m venv .venv
-.venv/bin/python3 -m pip install -r scripts/requirements.txt
-.venv/bin/python3 scripts/verify_package.py
-python3 scripts/verify_m0_project.py
 ```
 
-Scheme **WorshipCue** contains hosted native tests; **WorshipCueUI** also contains device UI workflows. Tests use isolated stores and synthetic PDFs. The real-device script accepts privately supplied signing/device environment variables; it does not hard-code credentials.
+The [published verification records](https://github.com/manynames3/WorshipCue/tree/v2/verification) contain checkpoint-specific commands and scopes. Later local results are summarized separately in [current verification](verification/STATUS.md).
 
-### Verification status · 2026-10-08
+## Explore the repository
 
-| Evidence | Recorded result |
-|---|---|
-| Current native suite | **18 passed, 0 failed, 1 private-input skip** in the full run, plus **1 fresh private case passed** separately on iPadOS 17.7.11. Includes M0 regressions and M1 migration, packet extraction, corrupt-file preflight and visibly rendered PDF export. |
-| Weekly-preparation UI | **1 passed**: Korean search, metadata, favorites, preferred versions, planned/standby setlists, key warnings, preflight and cold relaunch. Files/packet/clone/reorder/new destination-panel UI remain unverified; see the exact report. |
-| Current color and export UI | **1 color workflow and 1 export/share workflow passed** in separate sessions. Covers visible pigments, popup dismissal, recovery and native PDF sharing presentation. |
-| Xcode 27 Release build | **Passed**, with iPadOS 16.0 deployment target. |
-| Earlier M0 baseline | 13 hosted native tests; separate drawing and team-isolation UI workflows passed. Earlier functional transfer passed; final transfer requalification remains blocked. |
-| Current portable checks | **8 local library tests, 55 core tests, 32 Python tests and 9 ink check groups passed.** Earlier macOS framework evidence is recorded separately. |
-| Current private real-arrangement native case | **1 passed**, including same-song v1/v2 preference, embedded annotations, different geometry, explicit transfer/cold recovery and rendered fallback comparison. The historical M0 private finger UI pass is recorded separately. Charts and captures remain local. |
-| Remaining physical gates | Original iPadOS 16 device, Apple Pencil, memory/thermal/resume and multi-iPad behavior **not verified**. |
+| Area | Responsibility |
+| --- | --- |
+| [Native iPad app](https://github.com/manynames3/WorshipCue/tree/v2/apps/ipad) | Reader, annotation/transfer UI, team workspace and device tests. |
+| [Local persistence](https://github.com/manynames3/WorshipCue/tree/v2/packages/WorshipCueLocal) | Transactional library/setlist metadata, ink storage and geometry. |
+| [Remote transport](https://github.com/manynames3/WorshipCue/tree/v2/packages/WorshipCueRemote) | Authentication, authorized operations and live invalidation hints. |
+| [AWS backend](https://github.com/manynames3/WorshipCue/tree/v2/aws) | Infrastructure, permissions, publication, chat, backup and recovery. |
+| [Core rules](https://github.com/manynames3/WorshipCue/tree/v2/reference/WorshipCueCore) | UI-independent domain behavior and executable contracts. |
+| [Product decisions](https://github.com/manynames3/WorshipCue/blob/v2/docs/02_DECISIONS.md) / [build plan](https://github.com/manynames3/WorshipCue/blob/v2/docs/12_BUILD_PLAN.md) | Published decisions, invariants and milestone requirements. |
 
-See [M1 evidence](verification/M1.md), [Build 2 history](verification/M0-colors-icon.md), [private-pair evidence](verification/M0-private-pdf-pair.md), [M0 history](verification/M0.md) and the [device checklist](verification/M0-device-checklist.md). Separate successful runs do not imply one clean combined run or pilot readiness.
+[Original v1](https://github.com/manynames3/WorshipCue/tree/v1) preserves the first working interface. The earlier Supabase implementation remains in the development tree as historical work. For implementation, read the branch's `AGENTS.md`, decisions and `PROJECT_STATE.md` first.
 
-## Repository map
+## Release status and rights
 
-| Path | Purpose |
-|---|---|
-| [`apps/ipad`](apps/ipad) | Native reader, annotation tools, asset catalog and hosted/UI tests. |
-| [`packages/WorshipCueLocal`](packages/WorshipCueLocal) | Transactional library/setlist metadata, local ink storage and page geometry. |
-| [`packages/WorshipCueInk`](packages/WorshipCueInk) | Selected-stroke clipboard and placement logic. |
-| [`reference/WorshipCueCore`](reference/WorshipCueCore) | Pure domain rules and executable reference tests; also used by the app. |
-| [`contracts`](contracts), [`db`](db) | Contracts and local schema specifications; not a deployed backend. |
-| [`fixtures`](fixtures) | Synthetic charts and validation cases. |
-| [`docs`](docs) | Product decisions, UX, architecture, rights and milestone specifications. |
-| [`verification`](verification) | Test summaries, limitations and selected synthetic screenshots. Raw build logs and device bundles stay local. |
+The main remaining gates are final gesture/login UI checks, two-device rehearsal, older hardware/Pencil qualification, sustained offline/reconnect and memory testing, representative backend capacity, larger recovery checks, production email, account deletion/retention/support and distribution. Bluetooth pedals, face/gesture controls and background push remain future work. [Full verification status](verification/STATUS.md).
 
-For implementation work, start with [AGENTS.md](AGENTS.md), [decisions](docs/02_DECISIONS.md) and [PROJECT_STATE.md](PROJECT_STATE.md). The [original handoff README](docs/HANDOFF_README_v1.md) is preserved as historical context.
-
-## Charts, privacy and licensing
-
-Only synthetic charts are included. Musicians and churches must have permission for the charts they import and share; WorshipCue does not provide a commercial song catalog or a music license. Rights and planned access controls are described in [security and rights](docs/10_SECURITY_AND_RIGHTS.md).
-
-Third-party dependency notices are included in the [app notices](apps/ipad/WorshipCue/ThirdPartyNotices.txt). No open-source license has been granted for WorshipCue's own source in this repository.
+Only synthetic charts and conversations appear in this repository. Churches and musicians need permission for the PDFs they import and share; WorshipCue does not provide a commercial song catalog or music license. Dependency notices are in the [native app](https://github.com/manynames3/WorshipCue/blob/v2/apps/ipad/WorshipCue/ThirdPartyNotices.txt) and [backend](https://github.com/manynames3/WorshipCue/blob/v2/aws/THIRD_PARTY.md). No open-source license has been granted for WorshipCue's own source.
