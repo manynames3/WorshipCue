@@ -2,6 +2,7 @@
 <h1 align="center">WorshipCue</h1>
 <p align="center"><strong>악보와 필기는 각자 편하게. 곡 안내와 팀 필기는 함께.</strong></p>
 <p align="center"><a href="README.md">English</a> · <a href="CHANGELOG.md">기능·수정 이력</a> · <a href="docs/ENGINEERING.md">설계와 구현</a> · <a href="#시스템-구성">시스템 구성</a> · <a href="verification/STATUS.md">검증 현황</a></p>
+<p align="center"><a href="https://github.com/manynames3/WorshipCue/actions/workflows/ci.yml"><img src="https://github.com/manynames3/WorshipCue/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI 상태"></a></p>
 
 찬양팀의 PDF 편곡 악보, 개인 필기, 이번 주 곡 목록과 팀 대화를 하나의 리허설 흐름으로 연결하는 한국어 중심 iPad 네이티브 앱입니다. 연주자는 자기 악보와 페이지를 직접 선택하고, 리더는 팀 표시와 조용한 곡 안내를 전달합니다.
 
@@ -101,7 +102,7 @@ git switch v2
 open apps/ipad/WorshipCue.xcodeproj
 ```
 
-앱·네이티브 검사는 **WorshipCue**, UI 검사는 **WorshipCueUI** 스킴을 사용합니다. 로컬 읽기에는 클라우드 계정이 필요 없으며 팀 기능은 비공개 배포 설정이 필요합니다. 자격 증명과 기기 서명 정보는 커밋하지 않습니다.
+앱·네이티브 검사는 **WorshipCue**, UI 검사는 **WorshipCueUI** 스킴을 사용합니다. 푸시와 PR마다 [CI](.github/workflows/ci.yml)가 계약·문서 링크·Swift 패키지 검사, iPad 앱 빌드와 시뮬레이터 네이티브 테스트를 실행합니다. 로컬 읽기에는 클라우드 계정이 필요 없으며 팀 기능은 비공개 배포 설정이 필요합니다. 자격 증명과 기기 서명 정보는 커밋하지 않습니다.
 
 [네이티브 설정](https://github.com/manynames3/WorshipCue/blob/v2/apps/ipad/README.md) · [AWS 설정](https://github.com/manynames3/WorshipCue/blob/v2/aws/README.md) · [영문 실행·패키지 검사](README.md#run-the-published-development-checkpoint)
 

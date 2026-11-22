@@ -6,6 +6,7 @@
 <p align="center">A Korean-first native iPad music stand for worship teams.</p>
 <p align="center">악보와 필기는 각자 편하게. 곡 안내와 팀 필기는 함께.</p>
 <p align="center"><a href="README.ko.md">한국어</a> · <a href="CHANGELOG.md">Features & fixes</a> · <a href="docs/ENGINEERING.md">Engineering</a> · <a href="#system-architecture">Architecture</a> · <a href="verification/STATUS.md">Verification</a></p>
+<p align="center"><a href="https://github.com/manynames3/WorshipCue/actions/workflows/ci.yml"><img src="https://github.com/manynames3/WorshipCue/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a></p>
 
 WorshipCue brings PDF arrangements, personal handwriting, weekly setlists and team conversation into one rehearsal workflow. Musicians keep control of their music stand while leaders share chart markings and quiet song cues.
 
@@ -115,14 +116,19 @@ Choose **WorshipCue** for the app/native tests or **WorshipCueUI** for UI workfl
 
 [Native setup](https://github.com/manynames3/WorshipCue/blob/v2/apps/ipad/README.md) · [AWS setup](https://github.com/manynames3/WorshipCue/blob/v2/aws/README.md) · [Optional external-drive Xcode setup](https://github.com/manynames3/WorshipCue/blob/v2/docs/13_EXTERNAL_XCODE_SETUP.md)
 
-Portable package checks, with the appropriate Xcode toolchain selected:
+Portable checks. [CI](.github/workflows/ci.yml) runs the same steps on every push and pull request, adding an iPad simulator build and native test run:
 
 ```sh
+python3 -m pip install -r scripts/requirements.txt
+python3 scripts/verify_package.py   # contracts, fixtures and local schema
+python3 scripts/check_docs.py       # relative links and anchors
 swift test --package-path reference/WorshipCueCore
 swift test --package-path packages/WorshipCueLocal
-swift test --package-path packages/WorshipCueRemote
+swift test --package-path packages/WorshipCueRemote   # v2 only; Apple platforms
 swift run --package-path packages/WorshipCueLocal InkChecks
 ```
+
+Core and Local also build and test on Linux with Swift 6.1+ and SQLite (`sqlite3`, `libsqlite3-dev`); everything else needs macOS and Xcode.
 
 The [published verification records](https://github.com/manynames3/WorshipCue/tree/v2/verification) contain checkpoint-specific commands and scopes. Later local results are summarized separately in [current verification](verification/STATUS.md).
 
