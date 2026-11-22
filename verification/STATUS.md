@@ -1,6 +1,6 @@
 # Verification and publication status
 
-As of **October 10, 2026**. [Overview](../README.md) · [Feature/fix history](../CHANGELOG.md) · [Engineering](../docs/ENGINEERING.md)
+As of **October 10, 2026**; [CI](#continuous-integration) added November 22, 2026. [Overview](../README.md) · [Feature/fix history](../CHANGELOG.md) · [Engineering](../docs/ENGINEERING.md)
 
 This public summary consolidates the local Build 17 qualification, capacity work and Build 19 reader receipts. Tests listed in different rows are separate runs. They must not be summed into a single full-product pass. Private charts, handwriting, email codes, account/device identifiers and raw artifacts are excluded from the repository.
 
@@ -42,6 +42,24 @@ This documentation update does not publish the pending application/backend sourc
 - **Build 19 pinch/drawing UI check: one failed.** A pinch left the page and ink unchanged, but the following writing stroke was not recorded. An explicit recognizer-failure handoff correction was implemented afterward.
 - **Final handoff reruns: zero cases started.** Xcode's test service stalled before launch. Bounded attempts exited 124; a separate stalled full-native process was terminated. These are unverified attempts, not passing suites.
 - Actual latest two-finger swipe feel, post-zoom drawing and the retained two-finger-tap injection case remain unqualified. Earlier Build 12 human confirmation of both swipe directions does not qualify the final Build 19 code.
+
+## Continuous integration
+
+Added November 22, 2026. [GitHub Actions](../.github/workflows/ci.yml) runs on every push to `main` and `v2` and on every pull request. Each branch tests its own published source.
+
+| Branch | Linux job | macOS job |
+| --- | --- | --- |
+| `main` (Build 3 source) | Documentation links, **32 contract/schema checks, 55 core and 8 local tests, 9 InkChecks groups** | Project structure, PencilKit/PDFKit framework checks, app build, **19 native tests: 18 passed, one private-PDF skip** |
+| `v2` (Build 8 source) | The same checks plus **190 AWS backend tests**; local package **14 tests** | The same checks plus WorshipCueRemote tests; **107 native tests: 106 passed, one private-PDF skip** |
+
+Native tests ran with Xcode 16.4 on an iPad Pro 13-inch (M5) simulator, iOS 26.2. Linux counts come from identical local runs (Ubuntu 24.04, Swift 6.2.1); the CI job runs the same commands. These are simulator and controlled-service results. They do not replace physical Apple Pencil, device memory/thermal, multi-iPad or hosted-backend qualification.
+
+The first CI runs found four problems, now fixed in test code or CI configuration only:
+
+- Both branches: one export test expression could not be type-checked in time by Xcode 16 or Swift 6.2.1. It is split into typed steps with the same predicate.
+- `v2`: unsigned simulator builds cannot write to the Keychain, so sign-in tests failed. CI now ad-hoc signs simulator builds.
+- `v2`: the cue-banner test included window safe areas, which differ between iPad models. The component's own 76 pt height check is unchanged.
+- `v2`: the simulator reports no Data Protection class. That one assertion now runs on devices only.
 
 ## What must happen before release
 
