@@ -97,7 +97,7 @@ The diagrams show how the iPad and browser companion connect to sign-in, team pe
 
 The [engineering walkthrough](docs/ENGINEERING.md) adds implementation detail and concrete cases: preserving ink across document versions, diagnosing a Python-runtime authentication mismatch, correcting message read-state geometry, measuring real PDF page turns and guarding a capacity deployment.
 
-Recent recorded evidence includes **227 controlled backend tests**, a **12-case real hosted Neon/AWS check**, a **22-check independent browser-client run**, and **122 passed / three skipped physical native cases** before the final gesture handoff change. These are separate runs, not a combined release qualification. The [verification summary](verification/STATUS.md) retains failed burst and gesture checks alongside passing results.
+Recent recorded evidence includes **227 controlled backend tests**, a **12-case real hosted Neon/AWS check**, a **22-check independent browser-client run**, and **122 passed / three skipped physical native cases** before the final gesture handoff change. These are separate runs, not a combined release qualification. Every push also builds the app and runs its native tests on an iPad simulator in [CI](verification/STATUS.md#continuous-integration). The [verification summary](verification/STATUS.md) retains failed burst and gesture checks alongside passing results.
 
 ## Run the published development checkpoint
 

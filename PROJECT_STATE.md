@@ -1,5 +1,5 @@
 # Project state
-Updated: 2026-10-08
+Updated: 2026-11-22
 
 ## Current state · v2 Build 8
 
@@ -306,3 +306,18 @@ Broader onboarding, native real-account cloud workflows, two-iPad/physical Penci
 ## 2026-10-08 · Authenticated SES case clarification
 
 Authenticated AWS Support follow-up (2026-10-08): the case is **Pending customer action** and requests six specific use-case details before a final decision. The earlier account API **DENIED** receipt remains recorded; no fresh account API read or production approval occurred. The user submitted the complete follow-up; authenticated correspondence confirms receipt at 20:26 EDT on October 8, and the case now shows **Customer action completed**. No production approval or new account API status read is established by this response. See [Support follow-up](verification/SES-support-followup.md).
+
+## 2026-11-22 · Continuous integration
+
+Status: **AUTOMATED CHECKS RUN IN CI; NO PHYSICAL DEVICE USED**.
+
+Added `.github/workflows/ci.yml`, `scripts/check_docs.py` (relative links and anchors) and `scripts/ci_annotate.py` (xcodebuild failures as annotations). No application behavior, dependency, cloud account or signing identity changed.
+
+- Linux, `swift:6.2-noble` container: `python3 scripts/check_docs.py`; `python3 scripts/verify_package.py` (**32 passed**); `PYTHONPATH=aws/src python3 -m unittest discover -s aws/tests` (**190 passed**); `swift test --package-path reference/WorshipCueCore` (**55 passed**); `swift test --package-path packages/WorshipCueLocal` (**14 passed**); `swift run --package-path packages/WorshipCueLocal InkChecks` (**9 groups passed**). The same commands passed locally on Ubuntu 24.04 with Swift 6.2.1.
+- macOS 15 runner, Xcode 16.4: `python3 scripts/verify_m0_project.py`; `swift test --package-path packages/WorshipCueRemote`; `sh scripts/check_macos_frameworks.sh`; generic iOS Simulator `build-for-testing` with ad-hoc signing; `test-without-building` on an iPad Pro 13-inch (M5) simulator, iOS 26.2: **107 executed, 106 passed, 1 private-PDF skip, 0 failures**.
+
+The first macOS run failed: `NativeInkTests.swift` could not type-check one combined pixel-filter closure in reasonable time under Xcode 16 (also reproduced with Swift 6.2.1 on Linux). The closure is now split into typed steps; a randomized comparison confirmed the predicate is unchanged. Also inserted the missing spaces before numbers in evidence Markdown (for example `exit0`, `Xcode26.6`, `--timeout20`); identifiers were not changed.
+
+Simulator results do not qualify physical Apple Pencil, the original iPadOS 16 hardware, memory/thermal behavior or multi-iPad rehearsal.
+
+Three further v2 failures were test-environment assumptions, fixed without changing app code: unsigned simulator builds cannot use the Keychain (CI now ad-hoc signs simulator builds); `testRenderedCueBannerReservesHeightAcrossIdlePendingAcceptedAndEnded` included window safe areas that differ by iPad model (on iOS 16.4+ it now measures with `safeAreaRegions = []`, and the component's own 76 pt check is unchanged); the simulator reports no Data Protection class, so that one export assertion runs on devices only.
