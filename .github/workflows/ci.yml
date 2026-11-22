@@ -73,13 +73,15 @@ jobs:
       - name: PencilKit and PDFKit framework checks (macOS)
         run: sh scripts/check_macos_frameworks.sh
 
+      # Ad-hoc simulator signing ("Sign to Run Locally") embeds the entitlements the
+      # Keychain needs; an unsigned build makes every credential write fail.
       - name: Build app and tests
         run: |
           set -o pipefail
           xcodebuild -project apps/ipad/WorshipCue.xcodeproj -scheme WorshipCue \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            CODE_SIGNING_ALLOWED=NO build-for-testing 2>&1 | tee "$RUNNER_TEMP/build.log" \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= build-for-testing 2>&1 | tee "$RUNNER_TEMP/build.log" \
             || { python3 -I scripts/ci_annotate.py "$RUNNER_TEMP/build.log"; exit 1; }
 
       - name: Native tests on an iPad simulator
@@ -101,7 +103,7 @@ jobs:
             -destination "platform=iOS Simulator,id=$udid" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -resultBundlePath "$RUNNER_TEMP/NativeTests.xcresult" \
-            CODE_SIGNING_ALLOWED=NO test-without-building 2>&1 | tee "$RUNNER_TEMP/test.log" \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= test-without-building 2>&1 | tee "$RUNNER_TEMP/test.log" \
             || { python3 -I scripts/ci_annotate.py "$RUNNER_TEMP/test.log"; exit 1; }
           summary=$(grep -E 'Executed [0-9]+ tests?' "$RUNNER_TEMP/test.log" | tail -1 | sed 's/^[[:space:]]*//')
           echo "::notice title=Native tests::$(xcodebuild -version | head -1), $simulator: $summary"
