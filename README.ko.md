@@ -87,7 +87,7 @@ iPad는 로컬 악보와 개인 필기를 유지합니다. AWS API Gateway·Lamb
 <p align="center"><a href="output/pdf/worshipcue-architecture-icons-v2.pdf">한 페이지 PDF</a> · <a href="docs/architecture/worshipcue-architecture-icons-v2.svg">편집 가능한 SVG</a></p>
 </details>
 
-최근 기록에는 제어된 백엔드 **227건 통과**, 실제 Neon/AWS **12건 통과**, 독립 브라우저 HTTP 클라이언트 **22건 통과**, 최종 제스처 인계 수정 전 실제 기기 네이티브 **122건 통과·3건 건너뜀**이 포함됩니다. 서로 다른 실행이며 전체 제품 출시 검증을 뜻하지 않습니다. 실패한 부하·제스처 검사도 [검증 현황](verification/STATUS.md)에 남겼습니다.
+최근 기록에는 제어된 백엔드 **227건 통과**, 실제 Neon/AWS **12건 통과**, 독립 브라우저 HTTP 클라이언트 **22건 통과**, 최종 제스처 인계 수정 전 실제 기기 네이티브 **122건 통과·3건 건너뜀**이 포함됩니다. 서로 다른 실행이며 전체 제품 출시 검증을 뜻하지 않습니다. 푸시마다 앱을 빌드하고 iPad 시뮬레이터에서 네이티브 테스트를 실행합니다([CI 결과](verification/STATUS.md#continuous-integration)). 실패한 부하·제스처 검사도 [검증 현황](verification/STATUS.md)에 남겼습니다.
 
 ## 공개 개발 체크포인트 실행
 
