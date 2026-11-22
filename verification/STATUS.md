@@ -45,7 +45,7 @@ This documentation update does not publish the pending application/backend sourc
 
 ## Continuous integration
 
-Added November 22, 2026. [GitHub Actions](../.github/workflows/ci.yml) runs on every push to `main`, `v1` and `v2` and on every pull request. Each branch tests its own published source.
+Added November 22, 2026. [GitHub Actions](../.github/workflows/ci.yml) runs on every push to `main` and `v2` and on every pull request. Each branch tests its own published source.
 
 | Branch | Linux job | macOS job |
 | --- | --- | --- |
