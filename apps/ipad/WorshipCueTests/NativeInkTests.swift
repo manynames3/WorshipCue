@@ -339,10 +339,14 @@ import WorshipCueLocal
         let a = try pixels(plainImage), b = try pixels(inkImage)
         XCTAssertEqual(a.count, b.count)
         if a.count == b.count {
-            let newRedPixels = stride(from: 0, to: a.count, by: 4).filter {
-                b[$0] > 150 && Int(b[$0]) > Int(b[$0 + 1]) + 40 && Int(b[$0]) > Int(b[$0 + 2]) + 40 &&
-                abs(Int(a[$0 + 1]) - Int(b[$0 + 1])) > 25
-            }.count
+            // Split into typed steps: one combined closure exceeds Xcode 16's type-checking limit.
+            func isNewRedPixel(_ offset: Int) -> Bool {
+                let red = Int(b[offset]), green = Int(b[offset + 1]), blue = Int(b[offset + 2])
+                let redDominates: Bool = red > 150 && red > green + 40 && red > blue + 40
+                let greenChanged: Bool = abs(Int(a[offset + 1]) - green) > 25
+                return redDominates && greenChanged
+            }
+            let newRedPixels = stride(from: 0, to: a.count, by: 4).filter(isNewRedPixel).count
             XCTAssertGreaterThan(newRedPixels, 20, "Personal ink must be visibly rendered; different PDF bytes alone are insufficient")
         }
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("pdfs").appendingPathComponent(chart.filename)), original)
