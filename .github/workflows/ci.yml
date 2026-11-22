@@ -75,23 +75,27 @@ jobs:
 
       - name: Native tests on an iPad simulator
         run: |
-          udid=$(xcrun simctl list --json devices available | python3 -I -c '
+          set -o pipefail
+          read -r udid simulator < <(xcrun simctl list --json devices available | python3 -I -c '
           import json, sys
           devices = json.load(sys.stdin)["devices"]
           for runtime in sorted(devices, reverse=True):
-              if "iOS" in runtime:
+              if ".iOS-" in runtime:
                   for device in devices[runtime]:
                       if device["name"].startswith("iPad") and device.get("isAvailable"):
-                          print(device["udid"]); sys.exit(0)
+                          name, version = device["name"], runtime.rsplit(".iOS-", 1)[1].replace("-", ".")
+                          print(device["udid"], f"{name} / iOS {version}"); sys.exit(0)
           sys.exit("no available iPad simulator on this runner")')
-          echo "Using simulator $udid"
-          set -o pipefail
+          [ -n "${udid:-}" ] || exit 1
+          echo "Using $simulator ($udid)"
           xcodebuild -project apps/ipad/WorshipCue.xcodeproj -scheme WorshipCue \
             -destination "platform=iOS Simulator,id=$udid" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -resultBundlePath "$RUNNER_TEMP/NativeTests.xcresult" \
             CODE_SIGNING_ALLOWED=NO test-without-building 2>&1 | tee "$RUNNER_TEMP/test.log" \
             || { python3 -I scripts/ci_annotate.py "$RUNNER_TEMP/test.log"; exit 1; }
+          summary=$(grep -E 'Executed [0-9]+ tests?' "$RUNNER_TEMP/test.log" | tail -1 | sed 's/^[[:space:]]*//')
+          echo "::notice title=Native tests::$(xcodebuild -version | head -1), $simulator: $summary"
 
       - name: Keep build and test logs
         if: failure()
