@@ -66,10 +66,12 @@ jobs:
 
       - name: Build app and tests
         run: |
+          set -o pipefail
           xcodebuild -project apps/ipad/WorshipCue.xcodeproj -scheme WorshipCue \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            CODE_SIGNING_ALLOWED=NO build-for-testing
+            CODE_SIGNING_ALLOWED=NO build-for-testing 2>&1 | tee "$RUNNER_TEMP/build.log" \
+            || { python3 -I scripts/ci_annotate.py "$RUNNER_TEMP/build.log"; exit 1; }
 
       - name: Native tests on an iPad simulator
         run: |
@@ -83,7 +85,22 @@ jobs:
                           print(device["udid"]); sys.exit(0)
           sys.exit("no available iPad simulator on this runner")')
           echo "Using simulator $udid"
+          set -o pipefail
           xcodebuild -project apps/ipad/WorshipCue.xcodeproj -scheme WorshipCue \
             -destination "platform=iOS Simulator,id=$udid" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            CODE_SIGNING_ALLOWED=NO test-without-building
+            -resultBundlePath "$RUNNER_TEMP/NativeTests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO test-without-building 2>&1 | tee "$RUNNER_TEMP/test.log" \
+            || { python3 -I scripts/ci_annotate.py "$RUNNER_TEMP/test.log"; exit 1; }
+
+      - name: Keep build and test logs
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: ipad-logs
+          path: |
+            ${{ runner.temp }}/build.log
+            ${{ runner.temp }}/test.log
+            ${{ runner.temp }}/NativeTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
