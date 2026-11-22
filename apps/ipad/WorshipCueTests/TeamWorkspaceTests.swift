@@ -1267,13 +1267,19 @@ private final class TeamFixture: @unchecked Sendable {
                     Color.clear.onAppear { measuredBannerSize = geometry.size }
                 }).frame(width: width).environment(\.dynamicTypeSize, type)
                 let host = UIHostingController(rootView: banner)
+                // Window safe areas (status bar, home indicator) vary by iPad model and iPadOS
+                // release and sit outside the cue component, so keep them out of the measurement.
+                if #available(iOS 16.4, *) { host.safeAreaRegions = [] }
                 window.rootViewController = host; window.makeKeyAndVisible()
                 let size = host.sizeThatFits(in: CGSize(width: width, height: 1000))
                 host.view.frame = CGRect(origin: .zero, size: CGSize(width: width, height: size.height)); host.view.layoutIfNeeded()
                 try await Task.sleep(for: .milliseconds(40))
                 XCTAssertEqual(measuredBannerSize.height, 76, accuracy: 0.5, "\(state) must not move the chart as cue state changes")
-                // UIWindow hosting adds its status-bar safe area; it is outside the cue component.
-                XCTAssertEqual(size.height - host.view.safeAreaInsets.top - host.view.safeAreaInsets.bottom, 76, accuracy: 0.5)
+                if #available(iOS 16.4, *) {
+                    XCTAssertEqual(size.height, 76, accuracy: 0.5)
+                } else {
+                    XCTAssertEqual(size.height - host.view.safeAreaInsets.top - host.view.safeAreaInsets.bottom, 76, accuracy: 0.5)
+                }
                 var rendered = false
                 let image = UIGraphicsImageRenderer(size: host.view.bounds.size).image { _ in rendered = host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true) }
                 XCTAssertTrue(rendered); XCTAssertEqual(image.size.height, size.height, accuracy: 0.5)
