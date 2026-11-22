@@ -129,8 +129,10 @@ import PencilKit
         XCTAssertEqual(saved["includes_local_unsynced_notes"], .bool(false)); XCTAssertEqual(saved["export_scope"].text, "current_authorized_team_cloud_personal_bundle")
         XCTAssertNotNil(files["README.txt"])
         XCTAssertEqual(saved["memberships"].list.count, 1); XCTAssertEqual(saved["chat_messages"].list.count, 1)
+        #if !targetEnvironment(simulator) // The simulator does not report Data Protection classes.
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         XCTAssertEqual(attributes[.protectionKey] as? String, FileProtectionType.completeUntilFirstUserAuthentication.rawValue)
+        #endif
         let requests = fixture.recorded("get_account_export_page"); XCTAssertEqual(requests.count, 2)
         XCTAssertEqual(requests[0]["cursor"], .null); XCTAssertEqual(requests[1]["cursor"]["after_key"].uuid, AdministrationFixture.invite)
         XCTAssertEqual(fixture.mutationCount, 0); XCTAssertNil(workspace.reader)
